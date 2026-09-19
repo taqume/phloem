@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-19",
+  "scope": "local-pinned-upstream",
+  "upstream": {
+    "repository": "NethermindEth/stellar-private-payments",
+    "revision": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+    "protocolVersion": 27
+  },
+  "circuit": {
+    "stem": "policy_tx_2_2_AB",
+    "constraints": 23738,
+    "publicInputs": 11,
+    "r1csSha256": "c2bd4bf9ecfa614f3710539b6860cd47a0a50b4498acb67c69ff8113233b2df7",
+    "graphSha256": "76dd50f9cafadd91946f7fa7e9d277c985aac95bd91856e24ae82a2f34b7dda3",
+    "provingKeySha256": "f4a81b30c9fe110ba6f3d401f2bebb64492af6b09830adb038b341d3398cbdb1",
+    "manifestHashesMatched": true
+  },
+  "poolWasm": {
+    "bytes": 30375,
+    "sha256": "d264f72705c3ebd996ecc8f5c51af800cfc6a04135eadd521fcddafe0e3c869a",
+    "transactExportPresent": true
+  },
+  "tests": [
+    {
+      "name": "tests::e2e_pool_2_in_2_out::transact_transfer_succeeds",
+      "result": "PASS",
+      "meaning": "A real Groth16 proof with public_amount=0 was generated, verified, and accepted by the local Soroban SPP pool."
+    },
+    {
+      "name": "tests::e2e_pool_2_in_2_out::transact_deposit_succeeds",
+      "result": "PASS",
+      "meaning": "A real Groth16 deposit proof with a positive public amount was generated, verified, and accepted."
+    },
+    {
+      "name": "tests::e2e_pool_2_in_2_out::transact_rejects_tampered_output_commitment",
+      "result": "PASS",
+      "meaning": "The pool rejected a proof after its provider output commitment was changed."
+    }
+  ],
+  "limitations": [
+    "This evidence exercises the pinned SPP stack locally; it is not a Phloem TreasuryController-to-SPP Testnet transaction.",
+    "Phloem final-code Testnet resource evidence and the provider withdrawal remain pending.",
+    "SPP is WIP and the committed testnet key material is documented upstream as locally generated, not production trusted-setup output."
+  ]
+}
