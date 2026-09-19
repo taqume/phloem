@@ -36,6 +36,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
   const [error, setError] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<string | null>(null);
   const [quote, setQuote] = useState<AnchorQuote | null>(null);
+  const [settlementAuthorized, setSettlementAuthorized] = useState(false);
   const [transaction, setTransaction] = useState<AnchorTransaction | null>(null);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
     setError(null);
     setKycStatus(null);
     setQuote(null);
+    setSettlementAuthorized(false);
     setTransaction(null);
   }, [wallet?.address]);
 
@@ -111,6 +113,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
       });
       const payload = await responseJson<{ deposit: AnchorDeposit }>(response);
       setDeposit(payload.deposit);
+      setSettlementAuthorized(false);
       await refreshStatus(payload.deposit.id);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "SEP-6 deposit creation failed.");
@@ -138,7 +141,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
   }
 
   async function simulateTransfer() {
-    if (!deposit || !quote) return;
+    if (!deposit || !quote || !settlementAuthorized) return;
     setBusy("simulate");
     setError(null);
     try {
@@ -148,6 +151,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
         body: JSON.stringify({ amount: quote.sell_amount, id: deposit.id }),
       });
       await responseJson<{ accepted: true }>(response);
+      setSettlementAuthorized(false);
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const current = await refreshStatus(deposit.id);
         if (!current || current.status === "completed" || current.status === "error") break;
@@ -219,7 +223,7 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
         </section>
       </div>
 
-      {deposit ? (
+      {deposit && quote ? (
         <div className="deposit-details">
           <div className="deposit-heading">
             <div><p className="eyebrow">Sandbox bank instructions</p><h3>Use the exact reference</h3></div>
@@ -230,9 +234,22 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
               <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{instruction.value}</dd></div>
             ))}
           </dl>
+          {!complete ? (
+            <label className="settlement-consent">
+              <input
+                checked={settlementAuthorized}
+                disabled={busy !== null}
+                onChange={(event) => setSettlementAuthorized(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                I authorize the official Mock Anchor to process {quote.sell_amount} TRY in the sandbox and send real Testnet USDC to {wallet?.address.slice(0, 7)}…{wallet?.address.slice(-7)}.
+              </span>
+            </label>
+          ) : null}
           <div className="button-row">
-            <button className="primary-button" disabled={busy !== null || complete} onClick={() => void simulateTransfer()} type="button">
-              {busy === "simulate" ? "Anchor processing…" : complete ? "Transfer completed" : "Simulate incoming TRY"}
+            <button className="primary-button" disabled={busy !== null || complete || !settlementAuthorized} onClick={() => void simulateTransfer()} type="button">
+              {busy === "simulate" ? "Anchor processing…" : complete ? "Transfer completed" : "Confirm sandbox settlement"}
             </button>
             <button className="text-button" disabled={busy !== null} onClick={() => void refreshStatus()} type="button">Refresh status</button>
             {deposit.more_info_url ? <a className="text-button" href={deposit.more_info_url} rel="noreferrer" target="_blank">Anchor details ↗</a> : null}
