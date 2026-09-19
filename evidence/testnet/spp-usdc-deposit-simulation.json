@@ -1,0 +1,41 @@
+{
+  "assetMovement": false,
+  "fixture": "PHLOEM_NON_PRODUCTION_SPP_SIMULATION_V1",
+  "network": "testnet",
+  "sourceRevision": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+  "poolContractId": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4",
+  "tokenContractId": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+  "proof": {
+    "aspMembershipRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "aspNonMembershipRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "outputCommitments": [
+      "0x15e8b1f2ae2836f97f18cdbc5221beeac28e60b522060e380caff95a064bf0d1",
+      "0x08fef4d253080f249adc9e10dd7f62dcc516a21c3e5c29e4ae671516645f8a7c"
+    ],
+    "publicAmount": "0x00000000000000000000000000000000000000000000000000000000000186a0",
+    "uncompressedBytes": 256
+  },
+  "resource": {
+    "authEntries": 1,
+    "diskReadBytes": 272,
+    "envelopeBytes": 7944,
+    "envelopeSha256": "7ae80031e36203e0473f9524fedafcab1e75b61279fbd10ca07f4103eb6f4edf",
+    "footprintReadOnlyEntries": 35,
+    "footprintReadWriteEntries": 26,
+    "instructions": 68833753,
+    "latestLedger": 4766018,
+    "resourceFeeStroops": "495222",
+    "totalFeeStroops": "495322",
+    "writeBytes": 3504
+  },
+  "safety": {
+    "signed": false,
+    "storage": "ephemeral-memory-no-sqlite",
+    "submitted": false
+  },
+  "simulatedAmountAtomic": "100000",
+  "timingMs": {
+    "prove": 1033,
+    "simulateRpc": 785
+  }
+}

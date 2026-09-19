@@ -4,7 +4,12 @@ import { basename, dirname, join } from "node:path";
 
 import { z } from "zod";
 
-import { emptyPrivacyState, privacyStateSchema, type PrivacyState } from "./state.js";
+import {
+  PRIVACY_STATE_SCHEMA_VERSION,
+  emptyPrivacyState,
+  privacyStateSchema,
+  type PrivacyState,
+} from "./state.js";
 
 const ENVELOPE_FORMAT = "PHLOEM_PRIVACY_STATE_AES_256_GCM_V1";
 const ENCRYPTION_ALGORITHM = "aes-256-gcm";
@@ -51,6 +56,26 @@ function decodeBase64Url(value: string): Buffer {
 
 function cloneState(value: PrivacyState): PrivacyState {
   return structuredClone(value);
+}
+
+function decodePrivacyState(value: unknown): PrivacyState {
+  if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 1) {
+    return privacyStateSchema.parse({
+      ...value,
+      schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
+      treasuryPrivacyKeys: [],
+      sppTreasuryNotes: [],
+      sppSpendOperations: [],
+    });
+  }
+  if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 2) {
+    return privacyStateSchema.parse({
+      ...value,
+      schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
+      sppSpendOperations: [],
+    });
+  }
+  return privacyStateSchema.parse(value);
 }
 
 /**
@@ -166,7 +191,7 @@ export class EncryptedPrivacyStateStore {
         decipher.final(),
       ]);
       try {
-        return privacyStateSchema.parse(JSON.parse(plaintext.toString("utf8")) as unknown);
+        return decodePrivacyState(JSON.parse(plaintext.toString("utf8")) as unknown);
       } finally {
         plaintext.fill(0);
       }

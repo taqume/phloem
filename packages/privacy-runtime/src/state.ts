@@ -1,7 +1,7 @@
 import { bytes32HexSchema, fieldDecimalSchema, u64DecimalSchema } from "@phloem/protocol-types";
 import { z } from "zod";
 
-export const PRIVACY_STATE_SCHEMA_VERSION = 1 as const;
+export const PRIVACY_STATE_SCHEMA_VERSION = 3 as const;
 
 const unixMillisecondsSchema = z.number().int().nonnegative();
 const contractAddressSchema = z.string().regex(/^C[A-Z2-7]{55}$/u);
@@ -116,18 +116,80 @@ export const auditAccumulatorOpeningSchema = z.object({
   auditVersion: z.number().int().positive(),
 }).strict();
 
+export const treasuryPrivacyKeySchema = z.object({
+  sessionId: bytes32HexSchema,
+  auditContextHash: fieldDecimalSchema,
+  notePrivateKeyLeHex: bytes32HexSchema,
+  notePublicKey: positiveFieldDecimalSchema,
+  encryptionPrivateKeyHex: bytes32HexSchema,
+  encryptionPublicKeyHex: bytes32HexSchema,
+  membershipBlinding: positiveFieldDecimalSchema,
+  commitmentBlinding: positiveFieldDecimalSchema,
+  commitment: fieldDecimalSchema,
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict();
+
+export const sppTreasuryNoteOpeningSchema = z.object({
+  noteId: bytes32HexSchema,
+  sessionId: bytes32HexSchema,
+  pool: contractAddressSchema,
+  commitment: fieldDecimalSchema,
+  amountAtomic: positiveU64DecimalSchema,
+  blinding: positiveFieldDecimalSchema,
+  leafIndex: z.number().int().nonnegative().optional(),
+  status: z.enum(["PREPARED", "ACTIVE", "SPEND_PENDING", "SPENT"]),
+  pendingOperationId: bytes32HexSchema.optional(),
+  confirmation: chainConfirmationSchema.optional(),
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict().superRefine((value, context) => {
+  if ((value.status === "PREPARED") === (value.confirmation !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a confirmed SPP note may leave PREPARED state" });
+  }
+  if ((value.status === "PREPARED") !== (value.leafIndex === undefined)) {
+    context.addIssue({ code: "custom", message: "only a confirmed SPP note must carry a leaf index" });
+  }
+  if ((value.status === "SPEND_PENDING") !== (value.pendingOperationId !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a pending SPP note may carry an operation id" });
+  }
+});
+
+export const sppSpendOperationSchema = z.object({
+  operationId: bytes32HexSchema,
+  sessionId: bytes32HexSchema,
+  pool: contractAddressSchema,
+  inputNoteIds: z.array(bytes32HexSchema).min(1).max(2),
+  refundNoteId: bytes32HexSchema.optional(),
+  status: z.enum(["PREPARED", "CONFIRMED"]),
+  confirmation: chainConfirmationSchema.optional(),
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict().superRefine((value, context) => {
+  if ((value.status === "CONFIRMED") !== (value.confirmation !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a confirmed SPP spend carries confirmation" });
+  }
+  if (new Set(value.inputNoteIds).size !== value.inputNoteIds.length) {
+    context.addIssue({ code: "custom", message: "SPP spend input note ids must be unique" });
+  }
+});
+
 export const privacyStateSchema = z.object({
   schemaVersion: z.literal(PRIVACY_STATE_SCHEMA_VERSION),
   revision: z.number().int().nonnegative(),
   budgetNotes: z.array(budgetNoteOpeningSchema),
   reservations: z.array(reservationOpeningSchema),
   auditAccumulators: z.array(auditAccumulatorOpeningSchema),
+  treasuryPrivacyKeys: z.array(treasuryPrivacyKeySchema),
+  sppTreasuryNotes: z.array(sppTreasuryNoteOpeningSchema),
+  sppSpendOperations: z.array(sppSpendOperationSchema),
 }).strict().superRefine((value, context) => {
   for (const [label, values] of [
     ["budget note", value.budgetNotes.map((item) => item.noteId)],
     ["reservation", value.reservations.map((item) => item.reservationId)],
     ["voucher public key", value.reservations.map((item) => item.voucherSignerPublicKeyHex)],
     ["audit session", value.auditAccumulators.map((item) => item.sessionId)],
+    ["treasury privacy session", value.treasuryPrivacyKeys.map((item) => item.sessionId)],
+    ["SPP treasury note", value.sppTreasuryNotes.map((item) => item.noteId)],
+    ["SPP treasury commitment", value.sppTreasuryNotes.map((item) => item.commitment)],
+    ["SPP spend operation", value.sppSpendOperations.map((item) => item.operationId)],
   ] as const) {
     if (new Set(values).size !== values.length) {
       context.addIssue({ code: "custom", message: `duplicate ${label} in privacy state` });
@@ -142,6 +204,9 @@ export type PreparedRemainderOpening = z.infer<typeof preparedRemainderOpeningSc
 export type ChainConfirmation = z.infer<typeof chainConfirmationSchema>;
 export type PreparedPrivateSettlement = z.infer<typeof preparedPrivateSettlementSchema>;
 export type AuditAccumulatorOpening = z.infer<typeof auditAccumulatorOpeningSchema>;
+export type TreasuryPrivacyKeyState = z.infer<typeof treasuryPrivacyKeySchema>;
+export type SppTreasuryNoteOpening = z.infer<typeof sppTreasuryNoteOpeningSchema>;
+export type SppSpendOperation = z.infer<typeof sppSpendOperationSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 
 export function emptyPrivacyState(): PrivacyState {
@@ -151,5 +216,8 @@ export function emptyPrivacyState(): PrivacyState {
     budgetNotes: [],
     reservations: [],
     auditAccumulators: [],
+    treasuryPrivacyKeys: [],
+    sppTreasuryNotes: [],
+    sppSpendOperations: [],
   };
 }

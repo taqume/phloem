@@ -207,6 +207,14 @@ export function poseidon2Hash3(a: bigint, b: bigint, c: bigint, domain: bigint):
   return bn254.t4.permutation([a, b, c, domain])[0]!;
 }
 
+/** Matches the upstream SPP Poseidon2 t=3 construction. */
+export function poseidon2Hash2(a: bigint, b: bigint, domain: bigint): bigint {
+  for (const [label, value] of [["a", a], ["b", b], ["domain", domain]] as const) {
+    if (value < 0n || value >= BN254_SCALAR_MODULUS) throw new RangeError(`${label} is not a field element`);
+  }
+  return bn254.t3.permutation([a, b, domain])[0]!;
+}
+
 export function poseidon2HashFields(
   fields: readonly bigint[],
   initDomain: bigint,

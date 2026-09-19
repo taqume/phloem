@@ -2,5 +2,8 @@ export * from "./local-proof-worker.js";
 export * from "./private-settlement-planner.js";
 export * from "./privacy-state-store.js";
 export * from "./reservation-proof-planner.js";
+export * from "./spp-runtime-binding.js";
+export * from "./spp-private-transfer-adapter.js";
 export * from "./state.js";
+export * from "./treasury-privacy-key.js";
 export * from "./voucher-issuer.js";

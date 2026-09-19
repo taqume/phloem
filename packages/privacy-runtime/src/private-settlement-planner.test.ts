@@ -22,12 +22,27 @@ import {
   type SppPrivateTransferPlanner,
 } from "./private-settlement-planner.js";
 import { EncryptedPrivacyStateStore } from "./privacy-state-store.js";
+import type { SppRuntimeBinding } from "./spp-runtime-binding.js";
+import { TreasuryPrivacyKeyManager } from "./treasury-privacy-key.js";
 import { PrivateVoucherIssuer, type PrivateRandomSource } from "./voucher-issuer.js";
 
 const CONTROLLER = "CB23C2OYMIDYC7OG2PK6NJFIVCYONYV43ABREOGVTW2LT4C2G53G2CWU";
 const ASSET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const OWNER = "CB2P6OWRQTMIDLN2XSD4PYSRP2P2U5TTR4VNCLEDKMXAQWN7CHWLHI27";
-const SPP_POOL = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+const SPP_POOL = "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4";
+const SPP_DEPLOYMENT: SppRuntimeBinding = {
+  network: "testnet",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  sourceRevision: "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+  poolContractId: SPP_POOL,
+  tokenContractId: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+  aspMembershipContractId: "CB6APJ4NHOTHETD4IZERG3CIQMC6YDSSWWCRNN7NG5YZNO5RTMMZ2Z55",
+  aspNonMembershipContractId: "CC43C3FITFAECE7FA4YJHMZS2ANHM5O2ZVTXI2F2K5W5V4R35JQUEWHI",
+  verifierContractId: "CCLUTVXT4XTE52CMG5W2YUYRR32KVSO5GNOMIL4ZLNFZYDXVPPGGS33A",
+  publicKeyRegistryContractId: "CB3OX6UGZCKQZFN3WQHCIBBAMIWIDHLZWC4JS6VYJE4U5WWQN5GFELKT",
+  asset: { code: "USDC", issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", decimals: 7 },
+  policy: { name: "blocklist", flags: 2, aspLevels: 10, poolLevels: 20, maximumDepositAmount: 1_000_000_000n },
+};
 const PROVIDER = Keypair.fromRawEd25519Seed(createHash("sha256").update("PHLOEM_NON_PRODUCTION_PROVIDER").digest()).publicKey();
 const proof: Groth16Proof = { a: Buffer.alloc(64), b: Buffer.alloc(128), c: Buffer.alloc(64) };
 
@@ -126,13 +141,16 @@ async function fixture(tamperSpp = false) {
       auditVersion: 1,
     });
   });
-  const treasuryPublicKey = 257n;
-  const treasuryBlind = 263n;
-  const treasuryCommitment = poseidon2Hash3(auditContextHash, treasuryPublicKey, treasuryBlind, POSEIDON_DOMAINS.sppTreasuryKey);
+  const treasuryKeys = new TreasuryPrivacyKeyManager(store, new TestRandom());
+  await treasuryKeys.createForSession({
+    sessionId,
+    auditContextHash,
+    createdAtUnixMs: 1_700_000_000_001,
+  });
   let aborted = false;
   let confirmed = false;
   const spp: SppPrivateTransferPlanner = {
-    prepare: async ({ claimAmountAtomic, refundAmountAtomic }) => {
+    prepare: async ({ claimAmountAtomic, refundAmountAtomic, treasurySppPublicKey }) => {
       const providerBlind = 269n;
       const refundBlind = 271n;
       const sppProof: SppProof = {
@@ -141,7 +159,7 @@ async function fixture(tamperSpp = false) {
         ext_data_hash: Buffer.alloc(32, 9),
         input_nullifiers: [283n],
         output_commitment0: poseidon2Hash3(claimAmountAtomic, providerSppPublicKey, providerBlind, POSEIDON_DOMAINS.sppNote) + (tamperSpp ? 1n : 0n),
-        output_commitment1: poseidon2Hash3(refundAmountAtomic, treasuryPublicKey, refundBlind, POSEIDON_DOMAINS.sppNote),
+        output_commitment1: poseidon2Hash3(refundAmountAtomic, treasurySppPublicKey, refundBlind, POSEIDON_DOMAINS.sppNote),
         proof,
         public_amount: 0n,
         root: 293n,
@@ -162,11 +180,12 @@ async function fixture(tamperSpp = false) {
     proofWorker: mockWorker(),
     bindingArtifacts: { wasmPath: "test", zkeyPath: "test", verificationKeyPath: "test", publicInputCount: 16 },
     spp,
+    sppDeployment: SPP_DEPLOYMENT,
+    treasuryKeys,
     random,
   });
   return {
     directory, store, planner, reservationId, serviceIdHash, providerSppPublicKey,
-    treasurySppKey: { publicKey: treasuryPublicKey, blinding: treasuryBlind, commitment: treasuryCommitment },
     aborted: () => aborted,
     confirmed: () => confirmed,
   };
@@ -184,8 +203,6 @@ test("settlement planner binds voucher, SPP outputs, refund, and hidden audit up
       categoryId: 7,
       allowedSettlementModes: 2,
     },
-    treasurySppKey: f.treasurySppKey,
-    sppPool: SPP_POOL,
   });
   assert.equal(prepared.input.spp_proof.public_amount, 0n);
   assert.equal(prepared.input.spp_ext_data.ext_amount, 0n);
@@ -217,8 +234,6 @@ test("SPP output substitution aborts the private SPP operation and leaves reserv
       categoryId: 7,
       allowedSettlementModes: 2,
     },
-    treasurySppKey: f.treasurySppKey,
-    sppPool: SPP_POOL,
   }), /SPP proof outputs/u);
   assert.equal(f.aborted(), true);
   assert.equal((await f.store.readSnapshot()).reservations[0]?.status, "OPEN");
@@ -236,8 +251,6 @@ test("explicit abort returns a staged settlement to OPEN without advancing audit
       categoryId: 7,
       allowedSettlementModes: 2,
     },
-    treasurySppKey: f.treasurySppKey,
-    sppPool: SPP_POOL,
   });
   await f.planner.abort(prepared.operationId);
   const state = await f.store.readSnapshot();

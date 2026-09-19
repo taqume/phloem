@@ -25,6 +25,7 @@
     "phase1:upstreams": "scripts/preflight/pinned-upstreams.sh",
     "spp:deployment:prepare": "scripts/deploy/prepare-spp-usdc-wasm.sh",
     "spp:deployment:verify": "node scripts/deploy/verify-spp-usdc-testnet.mjs",
+    "spp:runtime:simulate": "scripts/spp/simulate-private-runtime.sh",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",
     "zk:check:local-worker": "tsx scripts/zk/check-local-proof-worker.ts"
   },

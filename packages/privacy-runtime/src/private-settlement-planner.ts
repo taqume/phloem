@@ -16,7 +16,12 @@ import type {
 
 import type { Groth16ProvingArtifacts, LocalGroth16ProofWorker } from "./local-proof-worker.js";
 import type { EncryptedPrivacyStateStore } from "./privacy-state-store.js";
+import type { SppRuntimeBinding } from "./spp-runtime-binding.js";
 import type { BudgetNoteOpening, PreparedRemainderOpening } from "./state.js";
+import type {
+  TreasuryPrivacyKeyManager,
+  TreasurySppKeyCommitmentOpening,
+} from "./treasury-privacy-key.js";
 import { PrivateReservationStateError, type PrivateRandomSource } from "./voucher-issuer.js";
 
 export interface ControlledProviderPrivatePolicy {
@@ -27,11 +32,7 @@ export interface ControlledProviderPrivatePolicy {
   readonly allowedSettlementModes: 2;
 }
 
-export interface TreasurySppKeyOpening {
-  readonly publicKey: bigint;
-  readonly blinding: bigint;
-  readonly commitment: bigint;
-}
+export type TreasurySppKeyOpening = TreasurySppKeyCommitmentOpening;
 
 export interface PreparedSppPrivateTransfer {
   readonly operationId: Buffer;
@@ -44,6 +45,7 @@ export interface PreparedSppPrivateTransfer {
 export interface SppPrivateTransferPlanner {
   prepare(input: {
     readonly reservationId: Buffer;
+    readonly sessionId: Buffer;
     readonly claimAmountAtomic: bigint;
     readonly refundAmountAtomic: bigint;
     readonly providerSppPublicKey: bigint;
@@ -57,8 +59,6 @@ export interface SppPrivateTransferPlanner {
 export interface PreparePrivateSettlementRequest {
   readonly reservationId: Uint8Array;
   readonly provider: ControlledProviderPrivatePolicy;
-  readonly treasurySppKey: TreasurySppKeyOpening;
-  readonly sppPool: string;
 }
 
 export interface PreparedPrivateSettlementCall {
@@ -114,6 +114,8 @@ export class PrivateSettlementPlanner {
   readonly #proofWorker: LocalGroth16ProofWorker;
   readonly #bindingArtifacts: Groth16ProvingArtifacts;
   readonly #spp: SppPrivateTransferPlanner;
+  readonly #sppDeployment: SppRuntimeBinding;
+  readonly #treasuryKeys: TreasuryPrivacyKeyManager;
   readonly #random: PrivateRandomSource;
 
   constructor(input: {
@@ -121,12 +123,16 @@ export class PrivateSettlementPlanner {
     readonly proofWorker: LocalGroth16ProofWorker;
     readonly bindingArtifacts: Groth16ProvingArtifacts;
     readonly spp: SppPrivateTransferPlanner;
+    readonly sppDeployment: SppRuntimeBinding;
+    readonly treasuryKeys: TreasuryPrivacyKeyManager;
     readonly random: PrivateRandomSource;
   }) {
     this.#store = input.store;
     this.#proofWorker = input.proofWorker;
     this.#bindingArtifacts = input.bindingArtifacts;
     this.#spp = input.spp;
+    this.#sppDeployment = input.sppDeployment;
+    this.#treasuryKeys = input.treasuryKeys;
     this.#random = input.random;
   }
 
@@ -140,6 +146,10 @@ export class PrivateSettlementPlanner {
     const source = snapshot.budgetNotes.find((item) => item.noteId === reservation.sourceBudgetNoteId);
     const audit = snapshot.auditAccumulators.find((item) => item.sessionId === reservation.sessionId);
     if (!source || !audit) throw new PrivateReservationStateError("private settlement openings are incomplete");
+    const treasurySppKey = await this.#treasuryKeys.getCommitmentOpening(
+      Buffer.from(reservation.sessionId, "hex"),
+      BigInt(audit.auditContextHash),
+    );
     if (request.provider.categoryId !== reservation.categoryId
       || request.provider.providerSppPublicKey.toString() !== reservation.providerSppPublicKey) {
       throw new PrivateReservationStateError("controlled provider does not match the reservation opening");
@@ -158,11 +168,11 @@ export class PrivateSettlementPlanner {
     }
     const treasuryCommitment = poseidon2Hash3(
       BigInt(audit.auditContextHash),
-      request.treasurySppKey.publicKey,
-      request.treasurySppKey.blinding,
+      treasurySppKey.publicKey,
+      treasurySppKey.blinding,
       POSEIDON_DOMAINS.sppTreasuryKey,
     );
-    if (treasuryCommitment !== request.treasurySppKey.commitment) {
+    if (treasuryCommitment !== treasurySppKey.commitment) {
       throw new PrivateReservationStateError("treasury SPP key opening does not match its session commitment");
     }
 
@@ -171,14 +181,17 @@ export class PrivateSettlementPlanner {
     const refundAmount = BigInt(reservation.amountAtomic) - claimAmount;
     const spp = await this.#spp.prepare({
       reservationId,
+      sessionId: Buffer.from(reservation.sessionId, "hex"),
       claimAmountAtomic: claimAmount,
       refundAmountAtomic: refundAmount,
       providerSppPublicKey: request.provider.providerSppPublicKey,
-      treasurySppPublicKey: request.treasurySppKey.publicKey,
-      sppPool: request.sppPool,
+      treasurySppPublicKey: treasurySppKey.publicKey,
+      sppPool: this.#sppDeployment.poolContractId,
     });
     try {
-      if (spp.proof.public_amount !== 0n || spp.extData.ext_amount !== 0n || spp.extData.recipient !== request.sppPool) {
+      if (spp.proof.public_amount !== 0n
+        || spp.extData.ext_amount !== 0n
+        || spp.extData.recipient !== this.#sppDeployment.poolContractId) {
         throw new PrivateReservationStateError("SPP transfer is not the canonical zero-public-amount pool call");
       }
       const expectedProviderOutput = poseidon2Hash3(
@@ -187,7 +200,7 @@ export class PrivateSettlementPlanner {
         spp.providerOutputBlinding,
         POSEIDON_DOMAINS.sppNote,
       );
-      const refundOwner = refundAmount > 0n ? request.treasurySppKey.publicKey : request.provider.providerSppPublicKey;
+      const refundOwner = refundAmount > 0n ? treasurySppKey.publicKey : request.provider.providerSppPublicKey;
       const expectedSppRefund = poseidon2Hash3(refundAmount, refundOwner, spp.refundOutputBlinding, POSEIDON_DOMAINS.sppNote);
       if (spp.proof.output_commitment0 !== expectedProviderOutput || spp.proof.output_commitment1 !== expectedSppRefund) {
         throw new PrivateReservationStateError("SPP proof outputs do not match the binding openings");
@@ -228,7 +241,7 @@ export class PrivateSettlementPlanner {
         BigInt(voucher.cumulativeAmountCommitment),
         BigInt(reservation.providerCommitment),
         spp.proof.output_commitment0,
-        request.treasurySppKey.commitment,
+        treasurySppKey.commitment,
         spp.proof.output_commitment1,
         refund ? BigInt(refund.contextHash) : 0n,
         refund ? BigInt(refund.commitment) : 0n,
@@ -264,8 +277,8 @@ export class PrivateSettlementPlanner {
         providerLeafFields: providerFields.map(String),
         providerBlind: reservation.providerBlinding,
         sppProviderOutputBlind: spp.providerOutputBlinding.toString(),
-        treasurySppPublicKey: request.treasurySppKey.publicKey.toString(),
-        treasurySppKeyBlind: request.treasurySppKey.blinding.toString(),
+        treasurySppPublicKey: treasurySppKey.publicKey.toString(),
+        treasurySppKeyBlind: treasurySppKey.blinding.toString(),
         sppRefundOutputBlind: spp.refundOutputBlinding.toString(),
         refundAmount: refundAmount.toString(),
         refundBlind: refund?.blinding ?? "0",
