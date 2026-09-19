@@ -24,6 +24,7 @@ async function executable(candidates) {
 const circom = await executable([process.env.CIRCOM_BIN, localCircom, historicalCircom]);
 const circuit = resolve(root, "circuits/budget-transition-v1/BudgetTransitionV1.circom");
 const input = resolve(root, "circuits/budget-transition-v1/input.v1.json");
+const reservationInput = resolve(root, "circuits/budget-transition-v1/input-reservation.v1.json");
 const temporary = await mkdtemp(resolve(tmpdir(), "phloem-budget-transition-"));
 
 function run(command, args) {
@@ -41,6 +42,7 @@ try {
   const generator = resolve(temporary, "BudgetTransitionV1_js/generate_witness.js");
   const wasm = resolve(temporary, "BudgetTransitionV1_js/BudgetTransitionV1.wasm");
   run(process.execPath, [generator, wasm, input, resolve(temporary, "valid.wtns")]);
+  run(process.execPath, [generator, wasm, reservationInput, resolve(temporary, "reservation-valid.wtns")]);
 
   const valid = JSON.parse(await readFile(input, "utf8"));
   const reject = async (name, mutated) => {
@@ -63,7 +65,13 @@ try {
     output1ContextHash: (BigInt(valid.output1ContextHash) + 1n).toString(),
   });
   await reject("nonempty-none-output", { ...valid, output2Kind: "0" });
-  process.stdout.write("BudgetTransitionV1 witness: PASS; conservation/context/NONE mutations: REJECTED\n");
+  const reservation = JSON.parse(await readFile(reservationInput, "utf8"));
+  await reject("reservation-wrong-kind", { ...reservation, output1Kind: "1" });
+  await reject("reservation-non-conserving", {
+    ...reservation,
+    output1Amount: (BigInt(reservation.output1Amount) + 1n).toString(),
+  });
+  process.stdout.write("BudgetTransitionV1 budget/reservation witnesses: PASS; conservation/context/kind mutations: REJECTED\n");
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }

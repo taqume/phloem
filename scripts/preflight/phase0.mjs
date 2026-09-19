@@ -9,6 +9,7 @@ const generatedFiles = [
   "protocol/test-vectors/v1.json",
   "circuits/encoding-v1/input.v1.json",
   "circuits/budget-transition-v1/input.v1.json",
+  "circuits/budget-transition-v1/input-reservation.v1.json",
   "circuits/audit-accumulator-v1/input-init.v1.json",
   "circuits/audit-accumulator-v1/input-update.v1.json",
 ];

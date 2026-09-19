@@ -179,11 +179,12 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   );
 
   const reservationAmount = 500_000n;
+  const reservationBlind = testField("reservation-blind");
   const claimAmount = 100_000n;
   const reservationCommitment = poseidon2Hash3(
     reservationContextHash,
     reservationAmount,
-    testField("reservation-blind"),
+    reservationBlind,
     POSEIDON_DOMAINS.reservation,
   );
   const voucherContextHash = poseidon2HashFields(
@@ -303,6 +304,16 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     1n,
     transitionOutput2ContextHash,
     transitionOutput2Commitment,
+    1n,
+  ];
+  const budgetToReservationPublicSignals = [
+    contextHash,
+    budgetCommitment,
+    reservationContextHash,
+    reservationCommitment,
+    2n,
+    transitionOutput1ContextHash,
+    transitionOutput1Commitment,
     1n,
   ];
   const privateSettlementPublicSignals = [
@@ -431,6 +442,8 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       transitionOutput1Blind: transitionOutput1Blind.toString(),
       transitionOutput2Amount: transitionOutput2Amount.toString(),
       transitionOutput2Blind: transitionOutput2Blind.toString(),
+      reservationAmount: reservationAmount.toString(),
+      reservationBlind: reservationBlind.toString(),
       initialAuditTotal: initialAuditTotal.toString(),
       initialAuditBlind: initialAuditBlind.toString(),
       oldAuditTotal: oldAuditTotal.toString(),
@@ -458,6 +471,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       newAuditTotalCommitment: newAuditTotalCommitment.toString(),
       publicSignals: {
         budgetTransitionV1: decimal(budgetPublicSignals),
+        budgetToReservationV1: decimal(budgetToReservationPublicSignals),
         auditAccumulatorInitV1: decimal(auditAccumulatorInitPublicSignals),
         auditAccumulatorUpdateV1: decimal(auditAccumulatorUpdatePublicSignals),
         privateSettlementBindingV1: decimal(privateSettlementPublicSignals),

@@ -27,3 +27,26 @@ await mkdir(dirname(target), { recursive: true });
 await writeFile(temporary, `${JSON.stringify(output, null, 2)}\n`, { encoding: "utf8", mode: 0o644 });
 await rename(temporary, target);
 process.stdout.write(`generated ${target}\n`);
+
+const reservationSignals = vector.expected.publicSignals.budgetToReservationV1;
+const reservationOutput = {
+  inputContextHash: reservationSignals[0],
+  inputCommitment: reservationSignals[1],
+  output1ContextHash: reservationSignals[2],
+  output1Commitment: reservationSignals[3],
+  output1Kind: reservationSignals[4],
+  output2ContextHash: reservationSignals[5],
+  output2Commitment: reservationSignals[6],
+  output2Kind: reservationSignals[7],
+  inputAmount: vector.circom.budgetAmount,
+  inputBlinding: vector.circom.budgetBlind,
+  output1Amount: vector.circom.reservationAmount,
+  output1Blinding: vector.circom.reservationBlind,
+  output2Amount: vector.circom.transitionOutput1Amount,
+  output2Blinding: vector.circom.transitionOutput1Blind,
+};
+const reservationTarget = resolve(root, "circuits/budget-transition-v1/input-reservation.v1.json");
+const reservationTemporary = `${reservationTarget}.tmp`;
+await writeFile(reservationTemporary, `${JSON.stringify(reservationOutput, null, 2)}\n`, { encoding: "utf8", mode: 0o644 });
+await rename(reservationTemporary, reservationTarget);
+process.stdout.write(`generated ${reservationTarget}\n`);
