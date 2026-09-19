@@ -18,7 +18,13 @@
 - Circuits use Circom, Groth16, BN254, and the pinned Poseidon2 parameter set.
 - The only P0 audit predicate is `TOTAL_SPEND_LEQ`.
 - The only P0 provider is the deterministic Research Data Service.
+- That controlled provider must expose a real HTTP request, signed ServiceOffer, signed UsageEvidence, and real Testnet settlement. Do not add a second provider before this path is complete.
+- P0 includes a provider-controlled USDC → TRY Mock Anchor off-ramp after deposit, agent payment, and provider settlement are stable. Re-discover SEP-6 withdraw/withdraw-exchange support; never simulate an unadvertised capability.
 - Do not add production recovery, governance, marketplaces, additional providers, or mutable active-session policies.
+
+## Implementation order
+
+Project-local Stellar skills → hosted agent runtime → deterministic ExecutionGateway → real Anchor deposit → agent payment → controlled provider settlement → provider SPP exit → real Anchor withdrawal. Do not reorder the live financial path for convenience.
 
 ## Security
 

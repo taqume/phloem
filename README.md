@@ -17,6 +17,7 @@ Freighter + Wallets Kit
 → signed Research Data Service offer and usage evidence
 → reservation-specific private voucher
 → real SPP Testnet settlement + refund + audit update
+→ provider SPP exit + SEP-6 USDC/TRY withdrawal
 → TOTAL_SPEND_LEQ(X) proof
 ```
 
@@ -42,6 +43,8 @@ flowchart TD
 ```
 
 The company is never a signer on an Agent Smart Account. Agent keys can invoke only the scoped `TreasuryController` contract. The PRIVATE treasury capability remains inside the dedicated PrivacyRuntime.
+
+The P0 provider is a single Phloem-controlled Research Data Service. It must complete a real HTTP request, sign its ServiceOffer and UsageEvidence, receive real Testnet settlement, exit the private-money domain to its provider account, and use only the withdrawal capability currently advertised by the Mock Anchor.
 
 ## Repository status
 
@@ -81,6 +84,15 @@ pnpm --filter @phloem/web dev
 ```
 
 The deep master specification and internal architecture notes are intentionally private and ignored by Git. The committed, machine-verifiable protocol surface lives in the TypeScript and Rust encoding packages, the Circom vector circuit, and [`protocol/test-vectors/v1.json`](protocol/test-vectors/v1.json).
+
+## Project-local Stellar references
+
+The implementation uses project-local, pinned skills rather than copying example application code:
+
+- `anchor-tr` from `yigitcangokmen/stellar-hackathon-turkiye` at `f06e1ae682111271d1d35476305cba04a0522139` for the event Mock Anchor and its SEP flows.
+- `smart-contracts`, `dapp`, `assets`, `data`, `zk-proofs`, and `standards` from `stellar/stellar-dev-skill` at `202be802aab27a5fe3076726a7a236378f690af1`.
+
+The Anchor reference contains raw-key examples; Phloem overrides those examples and keeps company signing in Wallets Kit/Freighter.
 
 ## Current security boundaries
 

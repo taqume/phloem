@@ -57,6 +57,10 @@ const sep6 = await getJson(`${anchor.endpoints.sep6}/info`);
 expect(sep6.deposit?.USDC?.enabled === true, "SEP-6 USDC deposit is disabled");
 expect(sep6["deposit-exchange"]?.USDC?.enabled === true, "SEP-6 USDC deposit-exchange is disabled");
 expect(sep6.deposit.USDC.authentication_required === true, "SEP-6 should require SEP-10 authentication");
+expect(sep6.withdraw?.USDC?.enabled === true, "SEP-6 USDC withdraw is disabled");
+expect(sep6["withdraw-exchange"]?.USDC?.enabled === true, "SEP-6 USDC withdraw-exchange is disabled");
+expect(sep6.withdraw.USDC.authentication_required === true, "SEP-6 withdrawal should require SEP-10 authentication");
+expect(sep6.withdraw.USDC.funding_methods?.includes("bank_account"), "SEP-6 withdrawal missing bank_account funding method");
 
 const sep38 = await getJson(`${anchor.endpoints.sep38}/info`);
 const assets = sep38.assets?.map((entry) => entry.asset) ?? [];
@@ -77,5 +81,7 @@ process.stdout.write(JSON.stringify({
     "SEP-6 deposit/deposit-exchange completion",
     "USDC trustline and real Testnet receipt",
     "wallet-authorized Phloem session funding",
+    "provider SPP exit to its Stellar account",
+    "provider-authorized SEP-6 withdraw/withdraw-exchange completion",
   ],
 }, null, 2) + "\n");

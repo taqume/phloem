@@ -29,6 +29,8 @@
     "stellarPrivatePayments": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
     "stellarPrivatePaymentsCliCompatibility": "b93d2f5d8369511c49fa3e459e1479563639b2a5",
     "stellarGroth16Example": "1f5aeb53d3db5d0e61e53f59d5e6c5ab58eaf8ce",
+    "stellarHackathonTurkiyeSkill": "f06e1ae682111271d1d35476305cba04a0522139",
+    "stellarDevSkill": "202be802aab27a5fe3076726a7a236378f690af1",
     "circom": "a100faedb1c62d4d3e1463f8a3f88342d82351cd",
     "snarkjs": "9a8f1c0083d18b9b5e18f526cfd729e7259423be",
     "circomlib": "35e54ea21da3e8762557234298dbb553c175ea8d"

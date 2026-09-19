@@ -15,6 +15,28 @@
     "status": "test",
     "anchorAsset": "TRY"
   },
-  "verifiedAt": "2026-09-19T10:38:44Z",
+  "capabilities": {
+    "deposit": {
+      "enabled": true,
+      "authenticationRequired": true,
+      "fundingMethod": "bank_account"
+    },
+    "depositExchange": {
+      "enabled": true,
+      "authenticationRequired": true,
+      "fundingMethod": "bank_account"
+    },
+    "withdraw": {
+      "enabled": true,
+      "authenticationRequired": true,
+      "fundingMethod": "bank_account"
+    },
+    "withdrawExchange": {
+      "enabled": true,
+      "authenticationRequired": true,
+      "fundingMethod": "bank_account"
+    }
+  },
+  "verifiedAt": "2026-09-19T13:10:00Z",
   "discoveryOnly": true
 }
