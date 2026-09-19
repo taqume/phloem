@@ -1,6 +1,8 @@
 #![no_std]
 
 mod audit;
+mod budget;
+mod encoding;
 mod error;
 mod event;
 pub mod poseidon2;
@@ -333,6 +335,33 @@ impl TreasuryController {
             &session.asset,
             &session.settlement_mode,
             &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding))
+    }
+
+    pub fn get_budget_note_context_hash(env: Env, note_id: BytesN<32>) -> U256 {
+        let note = load_note_or_fail(&env, &note_id);
+        let session = load_session_or_fail(&env, &note.session_id);
+        if session.created_protocol_version != PROTOCOL_VERSION {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        let owner = match &note.owner {
+            BudgetNodeOwner::RootCompany => session.company.clone(),
+            BudgetNodeOwner::AgentSmartAccount(address) => address.clone(),
+        };
+        budget::context_hash_v1(
+            &env,
+            &budget::BudgetContextV1 {
+                protocol_version: session.created_protocol_version,
+                network_id: &env.ledger().network_id(),
+                controller: &env.current_contract_address(),
+                session_id: &note.session_id,
+                node_id: &note.node_id,
+                owner: &owner,
+                asset: &session.asset,
+                policy_hash: &note.policy_hash,
+                note_id: &note.id,
+            },
         )
         .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding))
     }

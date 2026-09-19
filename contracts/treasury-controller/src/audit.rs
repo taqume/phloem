@@ -1,6 +1,6 @@
-use soroban_sdk::{Address, BytesN, Env, U256, Vec, address_payload::AddressPayload};
+use soroban_sdk::{Address, BytesN, Env, U256, Vec};
 
-use crate::{SettlementMode, poseidon2};
+use crate::{SettlementMode, encoding, poseidon2};
 
 const AUDIT_CONTEXT_INIT: u128 = 0x5048_4c4d_4155_4331;
 const AUDIT_CONTEXT_FOLD: u128 = 0x5048_4c4d_4155_4332;
@@ -16,10 +16,10 @@ pub fn context_hash_v1(
 ) -> Option<U256> {
     let mut fields = Vec::new(env);
     fields.push_back(U256::from_u32(env, 1));
-    push_bytes32_limbs(env, &mut fields, network_id);
-    push_address_fields(env, &mut fields, controller)?;
-    push_bytes32_limbs(env, &mut fields, session_id);
-    push_address_fields(env, &mut fields, asset)?;
+    encoding::push_bytes32_limbs(env, &mut fields, network_id);
+    encoding::push_address_fields(env, &mut fields, controller)?;
+    encoding::push_bytes32_limbs(env, &mut fields, session_id);
+    encoding::push_address_fields(env, &mut fields, asset)?;
     fields.push_back(U256::from_u32(
         env,
         match settlement_mode {
@@ -35,26 +35,6 @@ pub fn context_hash_v1(
         &U256::from_u128(env, AUDIT_CONTEXT_INIT),
         &U256::from_u128(env, AUDIT_CONTEXT_FOLD),
     )
-}
-
-fn push_address_fields(env: &Env, fields: &mut Vec<U256>, address: &Address) -> Option<()> {
-    let (kind, payload) = match AddressPayload::from_address(address)? {
-        AddressPayload::AccountIdPublicKeyEd25519(payload) => (0, payload),
-        AddressPayload::ContractIdHash(payload) => (1, payload),
-    };
-    fields.push_back(U256::from_u32(env, kind));
-    push_bytes32_limbs(env, fields, &payload);
-    Some(())
-}
-
-fn push_bytes32_limbs(env: &Env, fields: &mut Vec<U256>, value: &BytesN<32>) {
-    let bytes = value.to_array();
-    let mut high = [0_u8; 16];
-    let mut low = [0_u8; 16];
-    high.copy_from_slice(&bytes[..16]);
-    low.copy_from_slice(&bytes[16..]);
-    fields.push_back(U256::from_u128(env, u128::from_be_bytes(high)));
-    fields.push_back(U256::from_u128(env, u128::from_be_bytes(low)));
 }
 
 #[cfg(test)]

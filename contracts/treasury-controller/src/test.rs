@@ -310,6 +310,34 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
 }
 
 #[test]
+fn budget_note_context_is_derived_from_stored_root_identity() {
+    let h = setup();
+    let expiry = 2_000;
+    let (session_id, root) = activate_standard_root(&h, expiry, 2_000, 72, 73);
+    let session = h.controller.get_session(&session_id).unwrap();
+    let expected = crate::budget::context_hash_v1(
+        &h.env,
+        &crate::budget::BudgetContextV1 {
+            protocol_version: 1,
+            network_id: &h.env.ledger().network_id(),
+            controller: &h.contract_id,
+            session_id: &session_id,
+            node_id: &root.node_id,
+            owner: &h.company,
+            asset: &h.asset,
+            policy_hash: &session.policy_hash,
+            note_id: &root.note_id,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        h.controller.get_budget_note_context_hash(&root.note_id),
+        expected
+    );
+}
+
+#[test]
 fn failed_sac_transfer_rolls_back_activation_state() {
     let h = setup();
     let expiry = 2_000;
