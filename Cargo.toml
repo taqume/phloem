@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "contracts/treasury-controller",
     "crates/protocol-encoding",
 ]
 
@@ -16,6 +17,7 @@ hex = "=0.4.3"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.145"
 sha2 = "=0.10.9"
+soroban-sdk = "=28.0.0"
 taceo-poseidon2 = { version = "=0.3.0", default-features = false, features = ["bn254", "t2", "t3", "t4"] }
 
 [profile.release]
@@ -24,3 +26,4 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+overflow-checks = true

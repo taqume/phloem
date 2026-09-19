@@ -54,6 +54,7 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 - Wallets Kit/Freighter funding surface, exact Circle USDC trustline checks, validated SEP-10 challenge path, server-confined Anchor session, and SEP-38/SEP-6 deposit UI: implemented; the first live TRY → USDC Testnet completion has passed.
 - Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
 - Deterministic ExecutionGateway ports and contract-origin rejection evidence path: implemented; live contract adapter remains pending.
+- TreasuryController foundation: session creation, company-controlled Root materialization, exact company authorization trees, real SAC custody funding, and token-failure rollback are implemented and covered by native contract tests. Delegation, Smart Account wiring, proof verification, and STANDARD settlement remain Phase 2 work.
 - Contracts, circuits, wallet-authorized Phloem session funding, provider workflow, and final deployments: in progress.
 
 This repository does not yet claim a complete hackathon demo or production readiness.
