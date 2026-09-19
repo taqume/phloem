@@ -15,7 +15,7 @@
     "typecheck": "pnpm --recursive --if-present typecheck",
     "test": "pnpm --recursive --if-present test",
     "contracts:build": "scripts/contracts/build.sh",
-    "contracts:test": "rustup run 1.91.0 cargo test -p phloem-treasury-controller",
+    "contracts:test": "rustup run 1.91.0 cargo test --workspace",
     "vectors:generate": "pnpm --filter @phloem/protocol-types vectors:generate && node scripts/vectors/write-circom-input.mjs",
     "vectors:check": "pnpm --filter @phloem/protocol-types vectors:check",
     "phase0:check": "node scripts/preflight/phase0.mjs",

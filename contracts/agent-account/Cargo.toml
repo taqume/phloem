@@ -1,0 +1,17 @@
+[package]
+name = "phloem-agent-account"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "=27.0.2"
+stellar-accounts = { git = "https://github.com/OpenZeppelin/stellar-contracts.git", rev = "f11f8c0f7001f0ac61ffedb4c4f234ecfe7e1feb" }
+
+[dev-dependencies]
+soroban-sdk = { version = "=27.0.2", features = ["testutils"] }

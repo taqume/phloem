@@ -6,6 +6,13 @@ contract_toolchain="1.95.0"
 contract_toolchain_bin="$(dirname "$(rustup which cargo --toolchain "${contract_toolchain}")")"
 
 cd "${repo_root}"
-PATH="${contract_toolchain_bin}:${PATH}" \
-  RUSTUP_TOOLCHAIN="${contract_toolchain}" \
-  stellar contract build --locked --package phloem-treasury-controller
+
+for package in \
+  phloem-ed25519-verifier \
+  phloem-agent-account \
+  phloem-treasury-controller
+do
+  PATH="${contract_toolchain_bin}:${PATH}" \
+    RUSTUP_TOOLCHAIN="${contract_toolchain}" \
+    stellar contract build --locked --package "${package}"
+done

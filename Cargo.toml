@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    "contracts/agent-account",
+    "contracts/ed25519-verifier",
     "contracts/treasury-controller",
     "crates/protocol-encoding",
 ]

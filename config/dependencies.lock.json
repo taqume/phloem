@@ -22,6 +22,7 @@
     "stellarWalletsKit": "2.6.0",
     "stellarTypescriptWalletSdk": "5.0.0",
     "sorobanSdk": "28.0.0",
+    "sorobanSdkPinnedSmartAccount": "27.0.2",
     "taceoPoseidon2Js": "0.2.0",
     "taceoCircomLib": "0.9.0",
     "taceoPoseidon2Rust": "0.3.0"

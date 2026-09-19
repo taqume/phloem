@@ -55,6 +55,7 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 - Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
 - Deterministic ExecutionGateway ports and contract-origin rejection evidence path: implemented; live contract adapter remains pending.
 - TreasuryController foundation: session creation, company-controlled Root materialization, exact company authorization trees, real SAC custody funding, and token-failure rollback are implemented and covered by native contract tests. Delegation, Smart Account wiring, proof verification, and STANDARD settlement remain Phase 2 work.
+- The scoped Agent Smart Account and Ed25519 verifier compile from the pinned OpenZeppelin revision. Native tests enforce one expiring `CallContract(TreasuryController)` rule, one external agent key, no policies, no Default rule, and rejection of wrong-contract or expired authorization. Live SDK wiring remains gated because the current upstream Smart Account Kit targets SDK 16.3 / Protocol 27 while this app uses SDK 17.1 on Protocol 28.
 - Contracts, circuits, wallet-authorized Phloem session funding, provider workflow, and final deployments: in progress.
 
 This repository does not yet claim a complete hackathon demo or production readiness.
