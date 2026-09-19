@@ -137,9 +137,116 @@
       }
     }
   },
+  "phloem": {
+    "status": "wasm-uploaded",
+    "sourceRevision": "83b6c1dcd7cc8bfbb62b06a69cc829a35ac0c6d0",
+    "contracts": {},
+    "uploaders": {
+      "primary": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+      "treasuryControllerFallback": {
+        "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+        "reason": "Freighter did not return the signed 73,952-byte TreasuryController envelope after user approval",
+        "authority": "none: code upload only; not a Phloem admin, treasury, or contract instance authority"
+      }
+    },
+    "artifacts": {
+      "ed25519Verifier": {
+        "sha256": "aa15e1a91fd5d41a755b5321f97bb4290e0db4595dd4408e2e89f16d4d066600",
+        "bytes": 1283,
+        "provisioning": "uploaded-by-primary-deployer"
+      },
+      "budgetTransitionVerifierV1": {
+        "sha256": "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
+        "bytes": 4271,
+        "provisioning": "uploaded-by-primary-deployer"
+      },
+      "privateRootBackingVerifierV1": {
+        "sha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
+        "bytes": 4271,
+        "provisioning": "uploaded-by-primary-deployer"
+      },
+      "privateSettlementBindingVerifierV1": {
+        "sha256": "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
+        "bytes": 4271,
+        "provisioning": "uploaded-by-primary-deployer"
+      },
+      "agentAccount": {
+        "sha256": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+        "bytes": 39444,
+        "provisioning": "uploaded-by-primary-deployer"
+      },
+      "treasuryController": {
+        "sha256": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62",
+        "bytes": 73776,
+        "provisioning": "uploaded-by-dedicated-testnet-uploader"
+      }
+    },
+    "transactions": [
+      {
+        "step": "upload-ed25519-verifier",
+        "hash": "0248d0dce77d5591a54b2abb7f703ab71a12e452eb2f241cc8391cffa62f46e5",
+        "ledger": 4766736,
+        "uploader": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+        "feeChargedStroops": "3058892"
+      },
+      {
+        "step": "upload-budget-transition-verifier-v1",
+        "hash": "32a3db25750039ce1fc0e58c0f41fb94f38920bfe14c35dfb872a0bff792fe06",
+        "ledger": 4766738,
+        "uploader": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+        "feeChargedStroops": "8393015"
+      },
+      {
+        "step": "upload-private-root-backing-verifier-v1",
+        "hash": "002c51a8c5b57aec2c41843e2a5ef62ae6fb6de3a93424ac2fa97547b4db6828",
+        "ledger": 4766740,
+        "uploader": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+        "feeChargedStroops": "8393015"
+      },
+      {
+        "step": "upload-private-settlement-binding-verifier-v1",
+        "hash": "6aa6f7e58a2455dc29a4aafbc52db5c576397c630cee01f5cdf5a6717ceeaa42",
+        "ledger": 4766742,
+        "uploader": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+        "feeChargedStroops": "8393015"
+      },
+      {
+        "step": "upload-agent-account",
+        "hash": "26e812b664818690ac0111cef32b2ca05a1397a6ebe8bcc1bcdd6d2bb984d827",
+        "ledger": 4766744,
+        "uploader": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+        "feeChargedStroops": "43184626"
+      },
+      {
+        "step": "upload-treasury-controller",
+        "hash": "447cf4c83407750cc5bed3b9cdcfa8be6eb71e512a525c269d650e15ae1874f3",
+        "ledger": 4767204,
+        "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+        "feeChargedStroops": "96394155"
+      }
+    ],
+    "resources": {
+      "transactionCount": 6,
+      "maximumFeeStroops": "192979194",
+      "maximumFeeXlm": "19.2979194",
+      "feeChargedStroops": "167816718",
+      "feeChargedXlm": "16.7816718",
+      "totalInstructions": 113665869,
+      "totalWriteBytes": 127920
+    },
+    "verification": {
+      "verifiedAt": "2026-09-19T23:14:05.907Z",
+      "rpcStatus": "healthy",
+      "transactionStatus": "SUCCESS",
+      "assetMovement": false,
+      "contractInstancesCreated": false,
+      "contractWasmHashes": "verified",
+      "pendingWasmUploads": 0
+    }
+  },
   "smartAccount": {
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "Only the fee-only SPP USDC dependency deployment is live. Phloem contracts and all USDC-moving flows remain undeployed and unexecuted."
+  "note": "The fee-only SPP USDC dependency deployment is live and all six pinned Phloem WASM artifacts are uploaded. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
 }
