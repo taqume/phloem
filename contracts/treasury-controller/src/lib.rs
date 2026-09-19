@@ -1,5 +1,6 @@
 #![no_std]
 
+mod audit;
 mod error;
 mod event;
 pub mod poseidon2;
@@ -317,6 +318,23 @@ impl TreasuryController {
 
     pub fn get_agent_account_wasm_hash(env: Env) -> BytesN<32> {
         get_config(&env).agent_account_wasm_hash
+    }
+
+    pub fn get_audit_context_hash(env: Env, session_id: BytesN<32>) -> U256 {
+        let session = load_session_or_fail(&env, &session_id);
+        if session.created_protocol_version != PROTOCOL_VERSION {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding))
     }
 }
 

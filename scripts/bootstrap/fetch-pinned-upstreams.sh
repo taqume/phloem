@@ -44,4 +44,9 @@ ensure_checkout \
   https://github.com/NethermindEth/stellar-private-payments.git \
   5f3a5d41f452069caf8d0e1654675bca55cb94d3
 
+ensure_checkout \
+  stellar-examples \
+  https://github.com/stellar/soroban-examples.git \
+  1f5aeb53d3db5d0e61e53f59d5e6c5ab58eaf8ce
+
 echo "Pinned clean upstreams are available under ${upstream_root}"

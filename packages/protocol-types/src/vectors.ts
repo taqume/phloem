@@ -2,6 +2,8 @@ import { Keypair } from "@stellar/stellar-sdk";
 
 import {
   POSEIDON_DOMAINS,
+  auditContextFields,
+  auditContextHash,
   addressFields,
   addressFromStrKey,
   bytes32ToLimbs,
@@ -184,21 +186,35 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     POSEIDON_DOMAINS.budgetNote,
   );
 
-  const auditContextHash = poseidon2HashFields(
-    [contextHash, 1n, policyHash],
-    POSEIDON_DOMAINS.contextInit,
-    POSEIDON_DOMAINS.contextFold,
+  const auditContext = {
+    protocolVersion: 1,
+    networkId: network,
+    treasuryController: controller,
+    sessionId,
+    asset,
+    settlementMode: 2 as const,
+    policyHash,
+  };
+  const auditContextFieldValues = auditContextFields(auditContext);
+  const auditContextHashValue = auditContextHash(auditContext);
+  const initialAuditTotal = 0n;
+  const initialAuditBlind = testField("initial-audit-blind");
+  const initialAuditTotalCommitment = poseidon2Hash3(
+    auditContextHashValue,
+    initialAuditTotal,
+    initialAuditBlind,
+    POSEIDON_DOMAINS.auditTotal,
   );
   const oldAuditTotal = 300_000n;
   const newAuditTotal = oldAuditTotal + claimAmount;
   const oldAuditTotalCommitment = poseidon2Hash3(
-    auditContextHash,
+    auditContextHashValue,
     oldAuditTotal,
     testField("old-audit-blind"),
     POSEIDON_DOMAINS.auditTotal,
   );
   const newAuditTotalCommitment = poseidon2Hash3(
-    auditContextHash,
+    auditContextHashValue,
     newAuditTotal,
     testField("new-audit-blind"),
     POSEIDON_DOMAINS.auditTotal,
@@ -256,7 +272,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     usageRoot,
     offerCommitment,
   ];
-  const auditPublicSignals = [auditContextHash, newAuditTotalCommitment, 500_000n, testField("snapshot-hash-field")];
+  const auditPublicSignals = [auditContextHashValue, newAuditTotalCommitment, 500_000n, testField("snapshot-hash-field")];
 
   return {
     metadata: {
@@ -288,7 +304,8 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       values: {
         budgetAmount: budgetAmount.toString(), reservationAmount: reservationAmount.toString(),
         claimAmount: claimAmount.toString(), refundAmount: refundAmount.toString(),
-        oldAuditTotal: oldAuditTotal.toString(), newAuditTotal: newAuditTotal.toString(),
+        initialAuditTotal: initialAuditTotal.toString(), oldAuditTotal: oldAuditTotal.toString(),
+        newAuditTotal: newAuditTotal.toString(),
       },
       signingInputs: {
         serviceOffer: {
@@ -345,8 +362,15 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       contextFields: decimal(contextFields),
       providerLeafFields: decimal(providerLeafFields),
       offerCommitmentFields: decimal(offerCommitmentFields),
+      auditContextFields: decimal(auditContextFieldValues),
       budgetAmount: budgetAmount.toString(),
       budgetBlind: budgetBlind.toString(),
+      initialAuditTotal: initialAuditTotal.toString(),
+      initialAuditBlind: initialAuditBlind.toString(),
+      oldAuditTotal: oldAuditTotal.toString(),
+      oldAuditBlind: testField("old-audit-blind").toString(),
+      newAuditTotal: newAuditTotal.toString(),
+      newAuditBlind: testField("new-audit-blind").toString(),
       domains: Object.fromEntries(Object.entries(POSEIDON_DOMAINS).map(([key, value]) => [key, value.toString()])),
     },
     expected: {
@@ -354,6 +378,8 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       budgetCommitment: budgetCommitment.toString(),
       providerLeaf: providerLeaf.toString(),
       offerCommitment: offerCommitment.toString(),
+      auditContextHash: auditContextHashValue.toString(),
+      initialAuditTotalCommitment: initialAuditTotalCommitment.toString(),
       reservationCommitment: reservationCommitment.toString(),
       voucherAmountCommitment: voucherAmountCommitment.toString(),
       sppOutputCommitment: sppOutputCommitment.toString(),

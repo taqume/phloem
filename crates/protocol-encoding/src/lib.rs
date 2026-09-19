@@ -12,6 +12,9 @@ pub const PROVIDER_INIT: u64 = 0x5048_4c4d_5052_5631;
 pub const PROVIDER_FOLD: u64 = 0x5048_4c4d_5052_5632;
 pub const OFFER_INIT: u64 = 0x5048_4c4d_4f46_4631;
 pub const OFFER_FOLD: u64 = 0x5048_4c4d_4f46_4632;
+pub const AUDIT_CONTEXT_INIT: u64 = 0x5048_4c4d_4155_4331;
+pub const AUDIT_CONTEXT_FOLD: u64 = 0x5048_4c4d_4155_4332;
+pub const AUDIT_TOTAL: u64 = 0x5048_4c4d_4155_4431;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncodingError {
@@ -137,8 +140,15 @@ mod tests {
         context_fields: Vec<String>,
         provider_leaf_fields: Vec<String>,
         offer_commitment_fields: Vec<String>,
+        audit_context_fields: Vec<String>,
         budget_amount: String,
         budget_blind: String,
+        initial_audit_total: String,
+        initial_audit_blind: String,
+        old_audit_total: String,
+        old_audit_blind: String,
+        new_audit_total: String,
+        new_audit_blind: String,
     }
 
     #[derive(Deserialize)]
@@ -148,6 +158,10 @@ mod tests {
         budget_commitment: String,
         provider_leaf: String,
         offer_commitment: String,
+        audit_context_hash: String,
+        initial_audit_total_commitment: String,
+        old_audit_total_commitment: String,
+        new_audit_total_commitment: String,
     }
 
     #[derive(Deserialize)]
@@ -352,6 +366,47 @@ mod tests {
             Fr::from(BUDGET_NOTE),
         );
         assert_eq!(field_to_decimal(budget), vector.expected.budget_commitment);
+
+        let audit_context = poseidon2_hash_fields(
+            &fields(&vector.circom.audit_context_fields),
+            Fr::from(AUDIT_CONTEXT_INIT),
+            Fr::from(AUDIT_CONTEXT_FOLD),
+        )
+        .unwrap();
+        assert_eq!(
+            field_to_decimal(audit_context),
+            vector.expected.audit_context_hash
+        );
+
+        let audit_commitment = |total: &str, blinding: &str| {
+            poseidon2_hash3(
+                audit_context,
+                field_from_decimal(total).unwrap(),
+                field_from_decimal(blinding).unwrap(),
+                Fr::from(AUDIT_TOTAL),
+            )
+        };
+        assert_eq!(
+            field_to_decimal(audit_commitment(
+                &vector.circom.initial_audit_total,
+                &vector.circom.initial_audit_blind,
+            )),
+            vector.expected.initial_audit_total_commitment
+        );
+        assert_eq!(
+            field_to_decimal(audit_commitment(
+                &vector.circom.old_audit_total,
+                &vector.circom.old_audit_blind,
+            )),
+            vector.expected.old_audit_total_commitment
+        );
+        assert_eq!(
+            field_to_decimal(audit_commitment(
+                &vector.circom.new_audit_total,
+                &vector.circom.new_audit_blind,
+            )),
+            vector.expected.new_audit_total_commitment
+        );
     }
 
     #[test]

@@ -22,6 +22,8 @@ export const POSEIDON_DOMAINS = {
   offerFold: 0x50484c4d4f464632n,
   reservation: 0x50484c4d52535631n,
   voucherAmount: 0x50484c4d564f5531n,
+  auditContextInit: 0x50484c4d41554331n,
+  auditContextFold: 0x50484c4d41554332n,
   auditTotal: 0x50484c4d41554431n,
   merkleLeaf: 0x50484c4d4c463031n,
   sppNote: 1n,
@@ -83,6 +85,16 @@ export interface PrivateVoucherPayload {
   readonly usageRoot: bigint;
   readonly offerCommitment: bigint;
   readonly expiryLedger: number;
+}
+
+export interface AuditContextInput {
+  readonly protocolVersion: number;
+  readonly networkId: Bytes32;
+  readonly treasuryController: CanonicalAddress;
+  readonly sessionId: Bytes32;
+  readonly asset: CanonicalAddress;
+  readonly settlementMode: 1 | 2;
+  readonly policyHash: bigint;
 }
 
 function checkedUnsigned(value: number | bigint, bits: number, label: string): bigint {
@@ -205,6 +217,33 @@ export function poseidon2HashFields(
     accumulator = poseidon2Hash3(accumulator, BigInt(index), fields[index]!, foldDomain);
   }
   return accumulator;
+}
+
+export function auditContextFields(value: AuditContextInput): readonly bigint[] {
+  assertBytes(value.networkId, 32, "networkId");
+  assertBytes(value.sessionId, 32, "sessionId");
+  fieldToBytes(value.policyHash);
+  const [networkHi, networkLo] = bytes32ToLimbs(value.networkId);
+  const [sessionHi, sessionLo] = bytes32ToLimbs(value.sessionId);
+  return [
+    checkedUnsigned(value.protocolVersion, 32, "protocolVersion"),
+    networkHi,
+    networkLo,
+    ...addressFields(value.treasuryController),
+    sessionHi,
+    sessionLo,
+    ...addressFields(value.asset),
+    checkedUnsigned(value.settlementMode, 32, "settlementMode"),
+    value.policyHash,
+  ];
+}
+
+export function auditContextHash(value: AuditContextInput): bigint {
+  return poseidon2HashFields(
+    auditContextFields(value),
+    POSEIDON_DOMAINS.auditContextInit,
+    POSEIDON_DOMAINS.auditContextFold,
+  );
 }
 
 export function poseidon2Compress(left: bigint, right: bigint): bigint {

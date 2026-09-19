@@ -26,4 +26,5 @@ pub enum Error {
     InvalidConservation = 20,
     InvalidAgentAccount = 21,
     BudgetStateMismatch = 22,
+    InvalidAddressEncoding = 23,
 }

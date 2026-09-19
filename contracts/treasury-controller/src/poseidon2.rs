@@ -1,5 +1,5 @@
 use soroban_poseidon::{Poseidon2Config, Poseidon2Sponge};
-use soroban_sdk::{Env, U256, crypto::bn254::Bn254Fr, symbol_short, vec};
+use soroban_sdk::{Env, U256, Vec, crypto::bn254::Bn254Fr, symbol_short, vec};
 
 type Bn254T4 = Poseidon2Sponge<4, Bn254Fr>;
 
@@ -29,6 +29,34 @@ pub fn hash3(env: &Env, a: &U256, b: &U256, c: &U256, domain: &U256) -> Option<U
         &round_constants,
     );
     Some(output.get_unchecked(0))
+}
+
+pub fn hash_fields(
+    env: &Env,
+    fields: &Vec<U256>,
+    init_domain: &U256,
+    fold_domain: &U256,
+) -> Option<U256> {
+    if fields.len() < 2 {
+        return None;
+    }
+    let mut accumulator = hash3(
+        env,
+        &U256::from_u32(env, fields.len()),
+        &fields.get_unchecked(0),
+        &fields.get_unchecked(1),
+        init_domain,
+    )?;
+    for index in 2..fields.len() {
+        accumulator = hash3(
+            env,
+            &accumulator,
+            &U256::from_u32(env, index),
+            &fields.get_unchecked(index),
+            fold_domain,
+        )?;
+    }
+    Some(accumulator)
 }
 
 #[cfg(test)]

@@ -49,7 +49,7 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 ## Repository status
 
 - Phase 0 protocol encoding, schemas, interfaces, and cross-language vectors: implemented.
-- Rust/TypeScript/Circom plus Soroban host Poseidon2 parity and mutation rejection: passing.
+- Rust/TypeScript/Circom plus Soroban host Poseidon2 parity and mutation rejection: passing, including the frozen session audit context and initial/rolling audit commitments.
 - Read-only Testnet RPC and Mock Anchor SEP discovery: passing.
 - Wallets Kit/Freighter funding surface, exact Circle USDC trustline checks, validated SEP-10 challenge path, server-confined Anchor session, and SEP-38/SEP-6 deposit UI: implemented; the first live TRY → USDC Testnet completion has passed.
 - Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
