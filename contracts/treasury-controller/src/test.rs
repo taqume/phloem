@@ -2,8 +2,8 @@ extern crate std;
 
 use ed25519_dalek::{Signer, SigningKey};
 use soroban_sdk::{
-    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec, contract,
-    contractimpl,
+    Address, Bytes, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec,
+    contract, contractimpl,
     crypto::bn254::{
         BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE, Bn254G1Affine, Bn254G2Affine,
     },
@@ -13,10 +13,11 @@ use soroban_sdk::{
 
 use crate::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus, PrivateVoucher,
-    RootBudgetNoteInput, SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy,
-    SettlementMode, StandardDelegationInput, StandardSettlementInput, TreasuryController,
-    TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
+    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus,
+    PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput, SafetyState, SessionAuditState,
+    SessionLifecycle, SessionPolicy, SettlementMode, SppExtData, SppPoolError, SppProof,
+    StandardDelegationInput, StandardSettlementInput, TreasuryController, TreasuryControllerClient,
+    event::BudgetDelegated, storage::DataKey,
 };
 
 #[contract]
@@ -59,6 +60,58 @@ impl RejectingBudgetTransitionVerifier {
     }
 }
 
+#[contract]
+struct MockPrivateBindingVerifier;
+
+#[contractimpl]
+impl MockPrivateBindingVerifier {
+    pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
+        public_inputs.len() == 16
+            && public_inputs.get_unchecked(5) != U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(6) != U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(7) != U256::from_u32(&env, 0)
+    }
+}
+
+#[contract]
+struct MockSppPool;
+
+#[contractimpl]
+impl MockSppPool {
+    pub fn transact(
+        env: Env,
+        proof: SppProof,
+        ext_data: SppExtData,
+        sender: Address,
+    ) -> Result<(), SppPoolError> {
+        sender.require_auth();
+        if proof.public_amount != U256::from_u32(&env, 0)
+            || ext_data.ext_amount != soroban_sdk::I256::from_i32(&env, 0)
+            || ext_data.recipient != env.current_contract_address()
+        {
+            return Err(SppPoolError::WrongExtAmount);
+        }
+        if proof.root == U256::from_u32(&env, 999) {
+            env.storage().instance().set(
+                &Symbol::new(&env, "last_output0"),
+                &proof.output_commitment0,
+            );
+            return Err(SppPoolError::InvalidProof);
+        }
+        env.storage().instance().set(
+            &Symbol::new(&env, "last_output0"),
+            &proof.output_commitment0,
+        );
+        Ok(())
+    }
+
+    pub fn get_last_output0(env: Env) -> Option<U256> {
+        env.storage()
+            .instance()
+            .get(&Symbol::new(&env, "last_output0"))
+    }
+}
+
 struct Harness<'a> {
     env: Env,
     contract_id: Address,
@@ -67,18 +120,24 @@ struct Harness<'a> {
     asset: Address,
     agent_account_wasm_hash: BytesN<32>,
     budget_transition_verifier: Address,
+    private_binding_verifier: Address,
+    spp_pool: Address,
     token: TokenClient<'a>,
 }
 
 fn setup<'a>() -> Harness<'a> {
-    setup_internal(None)
+    setup_internal(None, false)
 }
 
 fn setup_with_budget_verifier<'a>(accept_proof: bool) -> Harness<'a> {
-    setup_internal(Some(accept_proof))
+    setup_internal(Some(accept_proof), false)
 }
 
-fn setup_internal<'a>(accept_proof: Option<bool>) -> Harness<'a> {
+fn setup_with_private_settlement<'a>() -> Harness<'a> {
+    setup_internal(Some(true), true)
+}
+
+fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> Harness<'a> {
     let env = Env::default();
     env.ledger().set_sequence_number(1_000);
 
@@ -98,12 +157,22 @@ fn setup_internal<'a>(accept_proof: Option<bool>) -> Harness<'a> {
         Some(false) => env.register(RejectingBudgetTransitionVerifier, ()),
         None => company.clone(),
     };
+    let (private_binding_verifier, spp_pool) = if private_settlement {
+        (
+            env.register(MockPrivateBindingVerifier, ()),
+            env.register(MockSppPool, ()),
+        )
+    } else {
+        (company.clone(), company.clone())
+    };
     let contract_id = env.register(
         TreasuryController,
         (
             asset.clone(),
             agent_account_wasm_hash.clone(),
             budget_transition_verifier.clone(),
+            private_binding_verifier.clone(),
+            spp_pool.clone(),
         ),
     );
     let controller = TreasuryControllerClient::new(&env, &contract_id);
@@ -117,6 +186,8 @@ fn setup_internal<'a>(accept_proof: Option<bool>) -> Harness<'a> {
         asset,
         agent_account_wasm_hash,
         budget_transition_verifier,
+        private_binding_verifier,
+        spp_pool,
         token,
     }
 }
@@ -291,6 +362,7 @@ fn private_reservation_fixture(h: &Harness<'_>) -> PrivateFixture {
     session.lifecycle = SessionLifecycle::Active;
     session.root_budget_node_id = Some(root_node_id.clone());
     session.root_budget_note_id = Some(root_note_id.clone());
+    session.treasury_spp_key_commitment = Some(U256::from_u32(&h.env, 73));
 
     let root_node = BudgetNode {
         id: root_node_id.clone(),
@@ -413,6 +485,63 @@ fn dummy_proof(env: &Env) -> Groth16Proof {
     }
 }
 
+fn private_settlement_fixture(h: &Harness<'_>) -> (PrivateFixture, PrivateSettlementInput) {
+    let mut fixture = private_reservation_fixture(h);
+    let signing_key = SigningKey::from_bytes(&[77_u8; 32]);
+    fixture.input.voucher_signer_public_key =
+        BytesN::from_array(&h.env, signing_key.verifying_key().as_bytes());
+    h.env.mock_all_auths();
+    h.controller
+        .open_private_reservation(&fixture.input, &dummy_proof(&h.env));
+
+    let voucher = PrivateVoucher {
+        protocol_version: 1,
+        voucher_version: 1,
+        network_id: h.env.ledger().network_id(),
+        treasury_controller: h.contract_id.clone(),
+        session_id: fixture.session_id.clone(),
+        reservation_id: fixture.input.reservation_id.clone(),
+        sequence: 1,
+        cumulative_amount_commitment: U256::from_u32(&h.env, 61),
+        usage_root: U256::from_u32(&h.env, 67),
+        offer_commitment: fixture.input.offer_commitment.clone(),
+        expiry_ledger: 1_700,
+    };
+    let signing_bytes = crate::voucher::signing_bytes_v1(&h.env, &voucher).unwrap();
+    let signing_payload: std::vec::Vec<u8> = signing_bytes.iter().collect();
+    let voucher_signature =
+        BytesN::from_array(&h.env, &signing_key.sign(&signing_payload).to_bytes());
+
+    (
+        fixture,
+        PrivateSettlementInput {
+            voucher,
+            voucher_signature,
+            binding_proof: dummy_proof(&h.env),
+            spp_proof: SppProof {
+                proof: dummy_proof(&h.env),
+                root: U256::from_u32(&h.env, 79),
+                input_nullifiers: soroban_sdk::vec![&h.env, U256::from_u32(&h.env, 83)],
+                output_commitment0: U256::from_u32(&h.env, 89),
+                output_commitment1: U256::from_u32(&h.env, 97),
+                public_amount: U256::from_u32(&h.env, 0),
+                ext_data_hash: id(&h.env, 131),
+                asp_membership_root: U256::from_u32(&h.env, 101),
+                asp_non_membership_root: U256::from_u32(&h.env, 103),
+            },
+            spp_ext_data: SppExtData {
+                recipient: h.spp_pool.clone(),
+                ext_amount: soroban_sdk::I256::from_i32(&h.env, 0),
+                encrypted_output0: Bytes::from_slice(&h.env, b"provider-ciphertext"),
+                encrypted_output1: Bytes::from_slice(&h.env, b"treasury-ciphertext"),
+            },
+            new_audit_total_commitment: U256::from_u32(&h.env, 107),
+            refund_budget_note_id: Some(id(&h.env, 132)),
+            refund_budget_commitment: Some(U256::from_u32(&h.env, 109)),
+        },
+    )
+}
+
 #[test]
 fn create_session_requires_company_authorization() {
     let h = setup();
@@ -437,6 +566,11 @@ fn constructor_pins_the_budget_transition_verifier() {
         h.controller.get_budget_transition_verifier(),
         h.budget_transition_verifier
     );
+    assert_eq!(
+        h.controller.get_private_binding_verifier(),
+        h.private_binding_verifier
+    );
+    assert_eq!(h.controller.get_spp_pool(), h.spp_pool);
 }
 
 #[test]
@@ -1522,6 +1656,103 @@ fn reservation_specific_key_signs_only_the_canonical_private_voucher() {
             .try_verify_private_voucher(&wrong_context, &signature)
             .is_err()
     );
+}
+
+#[test]
+fn private_settlement_atomically_updates_spp_reservation_refund_and_audit_state() {
+    let h = setup_with_private_settlement();
+    let (fixture, input) = private_settlement_fixture(&h);
+    h.env.mock_all_auths();
+
+    let record = h.controller.settle_private_payment(&input);
+
+    assert_eq!(record.status, PaymentStatus::Settled);
+    assert_eq!(record.reservation_id, fixture.input.reservation_id);
+    assert_eq!(
+        record.provider_spp_output_commitment,
+        input.spp_proof.output_commitment0
+    );
+    assert_eq!(
+        record.spp_refund_output_commitment,
+        input.spp_proof.output_commitment1
+    );
+    assert_eq!(
+        h.controller
+            .get_private_reservation(&record.reservation_id)
+            .unwrap()
+            .status,
+        PrivateReservationStatus::Settled
+    );
+    assert_eq!(
+        h.controller
+            .get_private_payment_record(&record.reservation_id),
+        Some(record.clone())
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&input.refund_budget_note_id.clone().unwrap())
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+    let session = h.controller.get_session(&fixture.session_id).unwrap();
+    let audit = h.controller.get_audit_state(&fixture.session_id).unwrap();
+    assert_eq!(session.unresolved_reservation_count, 0);
+    assert_eq!(session.settlement_count, 1);
+    assert_eq!(session.audit_version, 2);
+    assert_eq!(audit.unresolved_reservation_count, 0);
+    assert_eq!(audit.settlement_count, 1);
+    assert_eq!(audit.audit_version, 2);
+    assert_eq!(
+        audit.total_spend_commitment,
+        input.new_audit_total_commitment
+    );
+    assert_eq!(
+        MockSppPoolClient::new(&h.env, &h.spp_pool).get_last_output0(),
+        Some(input.spp_proof.output_commitment0.clone())
+    );
+
+    assert!(h.controller.try_settle_private_payment(&input).is_err());
+}
+
+#[test]
+fn failed_spp_private_settlement_rolls_back_every_protocol_and_pool_write() {
+    let h = setup_with_private_settlement();
+    let (fixture, mut input) = private_settlement_fixture(&h);
+    input.spp_proof.root = U256::from_u32(&h.env, 999);
+    h.env.mock_all_auths();
+
+    assert!(h.controller.try_settle_private_payment(&input).is_err());
+    assert_eq!(
+        MockSppPoolClient::new(&h.env, &h.spp_pool).get_last_output0(),
+        None
+    );
+    assert_eq!(
+        h.controller
+            .get_private_reservation(&fixture.input.reservation_id)
+            .unwrap()
+            .status,
+        PrivateReservationStatus::Open
+    );
+    assert!(
+        h.controller
+            .get_private_payment_record(&fixture.input.reservation_id)
+            .is_none()
+    );
+    assert!(
+        h.controller
+            .get_budget_note(&input.refund_budget_note_id.unwrap())
+            .is_none()
+    );
+    let session = h.controller.get_session(&fixture.session_id).unwrap();
+    let audit = h.controller.get_audit_state(&fixture.session_id).unwrap();
+    assert_eq!(session.unresolved_reservation_count, 1);
+    assert_eq!(session.settlement_count, 0);
+    assert_eq!(session.audit_version, 1);
+    assert_eq!(audit.unresolved_reservation_count, 1);
+    assert_eq!(audit.settlement_count, 0);
+    assert_eq!(audit.audit_version, 1);
+    assert_eq!(audit.total_spend_commitment, U256::from_u32(&h.env, 37));
 }
 
 #[test]

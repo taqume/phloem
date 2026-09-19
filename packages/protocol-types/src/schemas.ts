@@ -97,9 +97,24 @@ export const privatePaymentReservationSchema = z.object({
   amountCommitment: fieldDecimalSchema,
   providerCommitment: fieldDecimalSchema,
   approvedProviderRoot: fieldDecimalSchema,
+  reservationContextHash: fieldDecimalSchema,
   claimDeadlineLedger: z.number().int().nonnegative(),
   status: z.enum(["OPEN", "SETTLED", "RECLAIMED", "EXPIRED"]),
   createdAtLedger: z.number().int().nonnegative(),
+}).strict();
+
+export const privatePaymentRecordSchema = z.object({
+  reservationId: bytes32HexSchema,
+  sessionId: bytes32HexSchema,
+  refundBudgetNoteId: bytes32HexSchema.optional(),
+  voucherSequence: u64DecimalSchema,
+  usageRoot: fieldDecimalSchema,
+  providerSppOutputCommitment: fieldDecimalSchema,
+  sppRefundOutputCommitment: fieldDecimalSchema,
+  auditTotalCommitment: fieldDecimalSchema,
+  settlementRef: bytes32HexSchema,
+  status: z.literal("SETTLED"),
+  settledAtLedger: z.number().int().nonnegative(),
 }).strict();
 
 export const serviceOfferSchema = z.object({
@@ -218,6 +233,7 @@ export type SessionPolicy = z.infer<typeof sessionPolicySchema>;
 export type BudgetNode = z.infer<typeof budgetNodeSchema>;
 export type BudgetNote = z.infer<typeof budgetNoteSchema>;
 export type PrivatePaymentReservation = z.infer<typeof privatePaymentReservationSchema>;
+export type PrivatePaymentRecord = z.infer<typeof privatePaymentRecordSchema>;
 export type ServiceOffer = z.infer<typeof serviceOfferSchema>;
 export type UsageEvidence = z.infer<typeof usageEvidenceSchema>;
 export type PrivateVoucher = z.infer<typeof privateVoucherSchema>;

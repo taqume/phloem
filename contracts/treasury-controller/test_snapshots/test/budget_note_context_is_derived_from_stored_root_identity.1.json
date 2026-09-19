@@ -767,6 +767,12 @@
                   },
                   {
                     "key": {
+                      "symbol": "treasury_spp_key_commitment"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "unresolved_reservation_count"
                     },
                     "val": {
@@ -1046,6 +1052,22 @@
                           {
                             "key": {
                               "symbol": "budget_transition_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "private_binding_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "spp_pool"
                             },
                             "val": {
                               "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"

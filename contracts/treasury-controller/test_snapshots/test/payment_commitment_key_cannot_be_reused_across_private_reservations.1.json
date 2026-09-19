@@ -1257,6 +1257,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "reservation_context_hash"
+                    },
+                    "val": {
+                      "u256": "16110663279221084943579621410737000005243075819738563484880653472563956782320"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "session_id"
                     },
                     "val": {
@@ -1479,6 +1487,14 @@
                           "symbol": "Private"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "treasury_spp_key_commitment"
+                    },
+                    "val": {
+                      "u256": "73"
                     }
                   },
                   {
@@ -1763,6 +1779,22 @@
                             },
                             "val": {
                               "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "private_binding_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "spp_pool"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                             }
                           },
                           {

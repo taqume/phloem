@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    Address, BytesN, U256, contracttype,
+    Address, Bytes, BytesN, I256, U256, Vec, contracterror, contracttype,
     crypto::bn254::{Bn254G1Affine, Bn254G2Affine},
 };
 
@@ -59,6 +59,7 @@ pub struct Session {
     pub expires_at_ledger: u32,
     pub root_budget_node_id: Option<BytesN<32>>,
     pub root_budget_note_id: Option<BytesN<32>>,
+    pub treasury_spp_key_commitment: Option<U256>,
     pub settlement_count: u64,
     pub unresolved_reservation_count: u64,
     pub audit_version: u32,
@@ -186,6 +187,7 @@ pub struct PrivatePaymentReservation {
     pub amount_commitment: U256,
     pub provider_commitment: U256,
     pub approved_provider_root: U256,
+    pub reservation_context_hash: U256,
     pub claim_deadline_ledger: u32,
     pub status: PrivateReservationStatus,
     pub created_at_ledger: u32,
@@ -221,6 +223,78 @@ pub struct PrivateVoucher {
     pub usage_root: U256,
     pub offer_commitment: U256,
     pub expiry_ledger: u32,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum SppPoolError {
+    NotAuthorized = 1,
+    MerkleTreeFull = 2,
+    AlreadyInitialized = 3,
+    WrongLevels = 4,
+    NextIndexNotEven = 5,
+    WrongExtAmount = 6,
+    InvalidProof = 7,
+    UnknownRoot = 8,
+    AlreadySpentNullifier = 9,
+    WrongExtHash = 10,
+    NotInitialized = 11,
+    Overflow = 12,
+    NonCanonicalPublicInput = 13,
+    InvalidPolicyFlags = 14,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SppProof {
+    pub proof: Groth16Proof,
+    pub root: U256,
+    pub input_nullifiers: Vec<U256>,
+    pub output_commitment0: U256,
+    pub output_commitment1: U256,
+    pub public_amount: U256,
+    pub ext_data_hash: BytesN<32>,
+    pub asp_membership_root: U256,
+    pub asp_non_membership_root: U256,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SppExtData {
+    pub recipient: Address,
+    pub ext_amount: I256,
+    pub encrypted_output0: Bytes,
+    pub encrypted_output1: Bytes,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateSettlementInput {
+    pub voucher: PrivateVoucher,
+    pub voucher_signature: BytesN<64>,
+    pub binding_proof: Groth16Proof,
+    pub spp_proof: SppProof,
+    pub spp_ext_data: SppExtData,
+    pub new_audit_total_commitment: U256,
+    pub refund_budget_note_id: Option<BytesN<32>>,
+    pub refund_budget_commitment: Option<U256>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivatePaymentRecord {
+    pub reservation_id: BytesN<32>,
+    pub session_id: BytesN<32>,
+    pub refund_budget_note_id: Option<BytesN<32>>,
+    pub voucher_sequence: u64,
+    pub usage_root: U256,
+    pub provider_spp_output_commitment: U256,
+    pub spp_refund_output_commitment: U256,
+    pub audit_total_commitment: U256,
+    pub settlement_ref: BytesN<32>,
+    pub status: PaymentStatus,
+    pub settled_at_ledger: u32,
 }
 
 #[contracttype]

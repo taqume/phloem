@@ -8,6 +8,7 @@ mod event;
 pub mod poseidon2;
 mod provider;
 mod reservation;
+mod spp;
 mod storage;
 mod types;
 mod voucher;
@@ -15,9 +16,10 @@ mod voucher;
 pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentReservation, PrivateReservationInput,
-    PrivateReservationStatus, PrivateVoucher, RootBudgetNoteInput, SafetyState, Session,
-    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
+    NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentRecord, PrivatePaymentReservation,
+    PrivateReservationInput, PrivateReservationStatus, PrivateSettlementInput, PrivateVoucher,
+    RootBudgetNoteInput, SafetyState, Session, SessionAuditState, SessionLifecycle, SessionPolicy,
+    SettlementMode, SppExtData, SppPoolError, SppProof, StandardDelegationInput,
     StandardSettlementInput,
 };
 
@@ -27,7 +29,10 @@ use soroban_sdk::{
 };
 
 use crate::{
-    event::{BudgetDelegated, PaymentSettled, PrivateReserved, RootFunded, SessionCreated},
+    event::{
+        BudgetDelegated, PaymentSettled, PrivateReserved, PrivateSettled, RootFunded,
+        SessionCreated,
+    },
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
         get_next_session_nonce, increment_session_nonce,
@@ -53,6 +58,8 @@ impl TreasuryController {
         standard_asset: Address,
         agent_account_wasm_hash: BytesN<32>,
         budget_transition_verifier: Address,
+        private_binding_verifier: Address,
+        spp_pool: Address,
     ) {
         env.storage().instance().set(
             &DataKey::Config,
@@ -60,6 +67,8 @@ impl TreasuryController {
                 standard_asset,
                 agent_account_wasm_hash,
                 budget_transition_verifier,
+                private_binding_verifier,
+                spp_pool,
             },
         );
         env.storage()
@@ -111,6 +120,7 @@ impl TreasuryController {
             expires_at_ledger: expires_at,
             root_budget_node_id: None,
             root_budget_note_id: None,
+            treasury_spp_key_commitment: None,
             settlement_count: 0,
             unresolved_reservation_count: 0,
             audit_version: 1,
@@ -648,7 +658,7 @@ impl TreasuryController {
             &env,
             source_context_hash,
             source_note.commitment.clone(),
-            reservation_context_hash,
+            reservation_context_hash.clone(),
             input.amount_commitment.clone(),
             U256::from_u32(&env, 2),
             remainder_context_hash,
@@ -697,6 +707,7 @@ impl TreasuryController {
             amount_commitment: input.amount_commitment,
             provider_commitment: input.provider_commitment,
             approved_provider_root: session.approved_provider_root.clone(),
+            reservation_context_hash,
             claim_deadline_ledger: input.claim_deadline_ledger,
             status: PrivateReservationStatus::Open,
             created_at_ledger: current_ledger,
@@ -761,6 +772,227 @@ impl TreasuryController {
         reservation
     }
 
+    pub fn settle_private_payment(env: Env, input: PrivateSettlementInput) -> PrivatePaymentRecord {
+        let mut reservation =
+            validate_private_voucher(&env, &input.voucher, &input.voucher_signature);
+        let mut session = load_session_or_fail(&env, &reservation.session_id);
+        if session.settlement_mode != SettlementMode::Private
+            || (session.lifecycle != SessionLifecycle::Active
+                && session.lifecycle != SessionLifecycle::Draining)
+            || session.audit_finalized
+            || reservation.asset != session.asset
+            || reservation.approved_provider_root != session.approved_provider_root
+        {
+            panic_with_error!(&env, Error::InvalidPrivateSettlement);
+        }
+
+        let treasury_spp_key_commitment = session
+            .treasury_spp_key_commitment
+            .clone()
+            .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidPrivateSettlement));
+        validate_field(&env, &treasury_spp_key_commitment);
+        validate_field(&env, &input.new_audit_total_commitment);
+        validate_field(&env, &input.spp_proof.output_commitment0);
+        validate_field(&env, &input.spp_proof.output_commitment1);
+        validate_field(&env, &input.spp_proof.public_amount);
+        if input.spp_proof.public_amount != U256::from_u32(&env, 0)
+            || input.spp_ext_data.ext_amount != soroban_sdk::I256::from_i32(&env, 0)
+        {
+            panic_with_error!(&env, Error::InvalidPrivateSettlement);
+        }
+
+        let config = get_config(&env);
+        if input.spp_ext_data.recipient != config.spp_pool {
+            panic_with_error!(&env, Error::InvalidPrivateSettlement);
+        }
+        let private_record_key = DataKey::PrivatePaymentRecord(reservation.id.clone());
+        if env.storage().persistent().has(&private_record_key) {
+            panic_with_error!(&env, Error::PaymentAlreadySettled);
+        }
+
+        let source_node = load_node_or_fail(&env, &reservation.source_node_id);
+        if source_node.session_id != session.id
+            || source_node.owner
+                != BudgetNodeOwner::AgentSmartAccount(reservation.source_agent.clone())
+        {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        let current_ledger = env.ledger().sequence();
+        let (refund_context_hash, refund_commitment, refund_note) = match (
+            &input.refund_budget_note_id,
+            &input.refund_budget_commitment,
+        ) {
+            (None, None) => (U256::from_u32(&env, 0), U256::from_u32(&env, 0), None),
+            (Some(note_id), Some(commitment)) => {
+                ensure_budget_identifier_available(&env, note_id);
+                if *note_id == reservation.id {
+                    panic_with_error!(&env, Error::IdentifierAlreadyUsed);
+                }
+                validate_field(&env, commitment);
+                let note = BudgetNoteState {
+                    id: note_id.clone(),
+                    session_id: session.id.clone(),
+                    node_id: source_node.id.clone(),
+                    owner: source_node.owner.clone(),
+                    policy_hash: session.policy_hash.clone(),
+                    commitment: commitment.clone(),
+                    state: BudgetNoteStatus::Active,
+                    created_at_ledger: current_ledger,
+                    spent_at_ledger: None,
+                };
+                (
+                    budget_context_hash_for_note(&env, &session, &note),
+                    commitment.clone(),
+                    Some(note),
+                )
+            }
+            _ => panic_with_error!(&env, Error::InvalidConservation),
+        };
+
+        let audit_key = DataKey::SessionAudit(session.id.clone());
+        let mut audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&audit_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        if audit_state.session_id != session.id
+            || audit_state.policy_hash != session.policy_hash
+            || audit_state.settlement_count != session.settlement_count
+            || audit_state.unresolved_reservation_count != session.unresolved_reservation_count
+            || audit_state.audit_version != session.audit_version
+            || audit_state.finalized
+            || audit_state.standard_total_spend_atomic.is_some()
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+        let audit_context_hash = audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        let next_settlement_count = session
+            .settlement_count
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
+        let next_unresolved = session
+            .unresolved_reservation_count
+            .checked_sub(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateMismatch));
+        let next_audit_version = session
+            .audit_version
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
+        let public_inputs = soroban_sdk::vec![
+            &env,
+            reservation.reservation_context_hash.clone(),
+            reservation.amount_commitment.clone(),
+            voucher::context_hash_v1(
+                &env,
+                &reservation.reservation_context_hash,
+                &reservation.offer_commitment,
+                &reservation.voucher_signer_public_key,
+                &input.voucher.usage_root,
+            )
+            .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField)),
+            input.voucher.cumulative_amount_commitment.clone(),
+            reservation.provider_commitment.clone(),
+            input.spp_proof.output_commitment0.clone(),
+            treasury_spp_key_commitment,
+            input.spp_proof.output_commitment1.clone(),
+            refund_context_hash,
+            refund_commitment,
+            reservation.approved_provider_root.clone(),
+            audit_context_hash,
+            audit_state.total_spend_commitment.clone(),
+            input.new_audit_total_commitment.clone(),
+            input.voucher.usage_root.clone(),
+            reservation.offer_commitment.clone(),
+        ];
+        let binding_verified: bool = env.invoke_contract(
+            &config.private_binding_verifier,
+            &symbol_short!("verify"),
+            (input.binding_proof.clone(), public_inputs).into_val(&env),
+        );
+        if !binding_verified {
+            panic_with_error!(&env, Error::InvalidProof);
+        }
+
+        spp::SppPoolClient::new(&env, &config.spp_pool).transact(
+            &input.spp_proof,
+            &input.spp_ext_data,
+            &env.current_contract_address(),
+        );
+        let settlement_ref = derive_private_settlement_ref(
+            &env,
+            &reservation.id,
+            &input.voucher,
+            &input.spp_proof,
+            current_ledger,
+        );
+        let record = PrivatePaymentRecord {
+            reservation_id: reservation.id.clone(),
+            session_id: session.id.clone(),
+            refund_budget_note_id: input.refund_budget_note_id.clone(),
+            voucher_sequence: input.voucher.sequence,
+            usage_root: input.voucher.usage_root.clone(),
+            provider_spp_output_commitment: input.spp_proof.output_commitment0.clone(),
+            spp_refund_output_commitment: input.spp_proof.output_commitment1.clone(),
+            audit_total_commitment: input.new_audit_total_commitment.clone(),
+            settlement_ref: settlement_ref.clone(),
+            status: PaymentStatus::Settled,
+            settled_at_ledger: current_ledger,
+        };
+
+        reservation.status = PrivateReservationStatus::Settled;
+        session.settlement_count = next_settlement_count;
+        session.unresolved_reservation_count = next_unresolved;
+        session.audit_version = next_audit_version;
+        audit_state.total_spend_commitment = input.new_audit_total_commitment;
+        audit_state.settlement_count = next_settlement_count;
+        audit_state.unresolved_reservation_count = next_unresolved;
+        audit_state.audit_version = next_audit_version;
+
+        let reservation_key = DataKey::PrivateReservation(reservation.id.clone());
+        let session_key = DataKey::Session(session.id.clone());
+        env.storage()
+            .persistent()
+            .set(&reservation_key, &reservation);
+        env.storage().persistent().set(&session_key, &session);
+        env.storage().persistent().set(&audit_key, &audit_state);
+        env.storage().persistent().set(&private_record_key, &record);
+        extend_persistent_ttl(&env, &reservation_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &private_record_key, session.expires_at_ledger);
+        if let Some(note) = refund_note {
+            let refund_key = DataKey::BudgetNote(note.id.clone());
+            env.storage().persistent().set(&refund_key, &note);
+            extend_persistent_ttl(&env, &refund_key, session.expires_at_ledger);
+        }
+        extend_instance_ttl(&env, session.expires_at_ledger);
+
+        PrivateSettled {
+            reservation_id: record.reservation_id.clone(),
+            session_id: record.session_id.clone(),
+            refund_budget_note_id: record.refund_budget_note_id.clone(),
+            voucher_sequence: record.voucher_sequence,
+            usage_root: record.usage_root.clone(),
+            provider_spp_output_commitment: record.provider_spp_output_commitment.clone(),
+            spp_refund_output_commitment: record.spp_refund_output_commitment.clone(),
+            new_audit_total_commitment: record.audit_total_commitment.clone(),
+            settlement_ref,
+            status: PaymentStatus::Settled,
+        }
+        .publish(&env);
+
+        record
+    }
+
     pub fn get_session(env: Env, session_id: BytesN<32>) -> Option<Session> {
         let key = DataKey::Session(session_id);
         let session: Option<Session> = env.storage().persistent().get(&key);
@@ -819,6 +1051,19 @@ impl TreasuryController {
         reservation
     }
 
+    pub fn get_private_payment_record(
+        env: Env,
+        reservation_id: BytesN<32>,
+    ) -> Option<PrivatePaymentRecord> {
+        let key = DataKey::PrivatePaymentRecord(reservation_id);
+        let record: Option<PrivatePaymentRecord> = env.storage().persistent().get(&key);
+        if let Some(value) = &record {
+            let session = load_session_or_fail(&env, &value.session_id);
+            extend_persistent_ttl(&env, &key, session.expires_at_ledger);
+        }
+        record
+    }
+
     pub fn verify_private_voucher(
         env: Env,
         voucher: PrivateVoucher,
@@ -874,6 +1119,14 @@ impl TreasuryController {
         get_config(&env).budget_transition_verifier
     }
 
+    pub fn get_private_binding_verifier(env: Env) -> Address {
+        get_config(&env).private_binding_verifier
+    }
+
+    pub fn get_spp_pool(env: Env) -> Address {
+        get_config(&env).spp_pool
+    }
+
     pub fn get_audit_context_hash(env: Env, session_id: BytesN<32>) -> U256 {
         let session = load_session_or_fail(&env, &session_id);
         if session.created_protocol_version != PROTOCOL_VERSION {
@@ -925,6 +1178,28 @@ fn derive_standard_settlement_ref(
         input.provider.clone(),
         input.amount_atomic,
         input.offer_reference_hash.clone(),
+        settled_at_ledger,
+    )
+        .to_xdr(env);
+    env.crypto().sha256(&preimage).to_bytes()
+}
+
+fn derive_private_settlement_ref(
+    env: &Env,
+    reservation_id: &BytesN<32>,
+    voucher: &PrivateVoucher,
+    spp_proof: &SppProof,
+    settled_at_ledger: u32,
+) -> BytesN<32> {
+    let domain = Bytes::from_slice(env, b"PHLOEM_PRIVATE_SETTLEMENT_V1");
+    let preimage = (
+        domain,
+        env.current_contract_address(),
+        reservation_id.clone(),
+        voucher.sequence,
+        voucher.usage_root.clone(),
+        spp_proof.output_commitment0.clone(),
+        spp_proof.output_commitment1.clone(),
         settled_at_ledger,
     )
         .to_xdr(env);

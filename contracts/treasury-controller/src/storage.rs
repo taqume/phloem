@@ -10,6 +10,8 @@ pub struct Config {
     pub standard_asset: Address,
     pub agent_account_wasm_hash: BytesN<32>,
     pub budget_transition_verifier: Address,
+    pub private_binding_verifier: Address,
+    pub spp_pool: Address,
 }
 
 #[contracttype]
@@ -25,6 +27,7 @@ pub enum DataKey {
     SessionAudit(BytesN<32>),
     PaymentRecord(BytesN<32>),
     PrivateReservation(BytesN<32>),
+    PrivatePaymentRecord(BytesN<32>),
     VoucherKeyUsed(BytesN<32>),
 }
 

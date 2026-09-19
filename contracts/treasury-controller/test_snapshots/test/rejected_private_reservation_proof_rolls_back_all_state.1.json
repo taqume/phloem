@@ -983,6 +983,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "treasury_spp_key_commitment"
+                    },
+                    "val": {
+                      "u256": "73"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "unresolved_reservation_count"
                     },
                     "val": {
@@ -1236,6 +1244,22 @@
                             },
                             "val": {
                               "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "private_binding_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "spp_pool"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                             }
                           },
                           {

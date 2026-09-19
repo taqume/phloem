@@ -1,5 +1,7 @@
 use soroban_sdk::{Address, BytesN, contractevent};
 
+use soroban_sdk::U256;
+
 use crate::{PaymentStatus, PrivateReservationStatus, SettlementMode};
 
 #[contractevent(topics = ["phloem", "session_created"])]
@@ -65,4 +67,21 @@ pub struct PrivateReserved {
     pub category_id: u32,
     pub claim_deadline_ledger: u32,
     pub status: PrivateReservationStatus,
+}
+
+#[contractevent(topics = ["phloem", "private_settled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateSettled {
+    #[topic]
+    pub reservation_id: BytesN<32>,
+    #[topic]
+    pub session_id: BytesN<32>,
+    pub refund_budget_note_id: Option<BytesN<32>>,
+    pub voucher_sequence: u64,
+    pub usage_root: U256,
+    pub provider_spp_output_commitment: U256,
+    pub spp_refund_output_commitment: U256,
+    pub new_audit_total_commitment: U256,
+    pub settlement_ref: BytesN<32>,
+    pub status: PaymentStatus,
 }
