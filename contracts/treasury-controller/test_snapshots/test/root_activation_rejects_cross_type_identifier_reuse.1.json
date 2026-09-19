@@ -1469,6 +1469,14 @@
                           },
                           {
                             "key": {
+                              "symbol": "budget_transition_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
                               "symbol": "standard_asset"
                             },
                             "val": {

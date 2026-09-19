@@ -1,17 +1,21 @@
 extern crate std;
 
 use soroban_sdk::{
-    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, contract,
+    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec, contract,
     contractimpl,
+    crypto::bn254::{
+        BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE, Bn254G1Affine, Bn254G2Affine,
+    },
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger},
     token::{StellarAssetClient, TokenClient},
 };
 
 use crate::{
-    BudgetNodeOwner, BudgetNoteStatus, NodePolicy, PaymentStatus, RootBudgetNoteInput, SafetyState,
-    SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
-    StandardSettlementInput, TreasuryController, TreasuryControllerClient, event::BudgetDelegated,
-    storage::DataKey,
+    BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
+    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus,
+    RootBudgetNoteInput, SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy,
+    SettlementMode, StandardDelegationInput, StandardSettlementInput, TreasuryController,
+    TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
 };
 
 #[contract]
@@ -30,6 +34,30 @@ impl WrongAgentImplementation {
     pub fn pong() {}
 }
 
+#[contract]
+struct MockBudgetTransitionVerifier;
+
+#[contractimpl]
+impl MockBudgetTransitionVerifier {
+    pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
+        if public_inputs.len() != 8 || public_inputs.get_unchecked(4) != U256::from_u32(&env, 2) {
+            return false;
+        }
+        let remainder_kind = public_inputs.get_unchecked(7);
+        remainder_kind == U256::from_u32(&env, 0) || remainder_kind == U256::from_u32(&env, 1)
+    }
+}
+
+#[contract]
+struct RejectingBudgetTransitionVerifier;
+
+#[contractimpl]
+impl RejectingBudgetTransitionVerifier {
+    pub fn verify(_proof: Groth16Proof, _public_inputs: Vec<U256>) -> bool {
+        false
+    }
+}
+
 struct Harness<'a> {
     env: Env,
     contract_id: Address,
@@ -37,10 +65,19 @@ struct Harness<'a> {
     company: Address,
     asset: Address,
     agent_account_wasm_hash: BytesN<32>,
+    budget_transition_verifier: Address,
     token: TokenClient<'a>,
 }
 
 fn setup<'a>() -> Harness<'a> {
+    setup_internal(None)
+}
+
+fn setup_with_budget_verifier<'a>(accept_proof: bool) -> Harness<'a> {
+    setup_internal(Some(accept_proof))
+}
+
+fn setup_internal<'a>(accept_proof: Option<bool>) -> Harness<'a> {
     let env = Env::default();
     env.ledger().set_sequence_number(1_000);
 
@@ -55,9 +92,18 @@ fn setup<'a>() -> Harness<'a> {
     env.set_auths(&[]);
 
     let agent_account_wasm_hash = env.upload(MockAgentAccount);
+    let budget_transition_verifier = match accept_proof {
+        Some(true) => env.register(MockBudgetTransitionVerifier, ()),
+        Some(false) => env.register(RejectingBudgetTransitionVerifier, ()),
+        None => company.clone(),
+    };
     let contract_id = env.register(
         TreasuryController,
-        (asset.clone(), agent_account_wasm_hash.clone()),
+        (
+            asset.clone(),
+            agent_account_wasm_hash.clone(),
+            budget_transition_verifier.clone(),
+        ),
     );
     let controller = TreasuryControllerClient::new(&env, &contract_id);
     let token = TokenClient::new(&env, &asset);
@@ -69,6 +115,7 @@ fn setup<'a>() -> Harness<'a> {
         company,
         asset,
         agent_account_wasm_hash,
+        budget_transition_verifier,
         token,
     }
 }
@@ -215,6 +262,156 @@ fn standard_settlement_fixture(h: &Harness<'_>) -> (StandardSettlementInput, Add
     )
 }
 
+struct PrivateFixture {
+    session_id: BytesN<32>,
+    source_node_id: BytesN<32>,
+    source_note_id: BytesN<32>,
+    agent: Address,
+    input: PrivateReservationInput,
+}
+
+fn private_reservation_fixture(h: &Harness<'_>) -> PrivateFixture {
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let agent = agent_account(h);
+    let root_node_id = id(&h.env, 120);
+    let root_note_id = id(&h.env, 121);
+    let source_node_id = id(&h.env, 122);
+    let source_note_id = id(&h.env, 123);
+    let current_ledger = h.env.ledger().sequence();
+    let mut session = h.controller.get_session(&session_id).unwrap();
+    session.lifecycle = SessionLifecycle::Active;
+    session.root_budget_node_id = Some(root_node_id.clone());
+    session.root_budget_note_id = Some(root_note_id.clone());
+
+    let root_node = BudgetNode {
+        id: root_node_id.clone(),
+        session_id: session_id.clone(),
+        parent_node_id: None,
+        owner: BudgetNodeOwner::RootCompany,
+        depth: 0,
+        node_policy: NodePolicy {
+            category_mask: u64::MAX,
+            allowed_actions_mask: 0b111,
+            expiry,
+            remaining_delegation_depth: 3,
+        },
+        branch_frozen: false,
+        created_at_ledger: current_ledger,
+        state: BudgetNodeState::Active,
+    };
+    let root_note = BudgetNoteState {
+        id: root_note_id.clone(),
+        session_id: session_id.clone(),
+        node_id: root_node_id.clone(),
+        owner: BudgetNodeOwner::RootCompany,
+        policy_hash: session.policy_hash.clone(),
+        commitment: U256::from_u32(&h.env, 29),
+        state: BudgetNoteStatus::Spent,
+        created_at_ledger: current_ledger,
+        spent_at_ledger: Some(current_ledger),
+    };
+    let source_node = BudgetNode {
+        id: source_node_id.clone(),
+        session_id: session_id.clone(),
+        parent_node_id: Some(root_node_id.clone()),
+        owner: BudgetNodeOwner::AgentSmartAccount(agent.clone()),
+        depth: 1,
+        node_policy: NodePolicy {
+            category_mask: 0b10,
+            allowed_actions_mask: 0b100,
+            expiry: 1_900,
+            remaining_delegation_depth: 2,
+        },
+        branch_frozen: false,
+        created_at_ledger: current_ledger,
+        state: BudgetNodeState::Active,
+    };
+    let source_note = BudgetNoteState {
+        id: source_note_id.clone(),
+        session_id: session_id.clone(),
+        node_id: source_node_id.clone(),
+        owner: source_node.owner.clone(),
+        policy_hash: session.policy_hash.clone(),
+        commitment: U256::from_u32(&h.env, 31),
+        state: BudgetNoteStatus::Active,
+        created_at_ledger: current_ledger,
+        spent_at_ledger: None,
+    };
+    let audit_state = SessionAuditState {
+        session_id: session_id.clone(),
+        total_spend_commitment: U256::from_u32(&h.env, 37),
+        settlement_count: 0,
+        unresolved_reservation_count: 0,
+        audit_version: 1,
+        policy_hash: session.policy_hash.clone(),
+        finalized: false,
+        final_snapshot_hash: None,
+        standard_total_spend_atomic: None,
+    };
+    h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::Session(session_id.clone()), &session);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNode(root_node_id), &root_node);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNote(root_note_id), &root_note);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNode(source_node_id.clone()), &source_node);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNote(source_note_id.clone()), &source_note);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::SessionAudit(session_id.clone()), &audit_state);
+    });
+
+    PrivateFixture {
+        session_id: session_id.clone(),
+        source_node_id,
+        source_note_id: source_note_id.clone(),
+        agent,
+        input: PrivateReservationInput {
+            reservation_id: id(&h.env, 124),
+            session_id,
+            source_budget_note_id: source_note_id,
+            category_id: 1,
+            offer_commitment: U256::from_u32(&h.env, 41),
+            voucher_signer_public_key: id(&h.env, 125),
+            amount_commitment: U256::from_u32(&h.env, 43),
+            provider_commitment: U256::from_u32(&h.env, 47),
+            claim_deadline_ledger: 1_800,
+            remainder_budget_note_id: Some(id(&h.env, 126)),
+            remainder_commitment: Some(U256::from_u32(&h.env, 53)),
+        },
+    }
+}
+
+fn dummy_proof(env: &Env) -> Groth16Proof {
+    Groth16Proof {
+        a: Bn254G1Affine::from_array(env, &[0_u8; BN254_G1_SERIALIZED_SIZE]),
+        b: Bn254G2Affine::from_array(env, &[0_u8; BN254_G2_SERIALIZED_SIZE]),
+        c: Bn254G1Affine::from_array(env, &[0_u8; BN254_G1_SERIALIZED_SIZE]),
+    }
+}
+
 #[test]
 fn create_session_requires_company_authorization() {
     let h = setup();
@@ -229,6 +426,16 @@ fn create_session_requires_company_authorization() {
     );
 
     assert!(result.is_err());
+}
+
+#[test]
+fn constructor_pins_the_budget_transition_verifier() {
+    let h = setup();
+
+    assert_eq!(
+        h.controller.get_budget_transition_verifier(),
+        h.budget_transition_verifier
+    );
 }
 
 #[test]
@@ -1066,5 +1273,256 @@ fn failed_provider_transfer_leaves_no_partial_settlement_state() {
             .unwrap()
             .settlement_count,
         0
+    );
+}
+
+#[test]
+fn private_reservation_is_agent_authorized_and_consumes_the_source_once() {
+    let h = setup_with_budget_verifier(true);
+    let fixture = private_reservation_fixture(&h);
+    let proof = dummy_proof(&h.env);
+
+    h.env.set_auths(&[]);
+    assert!(
+        h.controller
+            .try_open_private_reservation(&fixture.input, &proof)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.source_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+
+    h.env.mock_all_auths();
+    let reservation = h
+        .controller
+        .open_private_reservation(&fixture.input, &proof);
+
+    assert_eq!(reservation.status, PrivateReservationStatus::Open);
+    assert_eq!(reservation.source_agent, fixture.agent);
+    assert_eq!(reservation.source_node_id, fixture.source_node_id);
+    assert_eq!(
+        reservation.amount_commitment,
+        fixture.input.amount_commitment
+    );
+    assert_eq!(
+        reservation.provider_commitment,
+        fixture.input.provider_commitment
+    );
+    assert_eq!(
+        h.controller
+            .get_private_reservation(&fixture.input.reservation_id),
+        Some(reservation)
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.source_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Spent
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.input.remainder_budget_note_id.clone().unwrap())
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+    let session = h.controller.get_session(&fixture.session_id).unwrap();
+    let audit = h.controller.get_audit_state(&fixture.session_id).unwrap();
+    assert_eq!(session.unresolved_reservation_count, 1);
+    assert_eq!(audit.unresolved_reservation_count, 1);
+    assert_eq!(session.settlement_count, audit.settlement_count);
+    assert_eq!(session.audit_version, audit.audit_version);
+
+    assert!(
+        h.controller
+            .try_open_private_reservation(&fixture.input, &proof)
+            .is_err()
+    );
+}
+
+#[test]
+fn rejected_private_reservation_proof_rolls_back_all_state() {
+    let h = setup_with_budget_verifier(false);
+    let fixture = private_reservation_fixture(&h);
+    h.env.mock_all_auths();
+
+    assert!(
+        h.controller
+            .try_open_private_reservation(&fixture.input, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert!(
+        h.controller
+            .get_private_reservation(&fixture.input.reservation_id)
+            .is_none()
+    );
+    assert!(
+        h.controller
+            .get_budget_note(&fixture.input.remainder_budget_note_id.unwrap())
+            .is_none()
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.source_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+    assert_eq!(
+        h.controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .unresolved_reservation_count,
+        0
+    );
+    assert_eq!(
+        h.controller
+            .get_audit_state(&fixture.session_id)
+            .unwrap()
+            .unresolved_reservation_count,
+        0
+    );
+}
+
+#[test]
+fn private_reservation_can_consume_the_full_hidden_budget_note() {
+    let h = setup_with_budget_verifier(true);
+    let mut fixture = private_reservation_fixture(&h);
+    fixture.input.remainder_budget_note_id = None;
+    fixture.input.remainder_commitment = None;
+    h.env.mock_all_auths();
+
+    let reservation = h
+        .controller
+        .open_private_reservation(&fixture.input, &dummy_proof(&h.env));
+
+    assert_eq!(reservation.status, PrivateReservationStatus::Open);
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.source_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Spent
+    );
+    assert_eq!(
+        h.controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .unresolved_reservation_count,
+        1
+    );
+}
+
+#[test]
+fn payment_commitment_key_cannot_be_reused_across_private_reservations() {
+    let h = setup_with_budget_verifier(true);
+    let fixture = private_reservation_fixture(&h);
+    h.env.mock_all_auths();
+    h.controller
+        .open_private_reservation(&fixture.input, &dummy_proof(&h.env));
+
+    let second_note_id = id(&h.env, 127);
+    let second_note = BudgetNoteState {
+        id: second_note_id.clone(),
+        session_id: fixture.session_id.clone(),
+        node_id: fixture.source_node_id,
+        owner: BudgetNodeOwner::AgentSmartAccount(fixture.agent),
+        policy_hash: h
+            .controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .policy_hash,
+        commitment: U256::from_u32(&h.env, 59),
+        state: BudgetNoteStatus::Active,
+        created_at_ledger: h.env.ledger().sequence(),
+        spent_at_ledger: None,
+    };
+    h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNote(second_note_id.clone()), &second_note);
+    });
+
+    let mut second_input = fixture.input.clone();
+    second_input.reservation_id = id(&h.env, 128);
+    second_input.source_budget_note_id = second_note_id.clone();
+    second_input.remainder_budget_note_id = Some(id(&h.env, 129));
+    assert!(
+        h.controller
+            .try_open_private_reservation(&second_input, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert!(
+        h.controller
+            .get_private_reservation(&second_input.reservation_id)
+            .is_none()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&second_note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+    assert_eq!(
+        h.controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .unresolved_reservation_count,
+        1
+    );
+}
+
+#[test]
+fn private_reservation_rejects_expired_or_ungranted_authority() {
+    let h = setup_with_budget_verifier(true);
+    let fixture = private_reservation_fixture(&h);
+    h.env.mock_all_auths();
+
+    let mut source_node = h
+        .controller
+        .get_budget_node(&fixture.source_node_id)
+        .unwrap();
+    source_node.node_policy.allowed_actions_mask = 0;
+    h.env.as_contract(&h.contract_id, || {
+        h.env.storage().persistent().set(
+            &DataKey::BudgetNode(fixture.source_node_id.clone()),
+            &source_node,
+        );
+    });
+    assert!(
+        h.controller
+            .try_open_private_reservation(&fixture.input, &dummy_proof(&h.env))
+            .is_err()
+    );
+
+    source_node.node_policy.allowed_actions_mask = 0b100;
+    h.env.as_contract(&h.contract_id, || {
+        h.env.storage().persistent().set(
+            &DataKey::BudgetNode(fixture.source_node_id.clone()),
+            &source_node,
+        );
+    });
+    let mut expired = fixture.input.clone();
+    expired.claim_deadline_ledger = h.env.ledger().sequence();
+    assert!(
+        h.controller
+            .try_open_private_reservation(&expired, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert!(
+        h.controller
+            .get_private_reservation(&fixture.input.reservation_id)
+            .is_none()
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&fixture.source_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
     );
 }

@@ -165,6 +165,50 @@ pub struct StandardSettlementInput {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PrivateReservationStatus {
+    Open,
+    Settled,
+    Reclaimed,
+    Expired,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivatePaymentReservation {
+    pub id: BytesN<32>,
+    pub session_id: BytesN<32>,
+    pub source_node_id: BytesN<32>,
+    pub source_agent: Address,
+    pub asset: Address,
+    pub category_id: u32,
+    pub offer_commitment: U256,
+    pub voucher_signer_public_key: BytesN<32>,
+    pub amount_commitment: U256,
+    pub provider_commitment: U256,
+    pub approved_provider_root: U256,
+    pub claim_deadline_ledger: u32,
+    pub status: PrivateReservationStatus,
+    pub created_at_ledger: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateReservationInput {
+    pub reservation_id: BytesN<32>,
+    pub session_id: BytesN<32>,
+    pub source_budget_note_id: BytesN<32>,
+    pub category_id: u32,
+    pub offer_commitment: U256,
+    pub voucher_signer_public_key: BytesN<32>,
+    pub amount_commitment: U256,
+    pub provider_commitment: U256,
+    pub claim_deadline_ledger: u32,
+    pub remainder_budget_note_id: Option<BytesN<32>>,
+    pub remainder_commitment: Option<U256>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PaymentStatus {
     Settled,
 }

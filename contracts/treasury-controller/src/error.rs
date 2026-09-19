@@ -34,4 +34,8 @@ pub enum Error {
     CategoryNotAllowed = 28,
     ActionNotAllowed = 29,
     AuditStateMismatch = 30,
+    ReservationNotFound = 31,
+    ReservationAlreadyExists = 32,
+    VoucherKeyAlreadyUsed = 33,
+    InvalidReservation = 34,
 }

@@ -7,24 +7,26 @@ mod error;
 mod event;
 pub mod poseidon2;
 mod provider;
+mod reservation;
 mod storage;
 mod types;
 
 pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentRecord, PaymentStatus, RootBudgetNoteInput, SafetyState, Session,
-    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
+    NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentReservation, PrivateReservationInput,
+    PrivateReservationStatus, RootBudgetNoteInput, SafetyState, Session, SessionAuditState,
+    SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
     StandardSettlementInput,
 };
 
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, Executable, U256, contract, contractimpl, panic_with_error, token,
-    xdr::ToXdr,
+    Address, Bytes, BytesN, Env, Executable, IntoVal, U256, contract, contractimpl,
+    panic_with_error, symbol_short, token, xdr::ToXdr,
 };
 
 use crate::{
-    event::{BudgetDelegated, PaymentSettled, RootFunded, SessionCreated},
+    event::{BudgetDelegated, PaymentSettled, PrivateReserved, RootFunded, SessionCreated},
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
         get_next_session_nonce, increment_session_nonce,
@@ -36,6 +38,7 @@ const POLICY_VERSION: u32 = 1;
 const MAX_DELEGATION_DEPTH: u32 = 3;
 const ACTION_DELEGATE_BUDGET: u64 = 1;
 const ACTION_SETTLE_PAYMENT: u64 = 1 << 1;
+const ACTION_OPEN_PRIVATE_RESERVATION: u64 = 1 << 2;
 const SETTLEMENT_MODE_STANDARD: u32 = 1;
 const SETTLEMENT_MODE_MASK: u32 = 0b11;
 
@@ -44,12 +47,18 @@ pub struct TreasuryController;
 
 #[contractimpl]
 impl TreasuryController {
-    pub fn __constructor(env: Env, standard_asset: Address, agent_account_wasm_hash: BytesN<32>) {
+    pub fn __constructor(
+        env: Env,
+        standard_asset: Address,
+        agent_account_wasm_hash: BytesN<32>,
+        budget_transition_verifier: Address,
+    ) {
         env.storage().instance().set(
             &DataKey::Config,
             &Config {
                 standard_asset,
                 agent_account_wasm_hash,
+                budget_transition_verifier,
             },
         );
         env.storage()
@@ -547,6 +556,210 @@ impl TreasuryController {
         record
     }
 
+    pub fn open_private_reservation(
+        env: Env,
+        input: PrivateReservationInput,
+        proof: Groth16Proof,
+    ) -> PrivatePaymentReservation {
+        let mut session = load_session_or_fail(&env, &input.session_id);
+        let mut source_note = load_note_or_fail(&env, &input.source_budget_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        let source_agent = match &source_note.owner {
+            BudgetNodeOwner::AgentSmartAccount(owner) => owner.clone(),
+            BudgetNodeOwner::RootCompany => {
+                panic_with_error!(&env, Error::InvalidBudgetOwner)
+            }
+        };
+        source_agent.require_auth();
+        validate_active_private_source(&env, &session, &source_note, &source_node);
+
+        let current_ledger = env.ledger().sequence();
+        if input.claim_deadline_ledger <= current_ledger
+            || input.claim_deadline_ledger > session.expires_at_ledger
+        {
+            panic_with_error!(&env, Error::InvalidExpiry);
+        }
+        let category_bit = 1u64
+            .checked_shl(input.category_id)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CategoryNotAllowed));
+        if source_node.node_policy.category_mask & category_bit == 0 {
+            panic_with_error!(&env, Error::CategoryNotAllowed);
+        }
+        if source_node.node_policy.allowed_actions_mask & ACTION_OPEN_PRIVATE_RESERVATION == 0 {
+            panic_with_error!(&env, Error::ActionNotAllowed);
+        }
+        validate_field(&env, &input.offer_commitment);
+        validate_field(&env, &input.amount_commitment);
+        validate_field(&env, &input.provider_commitment);
+        if input.voucher_signer_public_key == BytesN::from_array(&env, &[0_u8; 32]) {
+            panic_with_error!(&env, Error::InvalidReservation);
+        }
+
+        let reservation_key = DataKey::PrivateReservation(input.reservation_id.clone());
+        if env.storage().persistent().has(&reservation_key) {
+            panic_with_error!(&env, Error::ReservationAlreadyExists);
+        }
+        ensure_budget_identifier_available(&env, &input.reservation_id);
+        let voucher_key = DataKey::VoucherKeyUsed(input.voucher_signer_public_key.clone());
+        if env.storage().persistent().has(&voucher_key) {
+            panic_with_error!(&env, Error::VoucherKeyAlreadyUsed);
+        }
+
+        let source_context_hash = budget_context_hash_for_note(&env, &session, &source_note);
+        let reservation_context_hash = reservation::context_hash_v1(
+            &env,
+            &source_context_hash,
+            &input.reservation_id,
+            &session.approved_provider_root,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField));
+
+        let (remainder_context_hash, remainder_commitment, remainder_kind) =
+            match (&input.remainder_budget_note_id, &input.remainder_commitment) {
+                (None, None) => (U256::from_u32(&env, 0), U256::from_u32(&env, 0), 0u32),
+                (Some(note_id), Some(commitment)) => {
+                    ensure_budget_identifier_available(&env, note_id);
+                    if *note_id == input.source_budget_note_id || *note_id == input.reservation_id {
+                        panic_with_error!(&env, Error::IdentifierAlreadyUsed);
+                    }
+                    validate_field(&env, commitment);
+                    let remainder_note = BudgetNoteState {
+                        id: note_id.clone(),
+                        session_id: session.id.clone(),
+                        node_id: source_node.id.clone(),
+                        owner: source_node.owner.clone(),
+                        policy_hash: session.policy_hash.clone(),
+                        commitment: commitment.clone(),
+                        state: BudgetNoteStatus::Active,
+                        created_at_ledger: current_ledger,
+                        spent_at_ledger: None,
+                    };
+                    (
+                        budget_context_hash_for_note(&env, &session, &remainder_note),
+                        commitment.clone(),
+                        1u32,
+                    )
+                }
+                _ => panic_with_error!(&env, Error::InvalidConservation),
+            };
+
+        let public_inputs = soroban_sdk::vec![
+            &env,
+            source_context_hash,
+            source_note.commitment.clone(),
+            reservation_context_hash,
+            input.amount_commitment.clone(),
+            U256::from_u32(&env, 2),
+            remainder_context_hash,
+            remainder_commitment,
+            U256::from_u32(&env, remainder_kind),
+        ];
+        let verified: bool = env.invoke_contract(
+            &get_config(&env).budget_transition_verifier,
+            &symbol_short!("verify"),
+            (proof, public_inputs).into_val(&env),
+        );
+        if !verified {
+            panic_with_error!(&env, Error::InvalidProof);
+        }
+
+        let next_unresolved = session
+            .unresolved_reservation_count
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
+        let audit_key = DataKey::SessionAudit(session.id.clone());
+        let mut audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&audit_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        if audit_state.unresolved_reservation_count != session.unresolved_reservation_count
+            || audit_state.session_id != session.id
+            || audit_state.policy_hash != session.policy_hash
+            || audit_state.settlement_count != session.settlement_count
+            || audit_state.audit_version != session.audit_version
+            || audit_state.finalized
+            || session.audit_finalized
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+
+        let reservation = PrivatePaymentReservation {
+            id: input.reservation_id.clone(),
+            session_id: session.id.clone(),
+            source_node_id: source_node.id.clone(),
+            source_agent,
+            asset: session.asset.clone(),
+            category_id: input.category_id,
+            offer_commitment: input.offer_commitment,
+            voucher_signer_public_key: input.voucher_signer_public_key.clone(),
+            amount_commitment: input.amount_commitment,
+            provider_commitment: input.provider_commitment,
+            approved_provider_root: session.approved_provider_root.clone(),
+            claim_deadline_ledger: input.claim_deadline_ledger,
+            status: PrivateReservationStatus::Open,
+            created_at_ledger: current_ledger,
+        };
+
+        source_note.state = BudgetNoteStatus::Spent;
+        source_note.spent_at_ledger = Some(current_ledger);
+        session.unresolved_reservation_count = next_unresolved;
+        audit_state.unresolved_reservation_count = next_unresolved;
+
+        let source_note_key = DataKey::BudgetNote(input.source_budget_note_id.clone());
+        let session_key = DataKey::Session(session.id.clone());
+        env.storage()
+            .persistent()
+            .set(&source_note_key, &source_note);
+        env.storage().persistent().set(&session_key, &session);
+        env.storage().persistent().set(&audit_key, &audit_state);
+        env.storage()
+            .persistent()
+            .set(&reservation_key, &reservation);
+        env.storage().persistent().set(&voucher_key, &true);
+
+        extend_persistent_ttl(&env, &source_note_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &reservation_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &voucher_key, session.expires_at_ledger);
+
+        if let (Some(note_id), Some(commitment)) =
+            (&input.remainder_budget_note_id, &input.remainder_commitment)
+        {
+            let remainder_note = BudgetNoteState {
+                id: note_id.clone(),
+                session_id: session.id.clone(),
+                node_id: source_node.id.clone(),
+                owner: source_node.owner.clone(),
+                policy_hash: session.policy_hash.clone(),
+                commitment: commitment.clone(),
+                state: BudgetNoteStatus::Active,
+                created_at_ledger: current_ledger,
+                spent_at_ledger: None,
+            };
+            let remainder_key = DataKey::BudgetNote(note_id.clone());
+            env.storage()
+                .persistent()
+                .set(&remainder_key, &remainder_note);
+            extend_persistent_ttl(&env, &remainder_key, session.expires_at_ledger);
+        }
+
+        extend_instance_ttl(&env, session.expires_at_ledger);
+        PrivateReserved {
+            reservation_id: reservation.id.clone(),
+            session_id: reservation.session_id.clone(),
+            source_budget_note_id: input.source_budget_note_id,
+            remainder_budget_note_id: input.remainder_budget_note_id,
+            category_id: reservation.category_id,
+            claim_deadline_ledger: reservation.claim_deadline_ledger,
+            status: reservation.status.clone(),
+        }
+        .publish(&env);
+
+        reservation
+    }
+
     pub fn get_session(env: Env, session_id: BytesN<32>) -> Option<Session> {
         let key = DataKey::Session(session_id);
         let session: Option<Session> = env.storage().persistent().get(&key);
@@ -592,6 +805,19 @@ impl TreasuryController {
         record
     }
 
+    pub fn get_private_reservation(
+        env: Env,
+        reservation_id: BytesN<32>,
+    ) -> Option<PrivatePaymentReservation> {
+        let key = DataKey::PrivateReservation(reservation_id);
+        let reservation: Option<PrivatePaymentReservation> = env.storage().persistent().get(&key);
+        if let Some(value) = &reservation {
+            let session = load_session_or_fail(&env, &value.session_id);
+            extend_persistent_ttl(&env, &key, session.expires_at_ledger);
+        }
+        reservation
+    }
+
     pub fn get_provider_policy_leaf(
         env: Env,
         provider_identity: Address,
@@ -632,6 +858,10 @@ impl TreasuryController {
         get_config(&env).agent_account_wasm_hash
     }
 
+    pub fn get_budget_transition_verifier(env: Env) -> Address {
+        get_config(&env).budget_transition_verifier
+    }
+
     pub fn get_audit_context_hash(env: Env, session_id: BytesN<32>) -> U256 {
         let session = load_session_or_fail(&env, &session_id);
         if session.created_protocol_version != PROTOCOL_VERSION {
@@ -652,28 +882,7 @@ impl TreasuryController {
     pub fn get_budget_note_context_hash(env: Env, note_id: BytesN<32>) -> U256 {
         let note = load_note_or_fail(&env, &note_id);
         let session = load_session_or_fail(&env, &note.session_id);
-        if session.created_protocol_version != PROTOCOL_VERSION {
-            panic_with_error!(&env, Error::BudgetStateMismatch);
-        }
-        let owner = match &note.owner {
-            BudgetNodeOwner::RootCompany => session.company.clone(),
-            BudgetNodeOwner::AgentSmartAccount(address) => address.clone(),
-        };
-        budget::context_hash_v1(
-            &env,
-            &budget::BudgetContextV1 {
-                protocol_version: session.created_protocol_version,
-                network_id: &env.ledger().network_id(),
-                controller: &env.current_contract_address(),
-                session_id: &note.session_id,
-                node_id: &note.node_id,
-                owner: &owner,
-                asset: &session.asset,
-                policy_hash: &note.policy_hash,
-                note_id: &note.id,
-            },
-        )
-        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding))
+        budget_context_hash_for_note(&env, &session, &note)
     }
 }
 
@@ -776,6 +985,31 @@ fn load_note_or_fail(env: &Env, note_id: &BytesN<32>) -> BudgetNoteState {
         .persistent()
         .get(&DataKey::BudgetNote(note_id.clone()))
         .unwrap_or_else(|| panic_with_error!(env, Error::BudgetNoteNotFound))
+}
+
+fn budget_context_hash_for_note(env: &Env, session: &Session, note: &BudgetNoteState) -> U256 {
+    if session.created_protocol_version != PROTOCOL_VERSION {
+        panic_with_error!(env, Error::BudgetStateMismatch);
+    }
+    let owner = match &note.owner {
+        BudgetNodeOwner::RootCompany => session.company.clone(),
+        BudgetNodeOwner::AgentSmartAccount(address) => address.clone(),
+    };
+    budget::context_hash_v1(
+        env,
+        &budget::BudgetContextV1 {
+            protocol_version: session.created_protocol_version,
+            network_id: &env.ledger().network_id(),
+            controller: &env.current_contract_address(),
+            session_id: &note.session_id,
+            node_id: &note.node_id,
+            owner: &owner,
+            asset: &session.asset,
+            policy_hash: &note.policy_hash,
+            note_id: &note.id,
+        },
+    )
+    .unwrap_or_else(|| panic_with_error!(env, Error::InvalidAddressEncoding))
 }
 
 fn delegate_standard(
@@ -942,6 +1176,47 @@ fn validate_active_standard_source(
     }
 }
 
+fn validate_active_private_source(
+    env: &Env,
+    session: &Session,
+    source_note: &BudgetNoteState,
+    source_node: &BudgetNode,
+) {
+    let current_ledger = env.ledger().sequence();
+    if session.lifecycle != SessionLifecycle::Active {
+        panic_with_error!(env, Error::InvalidLifecycle);
+    }
+    if session.settlement_mode != SettlementMode::Private {
+        panic_with_error!(env, Error::WrongSettlementMode);
+    }
+    if session.safety != SafetyState::Normal {
+        panic_with_error!(env, Error::SessionFrozen);
+    }
+    if current_ledger >= session.expires_at_ledger {
+        panic_with_error!(env, Error::SessionExpired);
+    }
+    if source_note.state != BudgetNoteStatus::Active {
+        panic_with_error!(env, Error::BudgetNoteSpent);
+    }
+    if source_node.state != BudgetNodeState::Active {
+        panic_with_error!(env, Error::InvalidNodeState);
+    }
+    if source_node.branch_frozen {
+        panic_with_error!(env, Error::BranchFrozen);
+    }
+    if source_node.node_policy.expiry <= current_ledger {
+        panic_with_error!(env, Error::SessionExpired);
+    }
+    if source_note.session_id != session.id
+        || source_node.session_id != session.id
+        || source_note.node_id != source_node.id
+        || source_note.owner != source_node.owner
+        || source_note.policy_hash != session.policy_hash
+    {
+        panic_with_error!(env, Error::BudgetStateMismatch);
+    }
+}
+
 fn validate_standard_delegation(
     env: &Env,
     session: &Session,
@@ -1011,6 +1286,10 @@ fn ensure_budget_identifier_available(env: &Env, identifier: &BytesN<32>) {
             .storage()
             .persistent()
             .has(&DataKey::StandardNoteAmount(identifier.clone()))
+        || env
+            .storage()
+            .persistent()
+            .has(&DataKey::PrivateReservation(identifier.clone()))
     {
         panic_with_error!(env, Error::IdentifierAlreadyUsed);
     }
