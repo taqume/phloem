@@ -1,7 +1,7 @@
 export const PHLOEM_DEPLOYER = "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC";
-export const PHLOEM_UPLOAD_FEE_LIMIT_STROOPS = "192310087";
+export const PHLOEM_UPLOAD_FEE_LIMIT_STROOPS = "193744382";
 export const PHLOEM_UPLOAD_FEE_TOLERANCE_BPS = 100n;
-export const PHLOEM_CONTRACT_SOURCE_REVISION = "83b6c1dcd7cc8bfbb62b06a69cc829a35ac0c6d0";
+export const PHLOEM_CONTRACT_SOURCE_REVISION = "27ea0e36ea42a975b824eec568522fe70d316806";
 
 export function feeGuardrailStroops(preflightStroops: string): string {
   const value = BigInt(preflightStroops);
@@ -47,9 +47,9 @@ export const PHLOEM_ARTIFACTS = {
   treasuryController: {
     fileName: "phloem_treasury_controller.wasm",
     label: "TreasuryController",
-    maxFeeStroops: "110159536",
-    sha256: "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62",
-    size: 73_776,
+    maxFeeStroops: "111593831",
+    sha256: "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+    size: 73_920,
   },
 } as const;
 

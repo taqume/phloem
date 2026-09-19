@@ -138,8 +138,8 @@
     }
   },
   "phloem": {
-    "status": "wasm-uploaded",
-    "sourceRevision": "83b6c1dcd7cc8bfbb62b06a69cc829a35ac0c6d0",
+    "status": "wasm-upload-pending",
+    "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
     "contracts": {},
     "uploaders": {
       "primary": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
@@ -176,9 +176,10 @@
         "provisioning": "uploaded-by-primary-deployer"
       },
       "treasuryController": {
-        "sha256": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62",
-        "bytes": 73776,
-        "provisioning": "uploaded-by-dedicated-testnet-uploader"
+        "sha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+        "bytes": 73920,
+        "provisioning": "pending-upload",
+        "supersedes": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62"
       }
     },
     "transactions": [
@@ -218,7 +219,7 @@
         "feeChargedStroops": "43184626"
       },
       {
-        "step": "upload-treasury-controller",
+        "step": "upload-treasury-controller-superseded",
         "hash": "447cf4c83407750cc5bed3b9cdcfa8be6eb71e512a525c269d650e15ae1874f3",
         "ledger": 4767204,
         "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
@@ -240,13 +241,13 @@
       "transactionStatus": "SUCCESS",
       "assetMovement": false,
       "contractInstancesCreated": false,
-      "contractWasmHashes": "verified",
-      "pendingWasmUploads": 0
+      "contractWasmHashes": "five current; prior TreasuryController hash retained as superseded evidence",
+      "pendingWasmUploads": 1
     }
   },
   "smartAccount": {
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "The fee-only SPP USDC dependency deployment is live and all six pinned Phloem WASM artifacts are uploaded. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
+  "note": "The fee-only SPP USDC dependency deployment is live. Five pinned Phloem WASM artifacts are current; the revised TreasuryController WASM is pending upload. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
 }

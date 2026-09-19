@@ -17,7 +17,7 @@ const DEPLOYMENT_PATH = resolve(REPO_ROOT, "deployments", "testnet.json");
 const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-deployment-preflight.json");
 const RPC_URL = "https://soroban-testnet.stellar.org";
 const BUILD_COMMAND = "pnpm contracts:build";
-const CONTRACT_SOURCE_REVISION = "83b6c1dcd7cc8bfbb62b06a69cc829a35ac0c6d0";
+const CONTRACT_SOURCE_REVISION = "27ea0e36ea42a975b824eec568522fe70d316806";
 
 const ARTIFACTS = [
   {
@@ -30,8 +30,8 @@ const ARTIFACTS = [
     path: "target/wasm32v1-none/release/phloem_budget_transition_verifier.wasm",
     sha256: "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
     verificationKey: {
-      path: "contracts/budget-transition-verifier/test-fixtures/verification_key.json",
-      sha256: "611d6356d1c0c4f5f38ddd13e2cff4924620edf85a5a42ff00e865155c508d66",
+      path: ".phloem/budget-transition-setup/verification_key.json",
+      sha256: "52d999f482d0309fe332ff042250385419568d2d4d07e97e775439938955d772",
     },
   },
   {
@@ -39,7 +39,7 @@ const ARTIFACTS = [
     path: "target/wasm32v1-none/release/phloem_private_root_backing_verifier.wasm",
     sha256: "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
     verificationKey: {
-      path: "contracts/private-root-backing-verifier/test-fixtures/verification_key.json",
+      path: ".phloem/private-root-backing-setup/verification_key.json",
       sha256: "36cd9762d1ffcdd5d32c35f11d31e707a03fc1738a6432439a576923e590fb8c",
     },
   },
@@ -48,8 +48,8 @@ const ARTIFACTS = [
     path: "target/wasm32v1-none/release/phloem_private_settlement_binding_verifier.wasm",
     sha256: "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
     verificationKey: {
-      path: "contracts/private-settlement-binding-verifier/test-fixtures/verification_key.json",
-      sha256: "4fcd4629d37732d6279a23003568c191636ca153ab138aa71774ef60ac3485cb",
+      path: ".phloem/private-binding-setup/verification_key.json",
+      sha256: "c727f8b2656231bd50cb0139bde6e998e4f922766f2d351d76ddb88e322c485d",
     },
   },
   {
@@ -60,7 +60,7 @@ const ARTIFACTS = [
   {
     id: "treasuryController",
     path: "target/wasm32v1-none/release/phloem_treasury_controller.wasm",
-    sha256: "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62",
+    sha256: "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
   },
 ];
 
