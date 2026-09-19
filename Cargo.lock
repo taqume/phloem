@@ -1373,6 +1373,9 @@ dependencies = [
 name = "phloem-treasury-controller"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
+ "hex",
+ "serde_json",
  "soroban-poseidon",
  "soroban-sdk 28.0.0",
 ]

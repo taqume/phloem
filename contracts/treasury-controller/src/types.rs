@@ -209,6 +209,22 @@ pub struct PrivateReservationInput {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateVoucher {
+    pub protocol_version: u32,
+    pub voucher_version: u32,
+    pub network_id: BytesN<32>,
+    pub treasury_controller: Address,
+    pub session_id: BytesN<32>,
+    pub reservation_id: BytesN<32>,
+    pub sequence: u64,
+    pub cumulative_amount_commitment: U256,
+    pub usage_root: U256,
+    pub offer_commitment: U256,
+    pub expiry_ledger: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PaymentStatus {
     Settled,
 }

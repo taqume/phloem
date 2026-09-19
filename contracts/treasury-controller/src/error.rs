@@ -38,4 +38,5 @@ pub enum Error {
     ReservationAlreadyExists = 32,
     VoucherKeyAlreadyUsed = 33,
     InvalidReservation = 34,
+    InvalidVoucher = 35,
 }

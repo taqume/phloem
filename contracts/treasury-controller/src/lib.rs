@@ -10,13 +10,14 @@ mod provider;
 mod reservation;
 mod storage;
 mod types;
+mod voucher;
 
 pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
     NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentReservation, PrivateReservationInput,
-    PrivateReservationStatus, RootBudgetNoteInput, SafetyState, Session, SessionAuditState,
-    SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
+    PrivateReservationStatus, PrivateVoucher, RootBudgetNoteInput, SafetyState, Session,
+    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
     StandardSettlementInput,
 };
 
@@ -818,6 +819,17 @@ impl TreasuryController {
         reservation
     }
 
+    pub fn verify_private_voucher(
+        env: Env,
+        voucher: PrivateVoucher,
+        signature: BytesN<64>,
+    ) -> bool {
+        let reservation = validate_private_voucher(&env, &voucher, &signature);
+        let reservation_key = DataKey::PrivateReservation(reservation.id.clone());
+        extend_persistent_ttl(&env, &reservation_key, reservation.claim_deadline_ledger);
+        true
+    }
+
     pub fn get_provider_policy_leaf(
         env: Env,
         provider_identity: Address,
@@ -985,6 +997,44 @@ fn load_note_or_fail(env: &Env, note_id: &BytesN<32>) -> BudgetNoteState {
         .persistent()
         .get(&DataKey::BudgetNote(note_id.clone()))
         .unwrap_or_else(|| panic_with_error!(env, Error::BudgetNoteNotFound))
+}
+
+fn validate_private_voucher(
+    env: &Env,
+    voucher: &PrivateVoucher,
+    signature: &BytesN<64>,
+) -> PrivatePaymentReservation {
+    let reservation: PrivatePaymentReservation = env
+        .storage()
+        .persistent()
+        .get(&DataKey::PrivateReservation(voucher.reservation_id.clone()))
+        .unwrap_or_else(|| panic_with_error!(env, Error::ReservationNotFound));
+    let current_ledger = env.ledger().sequence();
+    if reservation.status != PrivateReservationStatus::Open
+        || voucher.protocol_version != PROTOCOL_VERSION
+        || voucher.voucher_version != 1
+        || voucher.network_id != env.ledger().network_id()
+        || voucher.treasury_controller != env.current_contract_address()
+        || voucher.session_id != reservation.session_id
+        || voucher.offer_commitment != reservation.offer_commitment
+        || voucher.sequence == 0
+        || current_ledger > voucher.expiry_ledger
+        || current_ledger > reservation.claim_deadline_ledger
+        || voucher.expiry_ledger > reservation.claim_deadline_ledger
+    {
+        panic_with_error!(env, Error::InvalidVoucher);
+    }
+    validate_field(env, &voucher.cumulative_amount_commitment);
+    validate_field(env, &voucher.usage_root);
+
+    let signing_bytes = voucher::signing_bytes_v1(env, voucher)
+        .unwrap_or_else(|| panic_with_error!(env, Error::InvalidAddressEncoding));
+    env.crypto().ed25519_verify(
+        &reservation.voucher_signer_public_key,
+        &signing_bytes,
+        signature,
+    );
+    reservation
 }
 
 fn budget_context_hash_for_note(env: &Env, session: &Session, note: &BudgetNoteState) -> U256 {

@@ -1,5 +1,6 @@
 extern crate std;
 
+use ed25519_dalek::{Signer, SigningKey};
 use soroban_sdk::{
     Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec, contract,
     contractimpl,
@@ -12,7 +13,7 @@ use soroban_sdk::{
 
 use crate::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus,
+    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus, PrivateVoucher,
     RootBudgetNoteInput, SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy,
     SettlementMode, StandardDelegationInput, StandardSettlementInput, TreasuryController,
     TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
@@ -1473,6 +1474,53 @@ fn payment_commitment_key_cannot_be_reused_across_private_reservations() {
             .unwrap()
             .unresolved_reservation_count,
         1
+    );
+}
+
+#[test]
+fn reservation_specific_key_signs_only_the_canonical_private_voucher() {
+    let h = setup_with_budget_verifier(true);
+    let mut fixture = private_reservation_fixture(&h);
+    let signing_key = SigningKey::from_bytes(&[77_u8; 32]);
+    fixture.input.voucher_signer_public_key =
+        BytesN::from_array(&h.env, signing_key.verifying_key().as_bytes());
+    h.env.mock_all_auths();
+    h.controller
+        .open_private_reservation(&fixture.input, &dummy_proof(&h.env));
+
+    let voucher = PrivateVoucher {
+        protocol_version: 1,
+        voucher_version: 1,
+        network_id: h.env.ledger().network_id(),
+        treasury_controller: h.contract_id.clone(),
+        session_id: fixture.session_id,
+        reservation_id: fixture.input.reservation_id,
+        sequence: 1,
+        cumulative_amount_commitment: U256::from_u32(&h.env, 61),
+        usage_root: U256::from_u32(&h.env, 67),
+        offer_commitment: fixture.input.offer_commitment,
+        expiry_ledger: 1_700,
+    };
+    let signing_bytes = crate::voucher::signing_bytes_v1(&h.env, &voucher).unwrap();
+    let signing_payload: std::vec::Vec<u8> = signing_bytes.iter().collect();
+    let signature = BytesN::from_array(&h.env, &signing_key.sign(&signing_payload).to_bytes());
+
+    assert!(h.controller.verify_private_voucher(&voucher, &signature));
+
+    let mut mutated = voucher.clone();
+    mutated.usage_root = U256::from_u32(&h.env, 71);
+    assert!(
+        h.controller
+            .try_verify_private_voucher(&mutated, &signature)
+            .is_err()
+    );
+
+    let mut wrong_context = voucher;
+    wrong_context.treasury_controller = Address::generate(&h.env);
+    assert!(
+        h.controller
+            .try_verify_private_voucher(&wrong_context, &signature)
+            .is_err()
     );
 }
 

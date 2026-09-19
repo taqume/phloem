@@ -1,4 +1,14 @@
-use soroban_sdk::{Address, BytesN, Env, U256, Vec, address_payload::AddressPayload};
+use soroban_sdk::{Address, Bytes, BytesN, Env, U256, Vec, address_payload::AddressPayload};
+
+pub fn append_address_bytes(output: &mut Bytes, address: &Address) -> Option<()> {
+    let (kind, payload) = match AddressPayload::from_address(address)? {
+        AddressPayload::AccountIdPublicKeyEd25519(payload) => (0_u8, payload),
+        AddressPayload::ContractIdHash(payload) => (1_u8, payload),
+    };
+    output.push_back(kind);
+    output.append(payload.as_bytes());
+    Some(())
+}
 
 pub fn push_address_fields(env: &Env, fields: &mut Vec<U256>, address: &Address) -> Option<()> {
     let (kind, payload) = match AddressPayload::from_address(address)? {
