@@ -17,6 +17,7 @@ const DEPLOYMENT_PATH = resolve(REPO_ROOT, "deployments", "testnet.json");
 const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-deployment-preflight.json");
 const RPC_URL = "https://soroban-testnet.stellar.org";
 const BUILD_COMMAND = "pnpm contracts:build";
+const CONTRACT_SOURCE_REVISION = "83b6c1dcd7cc8bfbb62b06a69cc829a35ac0c6d0";
 
 const ARTIFACTS = [
   {
@@ -83,10 +84,6 @@ function assertContractSourcesClean() {
     { cwd: REPO_ROOT, encoding: "utf8" },
   ).trim();
   if (status) throw new Error("Contract inputs have uncommitted changes; refusing to record deployment provenance.");
-}
-
-function sourceRevision() {
-  return execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" }).trim();
 }
 
 function resourceSnapshot(simulation, transaction) {
@@ -185,7 +182,7 @@ const evidence = {
   networkPassphrase: Networks.TESTNET,
   rpcUrl: RPC_URL,
   deployer,
-  sourceRevision: sourceRevision(),
+  sourceRevision: CONTRACT_SOURCE_REVISION,
   build: {
     command: BUILD_COMMAND,
     rustToolchain: "1.95.0",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-09-19T22:12:09.114Z",
+  "checkedAt": "2026-09-19T22:24:00.351Z",
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "rpcUrl": "https://soroban-testnet.stellar.org",
@@ -39,9 +39,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 2177209,
-        "latestLedger": 4766467,
-        "minResourceFeeStroops": "3503750",
-        "totalFeeStroops": "3503850",
+        "latestLedger": 4766609,
+        "minResourceFeeStroops": "3515333",
+        "totalFeeStroops": "3515433",
         "writeBytes": 1384
       },
       "safety": {
@@ -62,9 +62,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 4697936,
-        "latestLedger": 4766467,
-        "minResourceFeeStroops": "9598340",
-        "totalFeeStroops": "9598440",
+        "latestLedger": 4766609,
+        "minResourceFeeStroops": "9630158",
+        "totalFeeStroops": "9630258",
         "writeBytes": 4372
       },
       "safety": {
@@ -89,9 +89,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 4697936,
-        "latestLedger": 4766468,
-        "minResourceFeeStroops": "9598340",
-        "totalFeeStroops": "9598440",
+        "latestLedger": 4766609,
+        "minResourceFeeStroops": "9630158",
+        "totalFeeStroops": "9630258",
         "writeBytes": 4372
       },
       "safety": {
@@ -116,9 +116,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 4697936,
-        "latestLedger": 4766468,
-        "minResourceFeeStroops": "9598340",
-        "totalFeeStroops": "9598440",
+        "latestLedger": 4766610,
+        "minResourceFeeStroops": "9630158",
+        "totalFeeStroops": "9630258",
         "writeBytes": 4372
       },
       "safety": {
@@ -143,9 +143,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 34266604,
-        "latestLedger": 4766468,
-        "minResourceFeeStroops": "49348926",
-        "totalFeeStroops": "49349026",
+        "latestLedger": 4766610,
+        "minResourceFeeStroops": "49512389",
+        "totalFeeStroops": "49512489",
         "writeBytes": 39544
       },
       "safety": {
@@ -166,9 +166,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 63128248,
-        "latestLedger": 4766468,
-        "minResourceFeeStroops": "108666813",
-        "totalFeeStroops": "108666913",
+        "latestLedger": 4766610,
+        "minResourceFeeStroops": "109027101",
+        "totalFeeStroops": "109027201",
         "writeBytes": 73876
       },
       "safety": {
@@ -182,8 +182,8 @@
   ],
   "resources": {
     "pendingUploadCount": 6,
-    "totalFeeStroops": "190315109",
-    "totalFeeXlm": "19.0315109",
+    "totalFeeStroops": "190945897",
+    "totalFeeXlm": "19.0945897",
     "totalInstructions": 113665869,
     "totalWriteBytes": 127920
   }
