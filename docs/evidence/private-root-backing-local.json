@@ -13,8 +13,8 @@
   "wasm": {
     "verifierBytes": 4271,
     "verifierSha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
-    "controllerBytes": 69962,
-    "controllerSha256": "b60c97223344754093db839f0bfcb3e15127d326253ff0d250599567da9c7805"
+    "controllerBytes": 73776,
+    "controllerSha256": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62"
   },
   "tests": [
     {

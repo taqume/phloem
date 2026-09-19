@@ -159,6 +159,18 @@ pub struct StandardDelegationInput {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateDelegationInput {
+    pub child_node_id: BytesN<32>,
+    pub child_note_id: BytesN<32>,
+    pub child_owner: Address,
+    pub child_policy: NodePolicy,
+    pub child_commitment: U256,
+    pub remainder_note_id: Option<BytesN<32>>,
+    pub remainder_commitment: Option<U256>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StandardSettlementInput {
     pub payment_id: BytesN<32>,
     pub session_id: BytesN<32>,

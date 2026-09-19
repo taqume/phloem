@@ -16,11 +16,11 @@ mod voucher;
 pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentRecord, PrivatePaymentReservation,
-    PrivateReservationInput, PrivateReservationStatus, PrivateRootBackingInput,
-    PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput, SafetyState, Session,
-    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, SppExtData, SppPoolError,
-    SppProof, StandardDelegationInput, StandardSettlementInput,
+    NodePolicy, PaymentRecord, PaymentStatus, PrivateDelegationInput, PrivatePaymentRecord,
+    PrivatePaymentReservation, PrivateReservationInput, PrivateReservationStatus,
+    PrivateRootBackingInput, PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput,
+    SafetyState, Session, SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode,
+    SppExtData, SppPoolError, SppProof, StandardDelegationInput, StandardSettlementInput,
 };
 
 use soroban_sdk::{
@@ -30,8 +30,8 @@ use soroban_sdk::{
 
 use crate::{
     event::{
-        BudgetDelegated, PaymentSettled, PrivateReserved, PrivateSettled, RootFunded,
-        SessionCreated,
+        BudgetDelegated, PaymentSettled, PrivateBudgetDelegated, PrivateReserved, PrivateSettled,
+        RootFunded, SessionCreated,
     },
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
@@ -485,6 +485,68 @@ impl TreasuryController {
             source_node,
             source_note_id,
             delegation,
+        );
+    }
+
+    pub fn delegate_private_root(
+        env: Env,
+        session_id: BytesN<32>,
+        source_note_id: BytesN<32>,
+        delegation: PrivateDelegationInput,
+        proof: Groth16Proof,
+    ) {
+        let session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+
+        let source_note = load_note_or_fail(&env, &source_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        if source_note.owner != BudgetNodeOwner::RootCompany
+            || source_node.owner != BudgetNodeOwner::RootCompany
+            || session.root_budget_node_id != Some(source_node.id.clone())
+        {
+            panic_with_error!(&env, Error::InvalidBudgetOwner);
+        }
+
+        delegate_private(
+            &env,
+            &session,
+            source_note,
+            source_node,
+            source_note_id,
+            delegation,
+            proof,
+        );
+    }
+
+    pub fn delegate_private_budget(
+        env: Env,
+        session_id: BytesN<32>,
+        source_note_id: BytesN<32>,
+        delegation: PrivateDelegationInput,
+        proof: Groth16Proof,
+    ) {
+        let session = load_session_or_fail(&env, &session_id);
+        let source_note = load_note_or_fail(&env, &source_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        let owner = match &source_note.owner {
+            BudgetNodeOwner::AgentSmartAccount(owner) => owner.clone(),
+            BudgetNodeOwner::RootCompany => {
+                panic_with_error!(&env, Error::InvalidBudgetOwner)
+            }
+        };
+        if source_node.owner != source_note.owner {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        owner.require_auth();
+
+        delegate_private(
+            &env,
+            &session,
+            source_note,
+            source_node,
+            source_note_id,
+            delegation,
+            proof,
         );
     }
 
@@ -1618,6 +1680,181 @@ fn delegate_standard(
         delegated_amount: delegation.delegated_amount,
     }
     .publish(env);
+}
+
+fn delegate_private(
+    env: &Env,
+    session: &Session,
+    mut source_note: BudgetNoteState,
+    source_node: BudgetNode,
+    source_note_id: BytesN<32>,
+    delegation: PrivateDelegationInput,
+    proof: Groth16Proof,
+) {
+    validate_active_private_source(env, session, &source_note, &source_node);
+    validate_private_delegation(env, session, &source_node, &source_note_id, &delegation);
+
+    let current_ledger = env.ledger().sequence();
+    let child_owner = BudgetNodeOwner::AgentSmartAccount(delegation.child_owner.clone());
+    let child_node = BudgetNode {
+        id: delegation.child_node_id.clone(),
+        session_id: session.id.clone(),
+        parent_node_id: Some(source_node.id.clone()),
+        owner: child_owner.clone(),
+        depth: source_node
+            .depth
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(env, Error::CounterOverflow)),
+        node_policy: delegation.child_policy.clone(),
+        branch_frozen: false,
+        created_at_ledger: current_ledger,
+        state: BudgetNodeState::Active,
+    };
+    let child_note = BudgetNoteState {
+        id: delegation.child_note_id.clone(),
+        session_id: session.id.clone(),
+        node_id: delegation.child_node_id.clone(),
+        owner: child_owner,
+        policy_hash: session.policy_hash.clone(),
+        commitment: delegation.child_commitment.clone(),
+        state: BudgetNoteStatus::Active,
+        created_at_ledger: current_ledger,
+        spent_at_ledger: None,
+    };
+    let child_context_hash = budget_context_hash_for_note(env, session, &child_note);
+    let (remainder_note, remainder_context_hash, remainder_commitment, remainder_kind) = match (
+        &delegation.remainder_note_id,
+        &delegation.remainder_commitment,
+    ) {
+        (None, None) => (None, U256::from_u32(env, 0), U256::from_u32(env, 0), 0u32),
+        (Some(note_id), Some(commitment)) => {
+            let note = BudgetNoteState {
+                id: note_id.clone(),
+                session_id: session.id.clone(),
+                node_id: source_node.id.clone(),
+                owner: source_node.owner.clone(),
+                policy_hash: session.policy_hash.clone(),
+                commitment: commitment.clone(),
+                state: BudgetNoteStatus::Active,
+                created_at_ledger: current_ledger,
+                spent_at_ledger: None,
+            };
+            (
+                Some(note.clone()),
+                budget_context_hash_for_note(env, session, &note),
+                commitment.clone(),
+                1u32,
+            )
+        }
+        _ => panic_with_error!(env, Error::InvalidConservation),
+    };
+
+    let public_inputs = soroban_sdk::vec![
+        env,
+        budget_context_hash_for_note(env, session, &source_note),
+        source_note.commitment.clone(),
+        child_context_hash,
+        delegation.child_commitment.clone(),
+        U256::from_u32(env, 1),
+        remainder_context_hash,
+        remainder_commitment,
+        U256::from_u32(env, remainder_kind),
+    ];
+    let verified: bool = env.invoke_contract(
+        &get_config(env).budget_transition_verifier,
+        &symbol_short!("verify"),
+        (proof, public_inputs).into_val(env),
+    );
+    if !verified {
+        panic_with_error!(env, Error::InvalidProof);
+    }
+
+    source_note.state = BudgetNoteStatus::Spent;
+    source_note.spent_at_ledger = Some(current_ledger);
+    let source_note_key = DataKey::BudgetNote(source_note_id.clone());
+    let child_node_key = DataKey::BudgetNode(delegation.child_node_id.clone());
+    let child_note_key = DataKey::BudgetNote(delegation.child_note_id.clone());
+    env.storage()
+        .persistent()
+        .set(&source_note_key, &source_note);
+    env.storage().persistent().set(&child_node_key, &child_node);
+    env.storage().persistent().set(&child_note_key, &child_note);
+    extend_persistent_ttl(env, &source_note_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &child_node_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &child_note_key, session.expires_at_ledger);
+
+    if let Some(note) = remainder_note {
+        let key = DataKey::BudgetNote(note.id.clone());
+        env.storage().persistent().set(&key, &note);
+        extend_persistent_ttl(env, &key, session.expires_at_ledger);
+    }
+    extend_instance_ttl(env, session.expires_at_ledger);
+
+    PrivateBudgetDelegated {
+        session_id: session.id.clone(),
+        child_node_id: delegation.child_node_id,
+        source_note_id,
+        child_note_id: delegation.child_note_id,
+        remainder_note_id: delegation.remainder_note_id,
+    }
+    .publish(env);
+}
+
+fn validate_private_delegation(
+    env: &Env,
+    session: &Session,
+    source_node: &BudgetNode,
+    source_note_id: &BytesN<32>,
+    delegation: &PrivateDelegationInput,
+) {
+    if !matches!(
+        delegation.child_owner.executable(),
+        Some(Executable::Wasm(hash)) if hash == get_config(env).agent_account_wasm_hash
+    ) {
+        panic_with_error!(env, Error::InvalidAgentAccount);
+    }
+    validate_field(env, &delegation.child_commitment);
+
+    let parent_policy = &source_node.node_policy;
+    let child_policy = &delegation.child_policy;
+    if parent_policy.allowed_actions_mask & ACTION_DELEGATE_BUDGET == 0 {
+        panic_with_error!(env, Error::ActionNotAllowed);
+    }
+    if child_policy.category_mask & !parent_policy.category_mask != 0
+        || child_policy.allowed_actions_mask & !parent_policy.allowed_actions_mask != 0
+        || child_policy.expiry > parent_policy.expiry
+        || child_policy.expiry <= env.ledger().sequence()
+        || child_policy.remaining_delegation_depth >= parent_policy.remaining_delegation_depth
+        || child_policy.expiry > session.expires_at_ledger
+    {
+        panic_with_error!(env, Error::InvalidChildPolicy);
+    }
+
+    ensure_budget_identifier_available(env, &delegation.child_node_id);
+    ensure_budget_identifier_available(env, &delegation.child_note_id);
+    if delegation.child_node_id == delegation.child_note_id
+        || delegation.child_node_id == *source_note_id
+        || delegation.child_note_id == *source_note_id
+    {
+        panic_with_error!(env, Error::IdentifierAlreadyUsed);
+    }
+    match (
+        &delegation.remainder_note_id,
+        &delegation.remainder_commitment,
+    ) {
+        (None, None) => {}
+        (Some(note_id), Some(commitment)) => {
+            ensure_budget_identifier_available(env, note_id);
+            if note_id == source_note_id
+                || *note_id == delegation.child_node_id
+                || *note_id == delegation.child_note_id
+            {
+                panic_with_error!(env, Error::IdentifierAlreadyUsed);
+            }
+            validate_field(env, commitment);
+        }
+        _ => panic_with_error!(env, Error::InvalidConservation),
+    }
 }
 
 fn validate_active_standard_source(

@@ -13,11 +13,12 @@ use soroban_sdk::{
 
 use crate::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus,
-    PrivateRootBackingInput, PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput,
-    SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, SppExtData,
-    SppPoolError, SppProof, StandardDelegationInput, StandardSettlementInput, TreasuryController,
-    TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
+    NodePolicy, PaymentStatus, PrivateDelegationInput, PrivateReservationInput,
+    PrivateReservationStatus, PrivateRootBackingInput, PrivateSettlementInput, PrivateVoucher,
+    RootBudgetNoteInput, SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy,
+    SettlementMode, SppExtData, SppPoolError, SppProof, StandardDelegationInput,
+    StandardSettlementInput, TreasuryController, TreasuryControllerClient, event::BudgetDelegated,
+    storage::DataKey,
 };
 
 #[contract]
@@ -42,7 +43,11 @@ struct MockBudgetTransitionVerifier;
 #[contractimpl]
 impl MockBudgetTransitionVerifier {
     pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
-        if public_inputs.len() != 8 || public_inputs.get_unchecked(4) != U256::from_u32(&env, 2) {
+        if public_inputs.len() != 8 {
+            return false;
+        }
+        let output_kind = public_inputs.get_unchecked(4);
+        if output_kind != U256::from_u32(&env, 1) && output_kind != U256::from_u32(&env, 2) {
             return false;
         }
         let remainder_kind = public_inputs.get_unchecked(7);
@@ -171,6 +176,10 @@ fn setup_with_budget_verifier<'a>(accept_proof: bool) -> Harness<'a> {
 
 fn setup_with_private_settlement<'a>() -> Harness<'a> {
     setup_internal(Some(true), true)
+}
+
+fn setup_private_with_budget_verifier<'a>(accept_proof: bool) -> Harness<'a> {
+    setup_internal(Some(accept_proof), true)
 }
 
 fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> Harness<'a> {
@@ -1086,6 +1095,164 @@ fn private_root_can_only_be_backed_once() {
     );
     assert_eq!(h.token.balance(&h.company), 8_000);
     assert_eq!(h.token.balance(&h.spp_pool), 2_000);
+}
+
+#[test]
+fn private_root_and_agent_delegate_hidden_notes_without_plaintext_amounts() {
+    let h = setup_with_private_settlement();
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 17),
+        note_id: id(&h.env, 18),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    h.controller.activate_private_session(
+        &session_id,
+        &private_root_backing_input(&h, root.clone(), 2_000),
+        &dummy_proof(&h.env),
+    );
+
+    let supervisor = agent_account(&h);
+    let supervisor_delegation = PrivateDelegationInput {
+        child_node_id: id(&h.env, 19),
+        child_note_id: id(&h.env, 20),
+        child_owner: supervisor.clone(),
+        child_policy: NodePolicy {
+            category_mask: 0b10,
+            allowed_actions_mask: 0b111,
+            expiry: 1_900,
+            remaining_delegation_depth: 2,
+        },
+        child_commitment: U256::from_u32(&h.env, 79),
+        remainder_note_id: Some(id(&h.env, 21)),
+        remainder_commitment: Some(U256::from_u32(&h.env, 83)),
+    };
+    h.controller.delegate_private_root(
+        &session_id,
+        &root.note_id,
+        &supervisor_delegation,
+        &dummy_proof(&h.env),
+    );
+
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Spent
+    );
+    let supervisor_note = h
+        .controller
+        .get_budget_note(&supervisor_delegation.child_note_id)
+        .unwrap();
+    assert_eq!(
+        supervisor_note.owner,
+        BudgetNodeOwner::AgentSmartAccount(supervisor.clone())
+    );
+    assert_eq!(
+        h.controller
+            .get_standard_note_amount(&supervisor_delegation.child_note_id),
+        None
+    );
+
+    let research = agent_account(&h);
+    let research_delegation = PrivateDelegationInput {
+        child_node_id: id(&h.env, 22),
+        child_note_id: id(&h.env, 23),
+        child_owner: research.clone(),
+        child_policy: NodePolicy {
+            category_mask: 0b10,
+            allowed_actions_mask: 0b110,
+            expiry: 1_800,
+            remaining_delegation_depth: 1,
+        },
+        child_commitment: U256::from_u32(&h.env, 89),
+        remainder_note_id: None,
+        remainder_commitment: None,
+    };
+    h.controller.delegate_private_budget(
+        &session_id,
+        &supervisor_delegation.child_note_id,
+        &research_delegation,
+        &dummy_proof(&h.env),
+    );
+
+    assert_eq!(
+        h.controller
+            .get_budget_note(&supervisor_delegation.child_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Spent
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&research_delegation.child_note_id)
+            .unwrap()
+            .owner,
+        BudgetNodeOwner::AgentSmartAccount(research)
+    );
+}
+
+#[test]
+fn rejected_private_delegation_proof_preserves_the_source_note() {
+    let h = setup_private_with_budget_verifier(false);
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 24),
+        note_id: id(&h.env, 25),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    h.controller.activate_private_session(
+        &session_id,
+        &private_root_backing_input(&h, root.clone(), 2_000),
+        &dummy_proof(&h.env),
+    );
+    let delegation = PrivateDelegationInput {
+        child_node_id: id(&h.env, 26),
+        child_note_id: id(&h.env, 27),
+        child_owner: agent_account(&h),
+        child_policy: NodePolicy {
+            category_mask: 0b10,
+            allowed_actions_mask: 0b110,
+            expiry: 1_900,
+            remaining_delegation_depth: 2,
+        },
+        child_commitment: U256::from_u32(&h.env, 97),
+        remainder_note_id: None,
+        remainder_commitment: None,
+    };
+
+    assert!(
+        h.controller
+            .try_delegate_private_root(
+                &session_id,
+                &root.note_id,
+                &delegation,
+                &dummy_proof(&h.env),
+            )
+            .is_err()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&delegation.child_note_id),
+        None
+    );
 }
 
 #[test]

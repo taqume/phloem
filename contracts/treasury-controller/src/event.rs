@@ -39,6 +39,18 @@ pub struct BudgetDelegated {
     pub delegated_amount: u64,
 }
 
+#[contractevent(topics = ["phloem", "private_delegated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateBudgetDelegated {
+    #[topic]
+    pub session_id: BytesN<32>,
+    #[topic]
+    pub child_node_id: BytesN<32>,
+    pub source_note_id: BytesN<32>,
+    pub child_note_id: BytesN<32>,
+    pub remainder_note_id: Option<BytesN<32>>,
+}
+
 #[contractevent(topics = ["phloem", "payment_settled"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaymentSettled {
