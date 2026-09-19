@@ -644,6 +644,13 @@ fn create_session_requires_company_authorization() {
 fn constructor_pins_protocol_dependencies() {
     let h = setup();
 
+    assert_eq!(h.controller.protocol_version(), 1);
+    assert_eq!(h.controller.storage_schema_version(), 1);
+    assert_eq!(h.controller.get_standard_asset(), h.asset);
+    assert_eq!(
+        h.controller.get_agent_account_wasm_hash(),
+        h.agent_account_wasm_hash
+    );
     assert_eq!(
         h.controller.get_budget_transition_verifier(),
         h.budget_transition_verifier

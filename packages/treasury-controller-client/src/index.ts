@@ -388,6 +388,11 @@ export interface Client {
   get_budget_note: ({note_id}: {note_id: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Option<BudgetNoteState>>>
 
   /**
+   * Construct and simulate a protocol_version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  protocol_version: (options?: MethodOptions) => Promise<AssembledTransaction<u32>>
+
+  /**
    * Construct and simulate a get_payment_record transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   get_payment_record: ({payment_id}: {payment_id: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Option<PaymentRecord>>>
@@ -421,6 +426,11 @@ export interface Client {
    * Construct and simulate a settle_private_payment transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   settle_private_payment: ({input}: {input: PrivateSettlementInput}, options?: MethodOptions) => Promise<AssembledTransaction<PrivatePaymentRecord>>
+
+  /**
+   * Construct and simulate a storage_schema_version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  storage_schema_version: (options?: MethodOptions) => Promise<AssembledTransaction<u32>>
 
   /**
    * Construct and simulate a verify_private_voucher transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -529,6 +539,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAPZ2V0X2F1ZGl0X3N0YXRlAAAAAAEAAAAAAAAACnNlc3Npb25faWQAAAAAA+4AAAAgAAAAAQAAA+gAAAfQAAAAEVNlc3Npb25BdWRpdFN0YXRlAAAA",
         "AAAAAAAAAAAAAAAPZ2V0X2J1ZGdldF9ub2RlAAAAAAEAAAAAAAAAB25vZGVfaWQAAAAD7gAAACAAAAABAAAD6AAAB9AAAAAKQnVkZ2V0Tm9kZQAA",
         "AAAAAAAAAAAAAAAPZ2V0X2J1ZGdldF9ub3RlAAAAAAEAAAAAAAAAB25vdGVfaWQAAAAD7gAAACAAAAABAAAD6AAAB9AAAAAPQnVkZ2V0Tm90ZVN0YXRlAA==",
+        "AAAAAAAAAAAAAAAQcHJvdG9jb2xfdmVyc2lvbgAAAAAAAAABAAAABA==",
         "AAAAAAAAAAAAAAASZ2V0X3BheW1lbnRfcmVjb3JkAAAAAAABAAAAAAAAAApwYXltZW50X2lkAAAAAAPuAAAAIAAAAAEAAAPoAAAH0AAAAA1QYXltZW50UmVjb3JkAAAA",
         "AAAAAAAAAAAAAAASZ2V0X3Nlc3Npb25fcG9saWN5AAAAAAABAAAAAAAAAApzZXNzaW9uX2lkAAAAAAPuAAAAIAAAAAEAAAPoAAAH0AAAAA1TZXNzaW9uUG9saWN5AAAA",
         "AAAAAAAAAAAAAAASZ2V0X3N0YW5kYXJkX2Fzc2V0AAAAAAAAAAAAAQAAABM=",
@@ -536,6 +547,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAWZGVsZWdhdGVfc3RhbmRhcmRfcm9vdAAAAAAAAwAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAADnNvdXJjZV9ub3RlX2lkAAAAAAPuAAAAIAAAAAAAAAAKZGVsZWdhdGlvbgAAAAAH0AAAABdTdGFuZGFyZERlbGVnYXRpb25JbnB1dAAAAAAA",
         "AAAAAAAAAAAAAAAWZ2V0X2F1ZGl0X2NvbnRleHRfaGFzaAAAAAAAAQAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAABAAAADA==",
         "AAAAAAAAAAAAAAAWc2V0dGxlX3ByaXZhdGVfcGF5bWVudAAAAAAAAQAAAAAAAAAFaW5wdXQAAAAAAAfQAAAAFlByaXZhdGVTZXR0bGVtZW50SW5wdXQAAAAAAAEAAAfQAAAAFFByaXZhdGVQYXltZW50UmVjb3Jk",
+        "AAAAAAAAAAAAAAAWc3RvcmFnZV9zY2hlbWFfdmVyc2lvbgAAAAAAAAAAAAEAAAAE",
         "AAAAAAAAAAAAAAAWdmVyaWZ5X3ByaXZhdGVfdm91Y2hlcgAAAAAAAgAAAAAAAAAHdm91Y2hlcgAAAAfQAAAADlByaXZhdGVWb3VjaGVyAAAAAAAAAAAACXNpZ25hdHVyZQAAAAAAA+4AAABAAAAAAQAAAAE=",
         "AAAAAAAAAAAAAAAXZGVsZWdhdGVfcHJpdmF0ZV9idWRnZXQAAAAABAAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAADnNvdXJjZV9ub3RlX2lkAAAAAAPuAAAAIAAAAAAAAAAKZGVsZWdhdGlvbgAAAAAH0AAAABZQcml2YXRlRGVsZWdhdGlvbklucHV0AAAAAAAAAAAABXByb29mAAAAAAAH0AAAAAxHcm90aDE2UHJvb2YAAAAA",
         "AAAAAAAAAAAAAAAXZ2V0X3ByaXZhdGVfcmVzZXJ2YXRpb24AAAAAAQAAAAAAAAAOcmVzZXJ2YXRpb25faWQAAAAAA+4AAAAgAAAAAQAAA+gAAAfQAAAAGVByaXZhdGVQYXltZW50UmVzZXJ2YXRpb24AAAA=",
@@ -598,6 +610,7 @@ export class Client extends ContractClient {
         get_audit_state: this.txFromJSON<Option<SessionAuditState>>,
         get_budget_node: this.txFromJSON<Option<BudgetNode>>,
         get_budget_note: this.txFromJSON<Option<BudgetNoteState>>,
+        protocol_version: this.txFromJSON<u32>,
         get_payment_record: this.txFromJSON<Option<PaymentRecord>>,
         get_session_policy: this.txFromJSON<Option<SessionPolicy>>,
         get_standard_asset: this.txFromJSON<string>,
@@ -605,6 +618,7 @@ export class Client extends ContractClient {
         delegate_standard_root: this.txFromJSON<null>,
         get_audit_context_hash: this.txFromJSON<u256>,
         settle_private_payment: this.txFromJSON<PrivatePaymentRecord>,
+        storage_schema_version: this.txFromJSON<u32>,
         verify_private_voucher: this.txFromJSON<boolean>,
         delegate_private_budget: this.txFromJSON<null>,
         get_private_reservation: this.txFromJSON<Option<PrivatePaymentReservation>>,

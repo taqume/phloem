@@ -40,6 +40,7 @@ use crate::{
 };
 
 const PROTOCOL_VERSION: u32 = 1;
+const STORAGE_SCHEMA_VERSION: u32 = 1;
 const POLICY_VERSION: u32 = 1;
 const MAX_DELEGATION_DEPTH: u32 = 3;
 const ACTION_DELEGATE_BUDGET: u64 = 1;
@@ -1317,6 +1318,14 @@ impl TreasuryController {
 
     pub fn get_standard_asset(env: Env) -> Address {
         get_config(&env).standard_asset
+    }
+
+    pub fn protocol_version() -> u32 {
+        PROTOCOL_VERSION
+    }
+
+    pub fn storage_schema_version() -> u32 {
+        STORAGE_SCHEMA_VERSION
     }
 
     pub fn get_audit_state(env: Env, session_id: BytesN<32>) -> Option<SessionAuditState> {
