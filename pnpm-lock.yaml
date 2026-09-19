@@ -109,6 +109,19 @@ importers:
         specifier: 24.10.1
         version: 24.10.1
 
+  packages/treasury-controller-client:
+    dependencies:
+      '@stellar/stellar-sdk':
+        specifier: 17.1.0
+        version: 17.1.0(debug@4.4.3)
+      buffer:
+        specifier: 6.0.3
+        version: 6.0.3
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@adraffy/ens-normalize@1.11.1':
