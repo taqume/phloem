@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { AccountReadiness } from "../lib/anchor-types";
 import { PHLOEM_NETWORK } from "../lib/network";
+import { requestWalletConnection, walletErrorMessage } from "../lib/wallet-connection";
 
 export interface WalletConnection {
   address: string;
@@ -74,10 +75,10 @@ export function WalletPanel({ balanceRefreshNonce, onConnected }: WalletPanelPro
         network: Networks.TESTNET,
         selectedWalletId: FREIGHTER_ID,
       });
-      const [{ address }, network] = await Promise.all([
-        StellarWalletsKit.fetchAddress(),
-        StellarWalletsKit.getNetwork(),
-      ]);
+      const { address, network } = await requestWalletConnection({
+        fetchAddress: () => StellarWalletsKit.fetchAddress(),
+        getNetwork: () => StellarWalletsKit.getNetwork(),
+      });
       if (network.networkPassphrase !== PHLOEM_NETWORK.networkPassphrase) {
         throw new Error("Freighter must be switched to Stellar Testnet before connecting.");
       }
@@ -87,7 +88,7 @@ export function WalletPanel({ balanceRefreshNonce, onConnected }: WalletPanelPro
       onConnected(connection);
     } catch (error) {
       onConnected(null);
-      const message = error instanceof Error ? error.message : "Freighter connection was cancelled.";
+      const message = walletErrorMessage(error, "Freighter connection was cancelled.");
       setWallet({ kind: "error", message });
     }
   }

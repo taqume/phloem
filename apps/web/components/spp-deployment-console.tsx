@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { PHLOEM_NETWORK } from "../lib/network";
+import { requestWalletConnection, walletErrorMessage } from "../lib/wallet-connection";
 import {
   SPP_ARTIFACTS,
   SPP_DEPLOYMENT_STEPS,
@@ -67,10 +68,10 @@ export function SppDeploymentConsole() {
         network: Networks.TESTNET,
         selectedWalletId: FREIGHTER_ID,
       });
-      const [{ address: connectedAddress }, network] = await Promise.all([
-        StellarWalletsKit.fetchAddress(),
-        StellarWalletsKit.getNetwork(),
-      ]);
+      const { address: connectedAddress, network } = await requestWalletConnection({
+        fetchAddress: () => StellarWalletsKit.fetchAddress(),
+        getNetwork: () => StellarWalletsKit.getNetwork(),
+      });
       if (network.networkPassphrase !== PHLOEM_NETWORK.networkPassphrase) {
         throw new Error("Freighter must be switched to Stellar Testnet.");
       }
@@ -90,7 +91,7 @@ export function SppDeploymentConsole() {
       setState(restored.length === SPP_DEPLOYMENT_STEPS.length ? "complete" : "idle");
     } catch (reason) {
       setState("error");
-      setError(reason instanceof Error ? reason.message : "Freighter connection failed.");
+      setError(walletErrorMessage(reason, "Freighter connection failed."));
     }
   }
 
