@@ -1,0 +1,250 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import type { AnchorDeposit, AnchorQuote, AnchorTransaction } from "../lib/anchor-types";
+import { normalizeTryAmount } from "../lib/anchor-types";
+import { PHLOEM_NETWORK } from "../lib/network";
+import type { WalletConnection } from "./wallet-panel";
+
+interface AnchorFundingPanelProps {
+  onSettlementCompleted: () => void;
+  wallet: WalletConnection | null;
+}
+
+type BusyAction = "auth" | "deposit" | "quote" | "simulate" | "status" | null;
+
+async function responseJson<T>(response: Response): Promise<T> {
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `Request returned HTTP ${response.status}.`);
+  return payload;
+}
+
+function walletIsReady(wallet: WalletConnection | null): boolean {
+  return Boolean(
+    wallet?.readiness.exists &&
+    wallet.readiness.usdcTrustline &&
+    Number(wallet.readiness.xlmBalance ?? "0") > 0,
+  );
+}
+
+export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFundingPanelProps) {
+  const [amount, setAmount] = useState("150.00");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [busy, setBusy] = useState<BusyAction>(null);
+  const [deposit, setDeposit] = useState<AnchorDeposit | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+  const [quote, setQuote] = useState<AnchorQuote | null>(null);
+  const [transaction, setTransaction] = useState<AnchorTransaction | null>(null);
+
+  useEffect(() => {
+    setAuthenticated(false);
+    setDeposit(null);
+    setError(null);
+    setKycStatus(null);
+    setQuote(null);
+    setTransaction(null);
+  }, [wallet?.address]);
+
+  async function authenticate() {
+    if (!wallet) return;
+    setBusy("auth");
+    setError(null);
+    try {
+      const challengeResponse = await fetch(`/api/anchor/challenge?account=${encodeURIComponent(wallet.address)}`, {
+        cache: "no-store",
+      });
+      const challenge = await responseJson<{ network_passphrase: string; transaction: string }>(challengeResponse);
+      const { StellarWalletsKit } = await import("@creit.tech/stellar-wallets-kit");
+      const { signedTxXdr } = await StellarWalletsKit.signTransaction(challenge.transaction, {
+        address: wallet.address,
+        networkPassphrase: PHLOEM_NETWORK.networkPassphrase,
+      });
+      const sessionResponse = await fetch("/api/anchor/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: wallet.address, transaction: signedTxXdr }),
+      });
+      const session = await responseJson<{ authenticated: boolean; kycStatus: string }>(sessionResponse);
+      setAuthenticated(session.authenticated);
+      setKycStatus(session.kycStatus);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "SEP-10 authentication failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function requestQuote() {
+    if (!wallet) return;
+    setBusy("quote");
+    setError(null);
+    setDeposit(null);
+    setTransaction(null);
+    try {
+      const normalized = normalizeTryAmount(amount);
+      const response = await fetch("/api/anchor/quote", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: wallet.address, amount: normalized }),
+      });
+      const payload = await responseJson<{ quote: AnchorQuote }>(response);
+      setAmount(normalized);
+      setQuote(payload.quote);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "SEP-38 quote failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createDeposit() {
+    if (!wallet || !quote) return;
+    setBusy("deposit");
+    setError(null);
+    try {
+      const response = await fetch("/api/anchor/deposit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: wallet.address, amount: quote.sell_amount, quoteId: quote.id }),
+      });
+      const payload = await responseJson<{ deposit: AnchorDeposit }>(response);
+      setDeposit(payload.deposit);
+      await refreshStatus(payload.deposit.id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "SEP-6 deposit creation failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function refreshStatus(id = deposit?.id): Promise<AnchorTransaction | null> {
+    if (!id) return null;
+    setBusy((current) => current ?? "status");
+    setError(null);
+    try {
+      const response = await fetch(`/api/anchor/status?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+      const payload = await responseJson<{ transaction: AnchorTransaction }>(response);
+      setTransaction(payload.transaction);
+      if (payload.transaction.status === "completed") onSettlementCompleted();
+      return payload.transaction;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Anchor status check failed.");
+      return null;
+    } finally {
+      setBusy((current) => current === "status" ? null : current);
+    }
+  }
+
+  async function simulateTransfer() {
+    if (!deposit || !quote) return;
+    setBusy("simulate");
+    setError(null);
+    try {
+      const response = await fetch("/api/anchor/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount: quote.sell_amount, id: deposit.id }),
+      });
+      await responseJson<{ accepted: true }>(response);
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const current = await refreshStatus(deposit.id);
+        if (!current || current.status === "completed" || current.status === "error") break;
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Sandbox transfer simulation failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const ready = walletIsReady(wallet);
+  const complete = transaction?.status === "completed";
+
+  return (
+    <section className="panel anchor-panel" aria-labelledby="anchor-funding-title">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Real local-payment ingress</p>
+          <h2 id="anchor-funding-title">TRY → Anchor → Stellar USDC</h2>
+        </div>
+        <span className={`status-chip ${complete ? "is-ready" : "is-pending"}`}>
+          <span aria-hidden="true" className="status-dot" />
+          {complete ? "USDC received" : authenticated ? "Anchor authenticated" : "Signature pending"}
+        </span>
+      </div>
+
+      <p className="panel-copy">
+        The bank leg is the official sandbox. SEP discovery, authentication, quote, deposit status and resulting USDC movement use the real Testnet path.
+      </p>
+
+      <div className="funding-flow">
+        <section className="flow-step" aria-labelledby="anchor-step-auth">
+          <span className="step-index">01</span>
+          <h3 id="anchor-step-auth">Authenticate</h3>
+          <p>Signs a validated sequence-0 SEP-10 challenge. It cannot move funds.</p>
+          <button className="primary-button" disabled={!ready || authenticated || busy !== null} onClick={() => void authenticate()} type="button">
+            {busy === "auth" ? "Awaiting Freighter…" : authenticated ? "Authenticated" : "Sign SEP-10 challenge"}
+          </button>
+          {kycStatus ? <small>KYC status: {kycStatus}</small> : null}
+        </section>
+
+        <section className="flow-step" aria-labelledby="anchor-step-quote">
+          <span className="step-index">02</span>
+          <h3 id="anchor-step-quote">Lock quote</h3>
+          <label className="form-field">
+            <span>Amount to send</span>
+            <span className="amount-input"><input disabled={!authenticated || busy !== null} inputMode="decimal" onChange={(event) => {
+              setAmount(event.target.value);
+              setQuote(null);
+              setDeposit(null);
+              setTransaction(null);
+            }} value={amount} /><b>TRY</b></span>
+          </label>
+          <button className="secondary-button" disabled={!authenticated || busy !== null} onClick={() => void requestQuote()} type="button">
+            {busy === "quote" ? "Requesting…" : "Get firm SEP-38 quote"}
+          </button>
+          {quote ? <div className="quote-result"><strong>{quote.buy_amount} USDC</strong><small>Expires {new Date(quote.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></div> : null}
+        </section>
+
+        <section className="flow-step" aria-labelledby="anchor-step-deposit">
+          <span className="step-index">03</span>
+          <h3 id="anchor-step-deposit">Create deposit</h3>
+          <p>Uses the locked quote and current SEP-6 deposit-exchange capability.</p>
+          <button className="secondary-button" disabled={!quote || busy !== null || Boolean(deposit)} onClick={() => void createDeposit()} type="button">
+            {busy === "deposit" ? "Creating…" : deposit ? "Instructions created" : "Create bank instructions"}
+          </button>
+        </section>
+      </div>
+
+      {deposit ? (
+        <div className="deposit-details">
+          <div className="deposit-heading">
+            <div><p className="eyebrow">Sandbox bank instructions</p><h3>Use the exact reference</h3></div>
+            <span className="transaction-status">{transaction?.status ?? "pending"}</span>
+          </div>
+          <dl className="instruction-grid">
+            {Object.entries(deposit.instructions ?? {}).map(([key, instruction]) => (
+              <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{instruction.value}</dd></div>
+            ))}
+          </dl>
+          <div className="button-row">
+            <button className="primary-button" disabled={busy !== null || complete} onClick={() => void simulateTransfer()} type="button">
+              {busy === "simulate" ? "Anchor processing…" : complete ? "Transfer completed" : "Simulate incoming TRY"}
+            </button>
+            <button className="text-button" disabled={busy !== null} onClick={() => void refreshStatus()} type="button">Refresh status</button>
+            {deposit.more_info_url ? <a className="text-button" href={deposit.more_info_url} rel="noreferrer" target="_blank">Anchor details ↗</a> : null}
+          </div>
+          {transaction?.pending_reason ? <p className="helper-text">Pending: {transaction.pending_reason}</p> : null}
+          {transaction?.stellar_transaction_id ? <p className="transaction-proof"><span>Testnet transaction</span><strong>{transaction.stellar_transaction_id}</strong></p> : null}
+        </div>
+      ) : null}
+
+      {!wallet ? <p className="inline-notice">Connect Freighter to unlock the Anchor flow.</p> : !ready ? <p className="inline-notice">A funded Testnet account and the exact Circle USDC trustline are required.</p> : null}
+      {error ? <p className="inline-error" role="alert">{error}</p> : null}
+      <p className="helper-text" aria-live="polite">No Anchor token is exposed to browser JavaScript. It is held in a short-lived encrypted HttpOnly session.</p>
+    </section>
+  );
+}

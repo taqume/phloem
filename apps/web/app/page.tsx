@@ -1,5 +1,4 @@
-import { CompatibilityPanel } from "../components/compatibility-panel";
-import { WalletPanel } from "../components/wallet-panel";
+import { FundingWorkspace } from "../components/funding-workspace";
 import { PHLOEM_NETWORK } from "../lib/network";
 
 const authoritySteps = [
@@ -58,15 +57,12 @@ export default function Home() {
           </ol>
         </section>
 
-        <div className="workspace-grid">
-          <WalletPanel />
-          <CompatibilityPanel />
-        </div>
+        <FundingWorkspace />
 
         <section className="boundary-note" aria-label="Current implementation boundary">
           <span className="boundary-label">Current boundary</span>
           <p>
-            Wallet connection and external compatibility are live. Contract deployment, authenticated anchor funding, and private settlement remain explicit implementation gates.
+            Wallet connection, live capability discovery and the authenticated Anchor deposit path are wired. Contract deployment and private settlement remain explicit implementation gates.
           </p>
         </section>
       </div>

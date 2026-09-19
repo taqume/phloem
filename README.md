@@ -51,10 +51,10 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 - Phase 0 protocol encoding, schemas, interfaces, and cross-language vectors: implemented.
 - Rust/TypeScript/Circom Poseidon2 parity and mutation rejection: passing.
 - Read-only Testnet RPC and Mock Anchor SEP discovery: passing.
-- Minimal Wallets Kit browser surface and live compatibility checks: implemented.
+- Wallets Kit/Freighter funding surface, exact Circle USDC trustline checks, validated SEP-10 challenge path, server-confined Anchor session, and SEP-38/SEP-6 deposit UI: implemented; first user-authorized live completion is pending.
 - Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
 - Deterministic ExecutionGateway ports and contract-origin rejection evidence path: implemented; live contract adapter remains pending.
-- Wallet-authenticated Anchor flow, contracts, circuits, provider workflow, and final deployments: in progress.
+- Wallet-authorized Anchor deposit completion, contracts, circuits, provider workflow, and final deployments: in progress.
 
 This repository does not yet claim a complete hackathon demo or production readiness.
 
