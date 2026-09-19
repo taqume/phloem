@@ -61,3 +61,6 @@ deployments/*.local.json
 
 # Local preflight/bootstrap tool installations
 .phloem/toolchain/
+
+# Serena local state
+.serena/
