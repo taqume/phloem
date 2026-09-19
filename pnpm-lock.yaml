@@ -68,6 +68,22 @@ importers:
         specifier: 24.10.1
         version: 24.10.1
 
+  packages/execution-gateway:
+    dependencies:
+      '@phloem/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@phloem/protocol-types':
+        specifier: workspace:*
+        version: link:../protocol-types
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+
   packages/protocol-types:
     dependencies:
       '@stellar/stellar-sdk':
