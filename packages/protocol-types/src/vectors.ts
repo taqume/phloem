@@ -319,6 +319,20 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     offerCommitment,
   ];
   const auditPublicSignals = [auditContextHashValue, newAuditTotalCommitment, 500_000n, testField("snapshot-hash-field")];
+  const auditAccumulatorInitPublicSignals = [
+    auditContextHashValue,
+    0n,
+    0n,
+    initialAuditTotalCommitment,
+    0n,
+  ];
+  const auditAccumulatorUpdatePublicSignals = [
+    auditContextHashValue,
+    1n,
+    oldAuditTotalCommitment,
+    newAuditTotalCommitment,
+    claimAmount,
+  ];
 
   return {
     metadata: {
@@ -444,6 +458,8 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       newAuditTotalCommitment: newAuditTotalCommitment.toString(),
       publicSignals: {
         budgetTransitionV1: decimal(budgetPublicSignals),
+        auditAccumulatorInitV1: decimal(auditAccumulatorInitPublicSignals),
+        auditAccumulatorUpdateV1: decimal(auditAccumulatorUpdatePublicSignals),
         privateSettlementBindingV1: decimal(privateSettlementPublicSignals),
         auditTotalSpendLeqV1: decimal(auditPublicSignals),
       },

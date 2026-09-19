@@ -1,6 +1,7 @@
 #![no_std]
 
 mod audit;
+mod audit_verifier;
 mod budget;
 mod encoding;
 mod error;
@@ -11,9 +12,9 @@ mod types;
 
 pub use error::Error;
 pub use types::{
-    BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, NodePolicy,
-    RootBudgetNoteInput, SafetyState, Session, SessionLifecycle, SessionPolicy, SettlementMode,
-    StandardDelegationInput,
+    BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
+    NodePolicy, RootBudgetNoteInput, SafetyState, Session, SessionAuditState, SessionLifecycle,
+    SessionPolicy, SettlementMode, StandardDelegationInput,
 };
 
 use soroban_sdk::{
@@ -38,12 +39,18 @@ pub struct TreasuryController;
 
 #[contractimpl]
 impl TreasuryController {
-    pub fn __constructor(env: Env, standard_asset: Address, agent_account_wasm_hash: BytesN<32>) {
+    pub fn __constructor(
+        env: Env,
+        standard_asset: Address,
+        agent_account_wasm_hash: BytesN<32>,
+        audit_accumulator_verifier: Address,
+    ) {
         env.storage().instance().set(
             &DataKey::Config,
             &Config {
                 standard_asset,
                 agent_account_wasm_hash,
+                audit_accumulator_verifier,
             },
         );
         env.storage()
@@ -127,6 +134,8 @@ impl TreasuryController {
         session_id: BytesN<32>,
         root_note: RootBudgetNoteInput,
         funding_amount: u64,
+        initial_audit_commitment: U256,
+        audit_proof: Groth16Proof,
     ) {
         let mut session = load_session_or_fail(&env, &session_id);
         session.company.require_auth();
@@ -147,6 +156,7 @@ impl TreasuryController {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         validate_field(&env, &root_note.commitment);
+        validate_field(&env, &initial_audit_commitment);
 
         if root_note.node_id == root_note.note_id {
             panic_with_error!(&env, Error::IdentifierAlreadyUsed);
@@ -157,8 +167,36 @@ impl TreasuryController {
         let node_key = DataKey::BudgetNode(root_note.node_id.clone());
         let note_key = DataKey::BudgetNote(root_note.note_id.clone());
         let amount_key = DataKey::StandardNoteAmount(root_note.note_id.clone());
+        let audit_key = DataKey::SessionAudit(session_id.clone());
 
         let policy = load_policy_or_fail(&env, &session_id);
+        let audit_context_hash = audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        let audit_inputs = soroban_sdk::vec![
+            &env,
+            audit_context_hash,
+            U256::from_u32(&env, 0),
+            U256::from_u32(&env, 0),
+            initial_audit_commitment.clone(),
+            U256::from_u32(&env, 0),
+        ];
+        let config = get_config(&env);
+        if !audit_verifier::verify(
+            &env,
+            &config.audit_accumulator_verifier,
+            &audit_proof,
+            &audit_inputs,
+        ) {
+            panic_with_error!(&env, Error::InvalidProof);
+        }
         let root_node = BudgetNode {
             id: root_note.node_id.clone(),
             session_id: session_id.clone(),
@@ -186,6 +224,16 @@ impl TreasuryController {
             created_at_ledger: env.ledger().sequence(),
             spent_at_ledger: None,
         };
+        let audit_state = SessionAuditState {
+            session_id: session_id.clone(),
+            total_spend_commitment: initial_audit_commitment,
+            settlement_count: 0,
+            unresolved_reservation_count: 0,
+            audit_version: 1,
+            policy_hash: session.policy_hash.clone(),
+            finalized: false,
+            final_snapshot_hash: None,
+        };
 
         // The outer company authorization and the nested SAC authorization are
         // intentionally in the same invocation tree. A failed token transfer or
@@ -204,11 +252,13 @@ impl TreasuryController {
         env.storage().persistent().set(&node_key, &root_node);
         env.storage().persistent().set(&note_key, &budget_note);
         env.storage().persistent().set(&amount_key, &funding_amount);
+        env.storage().persistent().set(&audit_key, &audit_state);
         env.storage().persistent().set(&session_key, &session);
 
         extend_persistent_ttl(&env, &node_key, session.expires_at_ledger);
         extend_persistent_ttl(&env, &note_key, session.expires_at_ledger);
         extend_persistent_ttl(&env, &amount_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
         extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
         extend_instance_ttl(&env, session.expires_at_ledger);
 
@@ -316,6 +366,20 @@ impl TreasuryController {
 
     pub fn get_standard_asset(env: Env) -> Address {
         get_config(&env).standard_asset
+    }
+
+    pub fn get_audit_accumulator_verifier(env: Env) -> Address {
+        get_config(&env).audit_accumulator_verifier
+    }
+
+    pub fn get_audit_state(env: Env, session_id: BytesN<32>) -> Option<SessionAuditState> {
+        let session = load_session_or_fail(&env, &session_id);
+        let key = DataKey::SessionAudit(session_id);
+        let state = env.storage().persistent().get(&key);
+        if state.is_some() {
+            extend_persistent_ttl(&env, &key, session.expires_at_ledger);
+        }
+        state
     }
 
     pub fn get_agent_account_wasm_hash(env: Env) -> BytesN<32> {

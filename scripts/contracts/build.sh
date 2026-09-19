@@ -9,6 +9,7 @@ cd "${repo_root}"
 
 for package in \
   phloem-ed25519-verifier \
+  phloem-audit-accumulator-verifier \
   phloem-budget-transition-verifier \
   phloem-agent-account \
   phloem-treasury-controller

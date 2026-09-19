@@ -9,6 +9,7 @@ const ARCHIVE_BUFFER_LEDGERS: u32 = 17_280;
 pub struct Config {
     pub standard_asset: Address,
     pub agent_account_wasm_hash: BytesN<32>,
+    pub audit_accumulator_verifier: Address,
 }
 
 #[contracttype]
@@ -21,6 +22,7 @@ pub enum DataKey {
     BudgetNode(BytesN<32>),
     BudgetNote(BytesN<32>),
     StandardNoteAmount(BytesN<32>),
+    SessionAudit(BytesN<32>),
 }
 
 pub fn get_config(env: &Env) -> Config {

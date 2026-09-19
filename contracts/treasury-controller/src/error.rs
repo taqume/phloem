@@ -27,4 +27,6 @@ pub enum Error {
     InvalidAgentAccount = 21,
     BudgetStateMismatch = 22,
     InvalidAddressEncoding = 23,
+    InvalidProof = 24,
+    AuditStateNotFound = 25,
 }

@@ -1,4 +1,7 @@
-use soroban_sdk::{Address, BytesN, U256, contracttype};
+use soroban_sdk::{
+    Address, BytesN, U256, contracttype,
+    crypto::bn254::{Bn254G1Affine, Bn254G2Affine},
+};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -140,4 +143,25 @@ pub struct StandardDelegationInput {
     pub delegated_amount: u64,
     pub remainder_note_id: Option<BytesN<32>>,
     pub remainder_commitment: Option<U256>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Groth16Proof {
+    pub a: Bn254G1Affine,
+    pub b: Bn254G2Affine,
+    pub c: Bn254G1Affine,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionAuditState {
+    pub session_id: BytesN<32>,
+    pub total_spend_commitment: U256,
+    pub settlement_count: u64,
+    pub unresolved_reservation_count: u64,
+    pub audit_version: u32,
+    pub policy_hash: U256,
+    pub finalized: bool,
+    pub final_snapshot_hash: Option<BytesN<32>>,
 }

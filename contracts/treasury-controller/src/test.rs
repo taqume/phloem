@@ -1,14 +1,17 @@
 extern crate std;
 
 use soroban_sdk::{
-    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, contract,
+    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec, contract,
     contractimpl,
+    crypto::bn254::{
+        BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE, Bn254G1Affine, Bn254G2Affine,
+    },
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger},
     token::{StellarAssetClient, TokenClient},
 };
 
 use crate::{
-    BudgetNodeOwner, BudgetNoteStatus, NodePolicy, RootBudgetNoteInput, SafetyState,
+    BudgetNodeOwner, BudgetNoteStatus, Groth16Proof, NodePolicy, RootBudgetNoteInput, SafetyState,
     SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput, TreasuryController,
     TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
 };
@@ -29,6 +32,26 @@ impl WrongAgentImplementation {
     pub fn pong() {}
 }
 
+#[contract]
+struct MockAuditAccumulatorVerifier;
+
+#[contractimpl]
+impl MockAuditAccumulatorVerifier {
+    pub fn __constructor(env: Env, accept: bool) {
+        env.storage().instance().set(&0u32, &accept);
+    }
+
+    pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
+        let accept: bool = env.storage().instance().get(&0u32).unwrap();
+        accept
+            && public_inputs.len() == 5
+            && public_inputs.get_unchecked(1) == U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(2) == U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(3) != U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(4) == U256::from_u32(&env, 0)
+    }
+}
+
 struct Harness<'a> {
     env: Env,
     contract_id: Address,
@@ -36,10 +59,15 @@ struct Harness<'a> {
     company: Address,
     asset: Address,
     agent_account_wasm_hash: BytesN<32>,
+    audit_accumulator_verifier: Address,
     token: TokenClient<'a>,
 }
 
 fn setup<'a>() -> Harness<'a> {
+    setup_with_audit_verifier(true)
+}
+
+fn setup_with_audit_verifier<'a>(accept_audit_proof: bool) -> Harness<'a> {
     let env = Env::default();
     env.ledger().set_sequence_number(1_000);
 
@@ -54,9 +82,15 @@ fn setup<'a>() -> Harness<'a> {
     env.set_auths(&[]);
 
     let agent_account_wasm_hash = env.upload(MockAgentAccount);
+    let audit_accumulator_verifier =
+        env.register(MockAuditAccumulatorVerifier, (accept_audit_proof,));
     let contract_id = env.register(
         TreasuryController,
-        (asset.clone(), agent_account_wasm_hash.clone()),
+        (
+            asset.clone(),
+            agent_account_wasm_hash.clone(),
+            audit_accumulator_verifier.clone(),
+        ),
     );
     let controller = TreasuryControllerClient::new(&env, &contract_id);
     let token = TokenClient::new(&env, &asset);
@@ -68,6 +102,7 @@ fn setup<'a>() -> Harness<'a> {
         company,
         asset,
         agent_account_wasm_hash,
+        audit_accumulator_verifier,
         token,
     }
 }
@@ -88,6 +123,18 @@ fn policy(env: &Env, asset: &Address, mode: SettlementMode, expiry: u32) -> Sess
 
 fn id(env: &Env, byte: u8) -> BytesN<32> {
     BytesN::from_array(env, &[byte; 32])
+}
+
+fn audit_commitment(env: &Env) -> U256 {
+    U256::from_u32(env, 59)
+}
+
+fn audit_proof(env: &Env) -> Groth16Proof {
+    Groth16Proof {
+        a: Bn254G1Affine::from_array(env, &[0; BN254_G1_SERIALIZED_SIZE]),
+        b: Bn254G2Affine::from_array(env, &[0; BN254_G2_SERIALIZED_SIZE]),
+        c: Bn254G1Affine::from_array(env, &[0; BN254_G1_SERIALIZED_SIZE]),
+    }
 }
 
 fn create_standard_session(h: &Harness<'_>, expiry: u32) -> BytesN<32> {
@@ -115,8 +162,13 @@ fn activate_standard_root(
         commitment: U256::from_u32(&h.env, 31),
     };
     h.env.mock_all_auths();
-    h.controller
-        .activate_standard_session(&session_id, &root, &amount);
+    h.controller.activate_standard_session(
+        &session_id,
+        &root,
+        &amount,
+        &audit_commitment(&h.env),
+        &audit_proof(&h.env),
+    );
     (session_id, root)
 }
 
@@ -260,10 +312,17 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
         note_id: id(&h.env, 2),
         commitment: U256::from_u32(&h.env, 31),
     };
+    let initial_audit_commitment = audit_commitment(&h.env);
+    let initial_audit_proof = audit_proof(&h.env);
 
     h.env.mock_all_auths();
-    h.controller
-        .activate_standard_session(&session_id, &root, &4_000);
+    h.controller.activate_standard_session(
+        &session_id,
+        &root,
+        &4_000,
+        &initial_audit_commitment,
+        &initial_audit_proof,
+    );
 
     assert_eq!(
         h.env.auths(),
@@ -273,7 +332,14 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
                 function: AuthorizedFunction::Contract((
                     h.contract_id.clone(),
                     Symbol::new(&h.env, "activate_standard_session"),
-                    (session_id.clone(), root.clone(), 4_000u64).into_val(&h.env),
+                    (
+                        session_id.clone(),
+                        root.clone(),
+                        4_000u64,
+                        initial_audit_commitment.clone(),
+                        initial_audit_proof.clone(),
+                    )
+                        .into_val(&h.env),
                 )),
                 sub_invocations: [AuthorizedInvocation {
                     function: AuthorizedFunction::Contract((
@@ -306,6 +372,14 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
     assert_eq!(
         h.controller.get_standard_note_amount(&root.note_id),
         Some(4_000)
+    );
+    let audit = h.controller.get_audit_state(&session_id).unwrap();
+    assert_eq!(audit.total_spend_commitment, initial_audit_commitment);
+    assert_eq!(audit.settlement_count, 0);
+    assert_eq!(audit.audit_version, 1);
+    assert_eq!(
+        h.controller.get_audit_accumulator_verifier(),
+        h.audit_accumulator_verifier
     );
 }
 
@@ -351,7 +425,13 @@ fn failed_sac_transfer_rolls_back_activation_state() {
     h.env.mock_all_auths();
     assert!(
         h.controller
-            .try_activate_standard_session(&session_id, &root, &20_000)
+            .try_activate_standard_session(
+                &session_id,
+                &root,
+                &20_000,
+                &audit_commitment(&h.env),
+                &audit_proof(&h.env),
+            )
             .is_err()
     );
 
@@ -366,6 +446,40 @@ fn failed_sac_transfer_rolls_back_activation_state() {
 }
 
 #[test]
+fn rejected_initial_audit_proof_prevents_funding_and_root_creation() {
+    let h = setup_with_audit_verifier(false);
+    let expiry = 2_000;
+    let session_id = create_standard_session(&h, expiry);
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 74),
+        note_id: id(&h.env, 75),
+        commitment: U256::from_u32(&h.env, 61),
+    };
+
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_activate_standard_session(
+                &session_id,
+                &root,
+                &1_000,
+                &audit_commitment(&h.env),
+                &audit_proof(&h.env),
+            )
+            .is_err()
+    );
+
+    assert_eq!(h.token.balance(&h.company), 10_000);
+    assert_eq!(h.token.balance(&h.contract_id), 0);
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Draft
+    );
+    assert!(h.controller.get_budget_note(&root.note_id).is_none());
+    assert!(h.controller.get_audit_state(&session_id).is_none());
+}
+
+#[test]
 fn activation_is_single_use_and_cannot_double_fund() {
     let h = setup();
     let expiry = 2_000;
@@ -377,11 +491,22 @@ fn activation_is_single_use_and_cannot_double_fund() {
     };
 
     h.env.mock_all_auths();
-    h.controller
-        .activate_standard_session(&session_id, &root, &2_000);
+    h.controller.activate_standard_session(
+        &session_id,
+        &root,
+        &2_000,
+        &audit_commitment(&h.env),
+        &audit_proof(&h.env),
+    );
     assert!(
         h.controller
-            .try_activate_standard_session(&session_id, &root, &2_000)
+            .try_activate_standard_session(
+                &session_id,
+                &root,
+                &2_000,
+                &audit_commitment(&h.env),
+                &audit_proof(&h.env),
+            )
             .is_err()
     );
 
@@ -409,7 +534,13 @@ fn private_session_cannot_use_standard_activation() {
 
     assert!(
         h.controller
-            .try_activate_standard_session(&session_id, &root, &1_000)
+            .try_activate_standard_session(
+                &session_id,
+                &root,
+                &1_000,
+                &audit_commitment(&h.env),
+                &audit_proof(&h.env),
+            )
             .is_err()
     );
     assert_eq!(h.token.balance(&h.contract_id), 0);
@@ -776,7 +907,13 @@ fn root_activation_rejects_cross_type_identifier_reuse() {
     h.env.mock_all_auths();
     assert!(
         h.controller
-            .try_activate_standard_session(&second_session_id, &reused, &500)
+            .try_activate_standard_session(
+                &second_session_id,
+                &reused,
+                &500,
+                &audit_commitment(&h.env),
+                &audit_proof(&h.env),
+            )
             .is_err()
     );
     assert_eq!(h.token.balance(&h.company), 9_000);
