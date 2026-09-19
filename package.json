@@ -24,10 +24,12 @@
     "phase1:check": "node scripts/preflight/phase1.mjs",
     "phase1:upstreams": "scripts/preflight/pinned-upstreams.sh",
     "spp:deployment:prepare": "scripts/deploy/prepare-spp-usdc-wasm.sh",
+    "spp:deployment:verify": "node scripts/deploy/verify-spp-usdc-testnet.mjs",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",
     "zk:check:local-worker": "tsx scripts/zk/check-local-proof-worker.ts"
   },
   "devDependencies": {
+    "@stellar/stellar-sdk": "17.1.0",
     "@taceo/circom-lib": "0.9.0",
     "@taceo/poseidon2": "0.2.0",
     "circomlib": "2.0.5",

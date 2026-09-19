@@ -1,20 +1,145 @@
 {
-  "status": "not-deployed",
+  "status": "spp-usdc-deployed",
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "protocolVersion": 1,
   "storageSchemaVersion": 1,
-  "gitCommit": null,
+  "deploymentPreparationCommit": "58fdf869c88374ea39680f47d1e782910e3a2a94",
+  "deployedAt": "2026-09-19T20:55:38.844Z",
+  "deployer": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
+  "admin": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
   "contracts": {},
   "spp": {
+    "repository": "NethermindEth/stellar-private-payments",
     "sourceRevision": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
-    "pool": null,
-    "registry": null,
-    "verifiers": {}
+    "asset": {
+      "code": "USDC",
+      "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+      "sacContractId": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "decimals": 7
+    },
+    "configuration": {
+      "policy": "blocklist",
+      "policyFlags": 2,
+      "aspLevels": 10,
+      "poolLevels": 20,
+      "maximumDepositAmount": "1000000000"
+    },
+    "contracts": {
+      "aspMembership": "CB6APJ4NHOTHETD4IZERG3CIQMC6YDSSWWCRNN7NG5YZNO5RTMMZ2Z55",
+      "aspNonMembership": "CC43C3FITFAECE7FA4YJHMZS2ANHM5O2ZVTXI2F2K5W5V4R35JQUEWHI",
+      "verifierB": "CCLUTVXT4XTE52CMG5W2YUYRR32KVSO5GNOMIL4ZLNFZYDXVPPGGS33A",
+      "publicKeyRegistry": "CB3OX6UGZCKQZFN3WQHCIBBAMIWIDHLZWC4JS6VYJE4U5WWQN5GFELKT",
+      "pool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+    },
+    "artifacts": {
+      "aspMembership": {
+        "sha256": "51c6b3752bc89f5ddd5cc57472e3b808bdc7e1311d19cdc03b29a3129c8f42a3",
+        "bytes": 19661,
+        "provisioning": "reused-existing-testnet-code"
+      },
+      "aspNonMembership": {
+        "sha256": "4b3a6058063641953e76dd5fb4451f6ecebee2b52c225b3c93b3ab08cf83b5e3",
+        "bytes": 36444,
+        "provisioning": "reused-existing-testnet-code"
+      },
+      "verifierB": {
+        "sha256": "0b612d77030494a6f9490416ae0dae3708e70142f1a828cf9dc5e2ead43cfd2b",
+        "bytes": 4921,
+        "provisioning": "reused-existing-testnet-code"
+      },
+      "publicKeyRegistry": {
+        "sha256": "6806c9ea5aaf8e3d6e09b2f0deb2852ca267b6b8be94be775381ff89e2354f7f",
+        "bytes": 2456,
+        "provisioning": "reused-existing-testnet-code"
+      },
+      "pool": {
+        "sha256": "47d68ca6096cce15d1bf383fc8427ec6a44d95a62d73610d796ff9b4db39f867",
+        "bytes": 30328,
+        "provisioning": "uploaded-by-this-deployment"
+      }
+    },
+    "transactions": [
+      {
+        "step": "upload-pool",
+        "hash": "c5248ab537c499826b49071f17a354f4d9c9885df406043fbf3b1c16ff2596ba",
+        "ledger": 4765539,
+        "feeStroops": "40684672",
+        "instructions": 26603096,
+        "writeBytes": 30428
+      },
+      {
+        "step": "create-asp-membership",
+        "hash": "63d17ace0793317003447210993336a75ebc0302448530488d44e097f17e28d6",
+        "ledger": 4765541,
+        "feeStroops": "950370",
+        "instructions": 2705420,
+        "writeBytes": 3444
+      },
+      {
+        "step": "create-asp-non-membership",
+        "hash": "33db03d9c0f3fb8fd9fd6dabaaa41bbb1e01def3b94a5649eb8a2d13fb98110c",
+        "ledger": 4765544,
+        "feeStroops": "110095",
+        "instructions": 959438,
+        "writeBytes": 348
+      },
+      {
+        "step": "create-verifier",
+        "hash": "bbf309aab3ceb049ad3803d988b69a5b687623d60ca8d65d30c1493cf111eb34",
+        "ledger": 4765546,
+        "feeStroops": "42937",
+        "instructions": 759772,
+        "writeBytes": 104
+      },
+      {
+        "step": "create-public-key-registry",
+        "hash": "dd56463c9ae54b2e7dcf8d981a5d6977f8ea5f9f42faab8f6d7b37ee8d81ffad",
+        "ledger": 4765548,
+        "feeStroops": "42882",
+        "instructions": 680594,
+        "writeBytes": 104
+      },
+      {
+        "step": "create-pool",
+        "hash": "db33317eb2c941a8ddc87e2b847a57039a53da9fe77b74f55e918a385a25164b",
+        "ledger": 4765550,
+        "feeStroops": "1900281",
+        "instructions": 5961058,
+        "writeBytes": 6932
+      }
+    ],
+    "resources": {
+      "transactionCount": 6,
+      "totalFeeStroops": "43731237",
+      "totalFeeXlm": "4.3731237",
+      "totalInstructions": 37669378,
+      "totalWriteBytes": 41360,
+      "maximumTransactionInstructions": 26603096,
+      "maximumTransactionWriteBytes": 30428
+    },
+    "verification": {
+      "verifiedAt": "2026-09-19T21:02:21Z",
+      "rpcStatus": "healthy",
+      "rpcProtocolVersion": 28,
+      "assetMovement": false,
+      "transactionEnvelopes": "verified",
+      "contractWasmHashes": "verified",
+      "constructorArguments": "verified",
+      "freshReadonlyWalletSync": "passed",
+      "bootnodeRequired": false,
+      "poolDiscovery": "passed",
+      "poolReads": {
+        "policyFlags": 2,
+        "root": "17968085762943253513022248151815334253035983379310876842178410695923924924855",
+        "aspMembershipRoot": "2302223575749844940221218608817648865122641281382153518325924961250440546344",
+        "aspNonMembershipRoot": "0"
+      }
+    }
   },
   "smartAccount": {
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "Final contract IDs and artifact hashes are populated only from actual Phloem deployments."
+  "note": "Only the fee-only SPP USDC dependency deployment is live. Phloem contracts and all USDC-moving flows remain undeployed and unexecuted."
 }
