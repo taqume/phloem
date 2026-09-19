@@ -31,6 +31,7 @@ export interface PrepareReservationOpeningInput {
   readonly sourceBudgetNoteId: Uint8Array;
   readonly sourceBudgetContextHash: bigint;
   readonly approvedProviderRoot: bigint;
+  readonly categoryId: number;
   readonly networkId: Uint8Array;
   readonly treasuryController: string;
   readonly amountAtomic: bigint;
@@ -123,6 +124,9 @@ export class PrivateVoucherIssuer {
     if (!Number.isSafeInteger(input.claimDeadlineLedger) || input.claimDeadlineLedger <= 0) {
       throw new RangeError("claim deadline must be a positive ledger sequence");
     }
+    if (!Number.isSafeInteger(input.categoryId) || input.categoryId < 0 || input.categoryId >= 64) {
+      throw new RangeError("category id must fit the P0 policy mask");
+    }
 
     const reservationContextHash = poseidon2HashFields(
       [input.sourceBudgetContextHash, ...bytes32ToLimbs(reservationId), input.approvedProviderRoot],
@@ -156,9 +160,11 @@ export class PrivateVoucherIssuer {
       reservationId: toHex(reservationId),
       sessionId: toHex(sessionId),
       sourceBudgetNoteId: toHex(sourceBudgetNoteId),
+      categoryId: input.categoryId,
       networkIdHex: toHex(networkId),
       treasuryController: input.treasuryController,
       reservationContextHash: reservationContextHash.toString(),
+      approvedProviderRoot: input.approvedProviderRoot.toString(),
       amountAtomic: amountAtomic.toString(),
       amountBlinding: amountBlinding.toString(),
       amountCommitment: amountCommitment.toString(),
@@ -180,8 +186,14 @@ export class PrivateVoucherIssuer {
         if (state.reservations.some((item) => item.reservationId === opening.reservationId)) {
           throw new PrivateReservationStateError("reservation id is already present in private state");
         }
+        if (state.budgetNotes.some((item) => item.noteId === opening.reservationId)) {
+          throw new PrivateReservationStateError("reservation id collides with an existing budget note");
+        }
         if (state.reservations.some((item) => item.voucherSignerPublicKeyHex === opening.voucherSignerPublicKeyHex)) {
           throw new PrivateReservationStateError("voucher signer public key is already bound to another reservation");
+        }
+        if (state.reservations.some((item) => item.sourceBudgetNoteId === opening.sourceBudgetNoteId && item.status === "PREPARED")) {
+          throw new PrivateReservationStateError("source budget note already has a prepared reservation");
         }
         state.reservations.push(opening);
         return publicArtifacts(opening);
@@ -191,14 +203,47 @@ export class PrivateVoucherIssuer {
     }
   }
 
-  async markReservationOpen(reservationId: Uint8Array): Promise<void> {
-    const id = toHex(bytes32(reservationId, "reservation id"));
+  async confirmReservationOpen(input: {
+    readonly reservationId: Uint8Array;
+    readonly transactionHash: Uint8Array;
+    readonly ledgerSequence: number;
+  }): Promise<void> {
+    const id = toHex(bytes32(input.reservationId, "reservation id"));
+    const transactionHash = toHex(bytes32(input.transactionHash, "transaction hash"));
+    if (!Number.isSafeInteger(input.ledgerSequence) || input.ledgerSequence <= 0) {
+      throw new RangeError("confirmation ledger must be a positive integer");
+    }
     await this.#store.transaction((state) => {
       const opening = state.reservations.find((item) => item.reservationId === id);
       if (!opening || opening.status !== "PREPARED") {
         throw new PrivateReservationStateError("only a prepared reservation can become open");
       }
+      const source = state.budgetNotes.find((item) => item.noteId === opening.sourceBudgetNoteId);
+      if (!source || source.status !== "ACTIVE") {
+        throw new PrivateReservationStateError("prepared reservation source is not active in private state");
+      }
+      source.status = "SPENT";
+      if (opening.preparedRemainder) {
+        const remainder = opening.preparedRemainder;
+        if (state.budgetNotes.some((item) => item.noteId === remainder.noteId)) {
+          throw new PrivateReservationStateError("prepared remainder id is already present in private state");
+        }
+        state.budgetNotes.push({
+          noteId: remainder.noteId,
+          sessionId: opening.sessionId,
+          nodeId: source.nodeId,
+          owner: source.owner,
+          asset: source.asset,
+          policyHash: source.policyHash,
+          contextHash: remainder.contextHash,
+          commitment: remainder.commitment,
+          amountAtomic: remainder.amountAtomic,
+          blinding: remainder.blinding,
+          status: "ACTIVE",
+        });
+      }
       opening.status = "OPEN";
+      opening.openConfirmation = { transactionHash, ledgerSequence: input.ledgerSequence };
     });
   }
 

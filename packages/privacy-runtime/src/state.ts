@@ -37,13 +37,28 @@ export const voucherOpeningSchema = z.object({
   signatureHex: z.string().regex(/^[0-9a-f]{128}$/u),
 }).strict();
 
+export const preparedRemainderOpeningSchema = z.object({
+  noteId: bytes32HexSchema,
+  contextHash: fieldDecimalSchema,
+  amountAtomic: positiveU64DecimalSchema,
+  blinding: positiveFieldDecimalSchema,
+  commitment: fieldDecimalSchema,
+}).strict();
+
+export const chainConfirmationSchema = z.object({
+  transactionHash: bytes32HexSchema,
+  ledgerSequence: z.number().int().positive(),
+}).strict();
+
 export const reservationOpeningSchema = z.object({
   reservationId: bytes32HexSchema,
   sessionId: bytes32HexSchema,
   sourceBudgetNoteId: bytes32HexSchema,
+  categoryId: z.number().int().nonnegative(),
   networkIdHex: bytes32HexSchema,
   treasuryController: contractAddressSchema,
   reservationContextHash: fieldDecimalSchema,
+  approvedProviderRoot: fieldDecimalSchema,
   amountAtomic: positiveU64DecimalSchema,
   amountBlinding: positiveFieldDecimalSchema,
   amountCommitment: fieldDecimalSchema,
@@ -56,10 +71,16 @@ export const reservationOpeningSchema = z.object({
   voucherSignerSeedHex: bytes32HexSchema,
   voucherSignerPublicKeyHex: bytes32HexSchema,
   claimDeadlineLedger: z.number().int().positive(),
+  preparedRemainder: preparedRemainderOpeningSchema.optional(),
   status: z.enum(["PREPARED", "OPEN", "SETTLEMENT_PENDING", "SETTLED", "RECLAIMED", "EXPIRED"]),
+  openConfirmation: chainConfirmationSchema.optional(),
   latestVoucher: voucherOpeningSchema.optional(),
   createdAtUnixMs: unixMillisecondsSchema,
-}).strict();
+}).strict().superRefine((value, context) => {
+  if ((value.status === "PREPARED") === (value.openConfirmation !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a chain-confirmed reservation may leave PREPARED state" });
+  }
+});
 
 export const auditAccumulatorOpeningSchema = z.object({
   sessionId: bytes32HexSchema,
@@ -92,6 +113,8 @@ export const privacyStateSchema = z.object({
 export type BudgetNoteOpening = z.infer<typeof budgetNoteOpeningSchema>;
 export type ReservationOpening = z.infer<typeof reservationOpeningSchema>;
 export type VoucherOpening = z.infer<typeof voucherOpeningSchema>;
+export type PreparedRemainderOpening = z.infer<typeof preparedRemainderOpeningSchema>;
+export type ChainConfirmation = z.infer<typeof chainConfirmationSchema>;
 export type AuditAccumulatorOpening = z.infer<typeof auditAccumulatorOpeningSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 

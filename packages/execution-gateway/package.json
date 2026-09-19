@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@phloem/agent-runtime": "workspace:*",
+    "@phloem/privacy-runtime": "workspace:*",
     "@phloem/protocol-types": "workspace:*",
     "@phloem/treasury-controller-client": "workspace:*",
     "zod": "4.6.5"

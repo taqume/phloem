@@ -18,6 +18,8 @@ import {
 
 const NON_PRODUCTION_TEST_KEY = Buffer.alloc(32, 0x51);
 const CONTROLLER = "CB23C2OYMIDYC7OG2PK6NJFIVCYONYV43ABREOGVTW2LT4C2G53G2CWU";
+const SOURCE_OWNER = "CB2P6OWRQTMIDLN2XSD4PYSRP2P2U5TTR4VNCLEDKMXAQWN7CHWLHI27";
+const ASSET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 class DeterministicNonProductionRandom implements PrivateRandomSource {
   #counter = 0;
@@ -46,6 +48,7 @@ function preparation(overrides: Partial<PrepareReservationOpeningInput> = {}): P
     sourceBudgetNoteId: Buffer.alloc(32, 3),
     sourceBudgetContextHash: 101n,
     approvedProviderRoot: 103n,
+    categoryId: 7,
     networkId: Buffer.alloc(32, 4),
     treasuryController: CONTROLLER,
     amountAtomic: 500_000n,
@@ -62,6 +65,21 @@ async function fixture(random: PrivateRandomSource = new DeterministicNonProduct
   const path = join(directory, "state.enc.json");
   const store = new EncryptedPrivacyStateStore(path, NON_PRODUCTION_TEST_KEY);
   await store.initialize();
+  await store.transaction((state) => {
+    state.budgetNotes.push({
+      noteId: Buffer.alloc(32, 3).toString("hex"),
+      sessionId: Buffer.alloc(32, 2).toString("hex"),
+      nodeId: Buffer.alloc(32, 6).toString("hex"),
+      owner: SOURCE_OWNER,
+      asset: ASSET,
+      policyHash: "101",
+      contextHash: "103",
+      commitment: "107",
+      amountAtomic: "500000",
+      blinding: "109",
+      status: "ACTIVE",
+    });
+  });
   return { directory, path, store, issuer: new PrivateVoucherIssuer(store, random) };
 }
 
@@ -99,7 +117,7 @@ test("an open reservation issues a canonical signed cumulative voucher without e
   });
 
   const artifacts = await issuer.prepareReservation(preparation());
-  await issuer.markReservationOpen(artifacts.reservationId);
+  await issuer.confirmReservationOpen({ reservationId: artifacts.reservationId, transactionHash: Buffer.alloc(32, 12), ledgerSequence: 100 });
   const issued = await issuer.issueVoucher({
     reservationId: artifacts.reservationId,
     sequence: 1n,
@@ -128,7 +146,7 @@ test("voucher authority is bounded, monotonic, and reservation-specific", async 
     await rm(directory, { recursive: true, force: true });
   });
   const artifacts = await issuer.prepareReservation(preparation());
-  await issuer.markReservationOpen(artifacts.reservationId);
+  await issuer.confirmReservationOpen({ reservationId: artifacts.reservationId, transactionHash: Buffer.alloc(32, 13), ledgerSequence: 101 });
   await issuer.issueVoucher({
     reservationId: artifacts.reservationId,
     sequence: 1n,
@@ -179,6 +197,6 @@ test("only unsubmitted prepared reservations can be discarded", async (context) 
   assert.deepEqual((await store.readSnapshot()).reservations, []);
 
   const next = await issuer.prepareReservation(preparation({ reservationId: Buffer.alloc(32, 8) }));
-  await issuer.markReservationOpen(next.reservationId);
+  await issuer.confirmReservationOpen({ reservationId: next.reservationId, transactionHash: Buffer.alloc(32, 14), ledgerSequence: 102 });
   await assert.rejects(issuer.discardPreparedReservation(next.reservationId), /only a prepared reservation/u);
 });

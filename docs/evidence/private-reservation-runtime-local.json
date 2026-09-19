@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-19",
+  "scope": "LOCAL_TESTNET_DEVELOPMENT_ONLY",
+  "productionReady": false,
+  "circuit": "BudgetTransitionV1",
+  "toolchain": {
+    "circom": "2.2.3",
+    "snarkjs": "0.7.6",
+    "publicInputCount": 8,
+    "nonLinearConstraints": 1005,
+    "linearConstraints": 1774
+  },
+  "setup": {
+    "kind": "single local phase-2 contributor",
+    "productionRequirement": "recorded multi-party ceremony",
+    "circuitSha256": "b6fe1755e27e96a6bbc5f55b3e27dc63e1ba1c23fd36d0df5185c99a19eb37d6",
+    "r1csSha256": "b9de046ed78a364e2ab93a6d4e994d69ec30e79c0e548c749ecd4d21872953cd",
+    "wasmSha256": "1c171d35e207db7ad2c4732904a2caf8cfa5329c1cccd568fe2bec71cb829cf6",
+    "zkeySha256": "2055f808ac64d6f3e76e67aa3107c6dcfd19ac5b3dd05b4079ce600f975b25a1",
+    "verificationKeySha256": "52d999f482d0309fe332ff042250385419568d2d4d07e97e775439938955d772"
+  },
+  "checks": {
+    "snarkjsZkeyVerify": "PASS",
+    "fixtureFullProveAndVerify": "PASS",
+    "localProofWorkerSerialization": "PASS",
+    "dynamicReservationPlannerFullProveAndVerify": "PASS",
+    "encryptedStateReconciliation": "PASS",
+    "rawWitnessTempCleanup": "PASS"
+  },
+  "limitations": [
+    "No contract was deployed and no wallet signature or asset-moving transaction was requested.",
+    "The proving setup is local and intentionally ignored by Git.",
+    "The verification key must be used when constructing the Testnet BudgetTransition verifier."
+  ]
+}
