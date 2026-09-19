@@ -169,7 +169,6 @@ export const standardSettlementInputSchema = z.object({
   offerReferenceHash: bytes32HexSchema,
   remainderBudgetNoteId: bytes32HexSchema.optional(),
   remainderCommitment: fieldDecimalSchema.optional(),
-  newAuditCommitment: fieldDecimalSchema,
 }).strict().superRefine((value, context) => {
   if ((value.remainderBudgetNoteId === undefined) !== (value.remainderCommitment === undefined)) {
     context.addIssue({ code: "custom", message: "remainder id and commitment must appear together" });
@@ -200,6 +199,7 @@ export const sessionAuditStateSchema = z.object({
   policyHash: fieldDecimalSchema,
   finalized: z.boolean(),
   finalSnapshotHash: bytes32HexSchema.optional(),
+  standardTotalSpendAtomic: u64DecimalSchema.optional(),
 }).strict();
 
 export const finalAuditSnapshotSchema = z.object({

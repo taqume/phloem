@@ -161,7 +161,6 @@ pub struct StandardSettlementInput {
     pub offer_reference_hash: BytesN<32>,
     pub remainder_budget_note_id: Option<BytesN<32>>,
     pub remainder_commitment: Option<U256>,
-    pub new_audit_commitment: U256,
 }
 
 #[contracttype]
@@ -206,4 +205,5 @@ pub struct SessionAuditState {
     pub policy_hash: U256,
     pub finalized: bool,
     pub final_snapshot_hash: Option<BytesN<32>>,
+    pub standard_total_spend_atomic: Option<u64>,
 }

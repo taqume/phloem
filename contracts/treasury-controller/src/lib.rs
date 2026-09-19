@@ -1,7 +1,6 @@
 #![no_std]
 
 mod audit;
-mod audit_verifier;
 mod budget;
 mod encoding;
 mod error;
@@ -45,18 +44,12 @@ pub struct TreasuryController;
 
 #[contractimpl]
 impl TreasuryController {
-    pub fn __constructor(
-        env: Env,
-        standard_asset: Address,
-        agent_account_wasm_hash: BytesN<32>,
-        audit_accumulator_verifier: Address,
-    ) {
+    pub fn __constructor(env: Env, standard_asset: Address, agent_account_wasm_hash: BytesN<32>) {
         env.storage().instance().set(
             &DataKey::Config,
             &Config {
                 standard_asset,
                 agent_account_wasm_hash,
-                audit_accumulator_verifier,
             },
         );
         env.storage()
@@ -140,8 +133,6 @@ impl TreasuryController {
         session_id: BytesN<32>,
         root_note: RootBudgetNoteInput,
         funding_amount: u64,
-        initial_audit_commitment: U256,
-        audit_proof: Groth16Proof,
     ) {
         let mut session = load_session_or_fail(&env, &session_id);
         session.company.require_auth();
@@ -162,7 +153,6 @@ impl TreasuryController {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         validate_field(&env, &root_note.commitment);
-        validate_field(&env, &initial_audit_commitment);
 
         if root_note.node_id == root_note.note_id {
             panic_with_error!(&env, Error::IdentifierAlreadyUsed);
@@ -186,23 +176,9 @@ impl TreasuryController {
             &session.policy_hash,
         )
         .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
-        let audit_inputs = soroban_sdk::vec![
-            &env,
-            audit_context_hash,
-            U256::from_u32(&env, 0),
-            U256::from_u32(&env, 0),
-            initial_audit_commitment.clone(),
-            U256::from_u32(&env, 0),
-        ];
-        let config = get_config(&env);
-        if !audit_verifier::verify(
-            &env,
-            &config.audit_accumulator_verifier,
-            &audit_proof,
-            &audit_inputs,
-        ) {
-            panic_with_error!(&env, Error::InvalidProof);
-        }
+        let initial_audit_commitment =
+            audit::total_commitment_v1(&env, &audit_context_hash, 0, &U256::from_u32(&env, 0))
+                .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField));
         let root_node = BudgetNode {
             id: root_note.node_id.clone(),
             session_id: session_id.clone(),
@@ -239,6 +215,7 @@ impl TreasuryController {
             policy_hash: session.policy_hash.clone(),
             finalized: false,
             final_snapshot_hash: None,
+            standard_total_spend_atomic: Some(0),
         };
 
         // The outer company authorization and the nested SAC authorization are
@@ -335,11 +312,7 @@ impl TreasuryController {
         );
     }
 
-    pub fn settle_standard_payment(
-        env: Env,
-        input: StandardSettlementInput,
-        audit_update_proof: Groth16Proof,
-    ) -> PaymentRecord {
+    pub fn settle_standard_payment(env: Env, input: StandardSettlementInput) -> PaymentRecord {
         let mut session = load_session_or_fail(&env, &input.session_id);
         let mut source_note = load_note_or_fail(&env, &input.source_budget_note_id);
         let source_node = load_node_or_fail(&env, &source_note.node_id);
@@ -360,7 +333,6 @@ impl TreasuryController {
         }
         validate_field(&env, &input.provider_spp_public_key);
         validate_field(&env, &input.usage_root);
-        validate_field(&env, &input.new_audit_commitment);
 
         let payment_key = DataKey::PaymentRecord(input.payment_id.clone());
         if env.storage().persistent().has(&payment_key) {
@@ -441,6 +413,12 @@ impl TreasuryController {
         {
             panic_with_error!(&env, Error::AuditStateMismatch);
         }
+        let current_total = audit_state
+            .standard_total_spend_atomic
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateMismatch));
+        let next_total = current_total
+            .checked_add(input.amount_atomic)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
         let audit_context_hash = audit::context_hash_v1(
             &env,
             &env.ledger().network_id(),
@@ -451,23 +429,23 @@ impl TreasuryController {
             &session.policy_hash,
         )
         .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
-        let audit_inputs = soroban_sdk::vec![
+        let expected_old_commitment = audit::total_commitment_v1(
             &env,
-            audit_context_hash,
-            U256::from_u32(&env, 1),
-            audit_state.total_spend_commitment.clone(),
-            input.new_audit_commitment.clone(),
-            U256::from_u128(&env, input.amount_atomic as u128),
-        ];
-        let config = get_config(&env);
-        if !audit_verifier::verify(
-            &env,
-            &config.audit_accumulator_verifier,
-            &audit_update_proof,
-            &audit_inputs,
-        ) {
-            panic_with_error!(&env, Error::InvalidProof);
+            &audit_context_hash,
+            current_total,
+            &U256::from_u32(&env, 0),
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField));
+        if audit_state.total_spend_commitment != expected_old_commitment {
+            panic_with_error!(&env, Error::AuditStateMismatch);
         }
+        let new_audit_commitment = audit::total_commitment_v1(
+            &env,
+            &audit_context_hash,
+            next_total,
+            &U256::from_u32(&env, 0),
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField));
 
         let next_settlement_count = session
             .settlement_count
@@ -506,9 +484,10 @@ impl TreasuryController {
         source_note.spent_at_ledger = Some(settled_at_ledger);
         session.settlement_count = next_settlement_count;
         session.audit_version = next_audit_version;
-        audit_state.total_spend_commitment = input.new_audit_commitment.clone();
+        audit_state.total_spend_commitment = new_audit_commitment;
         audit_state.settlement_count = next_settlement_count;
         audit_state.audit_version = next_audit_version;
+        audit_state.standard_total_spend_atomic = Some(next_total);
 
         let session_key = DataKey::Session(input.session_id.clone());
         let source_note_key = DataKey::BudgetNote(input.source_budget_note_id.clone());
@@ -637,10 +616,6 @@ impl TreasuryController {
 
     pub fn get_standard_asset(env: Env) -> Address {
         get_config(&env).standard_asset
-    }
-
-    pub fn get_audit_accumulator_verifier(env: Env) -> Address {
-        get_config(&env).audit_accumulator_verifier
     }
 
     pub fn get_audit_state(env: Env, session_id: BytesN<32>) -> Option<SessionAuditState> {

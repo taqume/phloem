@@ -4,6 +4,7 @@ use crate::{SettlementMode, encoding, poseidon2};
 
 const AUDIT_CONTEXT_INIT: u128 = 0x5048_4c4d_4155_4331;
 const AUDIT_CONTEXT_FOLD: u128 = 0x5048_4c4d_4155_4332;
+const AUDIT_TOTAL: u128 = 0x5048_4c4d_4155_4431;
 
 pub fn context_hash_v1(
     env: &Env,
@@ -34,6 +35,21 @@ pub fn context_hash_v1(
         &fields,
         &U256::from_u128(env, AUDIT_CONTEXT_INIT),
         &U256::from_u128(env, AUDIT_CONTEXT_FOLD),
+    )
+}
+
+pub fn total_commitment_v1(
+    env: &Env,
+    audit_context_hash: &U256,
+    total_spend_atomic: u64,
+    blinding: &U256,
+) -> Option<U256> {
+    poseidon2::hash3(
+        env,
+        audit_context_hash,
+        &U256::from_u128(env, total_spend_atomic as u128),
+        blinding,
+        &U256::from_u128(env, AUDIT_TOTAL),
     )
 }
 

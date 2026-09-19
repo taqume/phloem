@@ -1,20 +1,17 @@
 extern crate std;
 
 use soroban_sdk::{
-    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, Vec, contract,
+    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, contract,
     contractimpl,
-    crypto::bn254::{
-        BN254_G1_SERIALIZED_SIZE, BN254_G2_SERIALIZED_SIZE, Bn254G1Affine, Bn254G2Affine,
-    },
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger},
     token::{StellarAssetClient, TokenClient},
 };
 
 use crate::{
-    BudgetNodeOwner, BudgetNoteStatus, Groth16Proof, NodePolicy, PaymentStatus,
-    RootBudgetNoteInput, SafetyState, SessionLifecycle, SessionPolicy, SettlementMode,
-    StandardDelegationInput, StandardSettlementInput, TreasuryController, TreasuryControllerClient,
-    event::BudgetDelegated, storage::DataKey,
+    BudgetNodeOwner, BudgetNoteStatus, NodePolicy, PaymentStatus, RootBudgetNoteInput, SafetyState,
+    SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
+    StandardSettlementInput, TreasuryController, TreasuryControllerClient, event::BudgetDelegated,
+    storage::DataKey,
 };
 
 #[contract]
@@ -33,39 +30,6 @@ impl WrongAgentImplementation {
     pub fn pong() {}
 }
 
-#[contract]
-struct MockAuditAccumulatorVerifier;
-
-#[contractimpl]
-impl MockAuditAccumulatorVerifier {
-    pub fn __constructor(env: Env, accept_init: bool, accept_update: bool) {
-        env.storage().instance().set(&0u32, &accept_init);
-        env.storage().instance().set(&1u32, &accept_update);
-    }
-
-    pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
-        if public_inputs.len() != 5 {
-            return false;
-        }
-        match public_inputs.get_unchecked(1).to_u128() {
-            Some(0) => {
-                let accept: bool = env.storage().instance().get(&0u32).unwrap();
-                accept
-                    && public_inputs.get_unchecked(2) == U256::from_u32(&env, 0)
-                    && public_inputs.get_unchecked(3) != U256::from_u32(&env, 0)
-                    && public_inputs.get_unchecked(4) == U256::from_u32(&env, 0)
-            }
-            Some(1) => {
-                let accept: bool = env.storage().instance().get(&1u32).unwrap();
-                accept
-                    && public_inputs.get_unchecked(2) != public_inputs.get_unchecked(3)
-                    && public_inputs.get_unchecked(4) != U256::from_u32(&env, 0)
-            }
-            _ => false,
-        }
-    }
-}
-
 struct Harness<'a> {
     env: Env,
     contract_id: Address,
@@ -73,15 +37,10 @@ struct Harness<'a> {
     company: Address,
     asset: Address,
     agent_account_wasm_hash: BytesN<32>,
-    audit_accumulator_verifier: Address,
     token: TokenClient<'a>,
 }
 
 fn setup<'a>() -> Harness<'a> {
-    setup_with_audit_verifier(true, true)
-}
-
-fn setup_with_audit_verifier<'a>(accept_init: bool, accept_update: bool) -> Harness<'a> {
     let env = Env::default();
     env.ledger().set_sequence_number(1_000);
 
@@ -96,15 +55,9 @@ fn setup_with_audit_verifier<'a>(accept_init: bool, accept_update: bool) -> Harn
     env.set_auths(&[]);
 
     let agent_account_wasm_hash = env.upload(MockAgentAccount);
-    let audit_accumulator_verifier =
-        env.register(MockAuditAccumulatorVerifier, (accept_init, accept_update));
     let contract_id = env.register(
         TreasuryController,
-        (
-            asset.clone(),
-            agent_account_wasm_hash.clone(),
-            audit_accumulator_verifier.clone(),
-        ),
+        (asset.clone(), agent_account_wasm_hash.clone()),
     );
     let controller = TreasuryControllerClient::new(&env, &contract_id);
     let token = TokenClient::new(&env, &asset);
@@ -116,7 +69,6 @@ fn setup_with_audit_verifier<'a>(accept_init: bool, accept_update: bool) -> Harn
         company,
         asset,
         agent_account_wasm_hash,
-        audit_accumulator_verifier,
         token,
     }
 }
@@ -137,18 +89,6 @@ fn policy(env: &Env, asset: &Address, mode: SettlementMode, expiry: u32) -> Sess
 
 fn id(env: &Env, byte: u8) -> BytesN<32> {
     BytesN::from_array(env, &[byte; 32])
-}
-
-fn audit_commitment(env: &Env) -> U256 {
-    U256::from_u32(env, 59)
-}
-
-fn audit_proof(env: &Env) -> Groth16Proof {
-    Groth16Proof {
-        a: Bn254G1Affine::from_array(env, &[0; BN254_G1_SERIALIZED_SIZE]),
-        b: Bn254G2Affine::from_array(env, &[0; BN254_G2_SERIALIZED_SIZE]),
-        c: Bn254G1Affine::from_array(env, &[0; BN254_G1_SERIALIZED_SIZE]),
-    }
 }
 
 fn create_standard_session(h: &Harness<'_>, expiry: u32) -> BytesN<32> {
@@ -176,13 +116,8 @@ fn activate_standard_root(
         commitment: U256::from_u32(&h.env, 31),
     };
     h.env.mock_all_auths();
-    h.controller.activate_standard_session(
-        &session_id,
-        &root,
-        &amount,
-        &audit_commitment(&h.env),
-        &audit_proof(&h.env),
-    );
+    h.controller
+        .activate_standard_session(&session_id, &root, &amount);
     (session_id, root)
 }
 
@@ -251,13 +186,8 @@ fn standard_settlement_fixture(h: &Harness<'_>) -> (StandardSettlementInput, Add
         note_id: id(&h.env, 81),
         commitment: U256::from_u32(&h.env, 31),
     };
-    h.controller.activate_standard_session(
-        &session_id,
-        &root,
-        &1_000,
-        &audit_commitment(&h.env),
-        &audit_proof(&h.env),
-    );
+    h.controller
+        .activate_standard_session(&session_id, &root, &1_000);
 
     let agent = agent_account(h);
     let child = delegation(&h.env, agent.clone(), 82, 83, 600, Some(84));
@@ -279,7 +209,6 @@ fn standard_settlement_fixture(h: &Harness<'_>) -> (StandardSettlementInput, Add
             offer_reference_hash: id(&h.env, 91),
             remainder_budget_note_id: Some(id(&h.env, 86)),
             remainder_commitment: Some(U256::from_u32(&h.env, 71)),
-            new_audit_commitment: U256::from_u32(&h.env, 61),
         },
         agent,
         provider,
@@ -391,17 +320,9 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
         note_id: id(&h.env, 2),
         commitment: U256::from_u32(&h.env, 31),
     };
-    let initial_audit_commitment = audit_commitment(&h.env);
-    let initial_audit_proof = audit_proof(&h.env);
-
     h.env.mock_all_auths();
-    h.controller.activate_standard_session(
-        &session_id,
-        &root,
-        &4_000,
-        &initial_audit_commitment,
-        &initial_audit_proof,
-    );
+    h.controller
+        .activate_standard_session(&session_id, &root, &4_000);
 
     assert_eq!(
         h.env.auths(),
@@ -411,14 +332,7 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
                 function: AuthorizedFunction::Contract((
                     h.contract_id.clone(),
                     Symbol::new(&h.env, "activate_standard_session"),
-                    (
-                        session_id.clone(),
-                        root.clone(),
-                        4_000u64,
-                        initial_audit_commitment.clone(),
-                        initial_audit_proof.clone(),
-                    )
-                        .into_val(&h.env),
+                    (session_id.clone(), root.clone(), 4_000u64).into_val(&h.env),
                 )),
                 sub_invocations: [AuthorizedInvocation {
                     function: AuthorizedFunction::Contract((
@@ -453,13 +367,17 @@ fn standard_activation_moves_real_sac_and_materializes_company_root() {
         Some(4_000)
     );
     let audit = h.controller.get_audit_state(&session_id).unwrap();
-    assert_eq!(audit.total_spend_commitment, initial_audit_commitment);
+    let expected_audit_commitment = crate::audit::total_commitment_v1(
+        &h.env,
+        &h.controller.get_audit_context_hash(&session_id),
+        0,
+        &U256::from_u32(&h.env, 0),
+    )
+    .unwrap();
+    assert_eq!(audit.total_spend_commitment, expected_audit_commitment);
+    assert_eq!(audit.standard_total_spend_atomic, Some(0));
     assert_eq!(audit.settlement_count, 0);
     assert_eq!(audit.audit_version, 1);
-    assert_eq!(
-        h.controller.get_audit_accumulator_verifier(),
-        h.audit_accumulator_verifier
-    );
 }
 
 #[test]
@@ -504,13 +422,7 @@ fn failed_sac_transfer_rolls_back_activation_state() {
     h.env.mock_all_auths();
     assert!(
         h.controller
-            .try_activate_standard_session(
-                &session_id,
-                &root,
-                &20_000,
-                &audit_commitment(&h.env),
-                &audit_proof(&h.env),
-            )
+            .try_activate_standard_session(&session_id, &root, &20_000)
             .is_err()
     );
 
@@ -525,8 +437,8 @@ fn failed_sac_transfer_rolls_back_activation_state() {
 }
 
 #[test]
-fn rejected_initial_audit_proof_prevents_funding_and_root_creation() {
-    let h = setup_with_audit_verifier(false, false);
+fn standard_activation_uses_a_deterministic_public_audit_total() {
+    let h = setup();
     let expiry = 2_000;
     let session_id = create_standard_session(&h, expiry);
     let root = RootBudgetNoteInput {
@@ -536,26 +448,23 @@ fn rejected_initial_audit_proof_prevents_funding_and_root_creation() {
     };
 
     h.env.mock_all_auths();
-    assert!(
-        h.controller
-            .try_activate_standard_session(
-                &session_id,
-                &root,
-                &1_000,
-                &audit_commitment(&h.env),
-                &audit_proof(&h.env),
-            )
-            .is_err()
-    );
+    h.controller
+        .activate_standard_session(&session_id, &root, &1_000);
 
-    assert_eq!(h.token.balance(&h.company), 10_000);
-    assert_eq!(h.token.balance(&h.contract_id), 0);
+    assert_eq!(h.token.balance(&h.company), 9_000);
+    assert_eq!(h.token.balance(&h.contract_id), 1_000);
     assert_eq!(
         h.controller.get_session(&session_id).unwrap().lifecycle,
-        SessionLifecycle::Draft
+        SessionLifecycle::Active
     );
-    assert!(h.controller.get_budget_note(&root.note_id).is_none());
-    assert!(h.controller.get_audit_state(&session_id).is_none());
+    assert!(h.controller.get_budget_note(&root.note_id).is_some());
+    assert_eq!(
+        h.controller
+            .get_audit_state(&session_id)
+            .unwrap()
+            .standard_total_spend_atomic,
+        Some(0)
+    );
 }
 
 #[test]
@@ -570,22 +479,11 @@ fn activation_is_single_use_and_cannot_double_fund() {
     };
 
     h.env.mock_all_auths();
-    h.controller.activate_standard_session(
-        &session_id,
-        &root,
-        &2_000,
-        &audit_commitment(&h.env),
-        &audit_proof(&h.env),
-    );
+    h.controller
+        .activate_standard_session(&session_id, &root, &2_000);
     assert!(
         h.controller
-            .try_activate_standard_session(
-                &session_id,
-                &root,
-                &2_000,
-                &audit_commitment(&h.env),
-                &audit_proof(&h.env),
-            )
+            .try_activate_standard_session(&session_id, &root, &2_000)
             .is_err()
     );
 
@@ -613,13 +511,7 @@ fn private_session_cannot_use_standard_activation() {
 
     assert!(
         h.controller
-            .try_activate_standard_session(
-                &session_id,
-                &root,
-                &1_000,
-                &audit_commitment(&h.env),
-                &audit_proof(&h.env),
-            )
+            .try_activate_standard_session(&session_id, &root, &1_000)
             .is_err()
     );
     assert_eq!(h.token.balance(&h.contract_id), 0);
@@ -986,13 +878,7 @@ fn root_activation_rejects_cross_type_identifier_reuse() {
     h.env.mock_all_auths();
     assert!(
         h.controller
-            .try_activate_standard_session(
-                &second_session_id,
-                &reused,
-                &500,
-                &audit_commitment(&h.env),
-                &audit_proof(&h.env),
-            )
+            .try_activate_standard_session(&second_session_id, &reused, &500)
             .is_err()
     );
     assert_eq!(h.token.balance(&h.company), 9_000);
@@ -1012,11 +898,7 @@ fn standard_settlement_is_agent_authorized_atomic_and_single_use() {
     let (input, _agent, provider) = standard_settlement_fixture(&h);
 
     h.env.set_auths(&[]);
-    assert!(
-        h.controller
-            .try_settle_standard_payment(&input, &audit_proof(&h.env))
-            .is_err()
-    );
+    assert!(h.controller.try_settle_standard_payment(&input).is_err());
     assert_eq!(h.token.balance(&provider), 0);
     assert_eq!(
         h.controller
@@ -1027,9 +909,7 @@ fn standard_settlement_is_agent_authorized_atomic_and_single_use() {
     );
 
     h.env.mock_all_auths();
-    let record = h
-        .controller
-        .settle_standard_payment(&input, &audit_proof(&h.env));
+    let record = h.controller.settle_standard_payment(&input);
     assert_eq!(record.status, PaymentStatus::Settled);
     assert_eq!(record.amount_atomic, 100);
     assert_eq!(record.provider, provider);
@@ -1061,13 +941,19 @@ fn standard_settlement_is_agent_authorized_atomic_and_single_use() {
     assert_eq!(session.audit_version, 2);
     assert_eq!(audit.settlement_count, 1);
     assert_eq!(audit.audit_version, 2);
-    assert_eq!(audit.total_spend_commitment, input.new_audit_commitment);
-
-    assert!(
-        h.controller
-            .try_settle_standard_payment(&input, &audit_proof(&h.env))
-            .is_err()
+    assert_eq!(audit.standard_total_spend_atomic, Some(100));
+    assert_eq!(
+        audit.total_spend_commitment,
+        crate::audit::total_commitment_v1(
+            &h.env,
+            &h.controller.get_audit_context_hash(&input.session_id),
+            100,
+            &U256::from_u32(&h.env, 0),
+        )
+        .unwrap()
     );
+
+    assert!(h.controller.try_settle_standard_payment(&input).is_err());
     assert_eq!(h.token.balance(&provider), 100);
 }
 
@@ -1081,7 +967,7 @@ fn standard_settlement_rejects_wrong_provider_service_category_and_action() {
     wrong_provider.provider = Address::generate(&h.env);
     assert!(
         h.controller
-            .try_settle_standard_payment(&wrong_provider, &audit_proof(&h.env))
+            .try_settle_standard_payment(&wrong_provider)
             .is_err()
     );
 
@@ -1089,7 +975,7 @@ fn standard_settlement_rejects_wrong_provider_service_category_and_action() {
     wrong_service.service_id_hash = id(&h.env, 92);
     assert!(
         h.controller
-            .try_settle_standard_payment(&wrong_service, &audit_proof(&h.env))
+            .try_settle_standard_payment(&wrong_service)
             .is_err()
     );
 
@@ -1097,7 +983,7 @@ fn standard_settlement_rejects_wrong_provider_service_category_and_action() {
     wrong_category.category_id = 2;
     assert!(
         h.controller
-            .try_settle_standard_payment(&wrong_category, &audit_proof(&h.env))
+            .try_settle_standard_payment(&wrong_category)
             .is_err()
     );
 
@@ -1113,11 +999,7 @@ fn standard_settlement_rejects_wrong_provider_service_category_and_action() {
             .persistent()
             .set(&DataKey::BudgetNode(source_node.id.clone()), &source_node);
     });
-    assert!(
-        h.controller
-            .try_settle_standard_payment(&input, &audit_proof(&h.env))
-            .is_err()
-    );
+    assert!(h.controller.try_settle_standard_payment(&input).is_err());
 
     assert_eq!(h.token.balance(&provider), 0);
     assert!(h.controller.get_payment_record(&input.payment_id).is_none());
@@ -1138,30 +1020,21 @@ fn standard_settlement_rejects_wrong_provider_service_category_and_action() {
 }
 
 #[test]
-fn rejected_audit_update_rolls_back_standard_settlement() {
-    let h = setup_with_audit_verifier(true, false);
+fn standard_settlement_updates_the_public_audit_total_without_a_proof() {
+    let h = setup();
     let (input, _agent, provider) = standard_settlement_fixture(&h);
     h.env.mock_all_auths();
 
-    assert!(
-        h.controller
-            .try_settle_standard_payment(&input, &audit_proof(&h.env))
-            .is_err()
-    );
-    assert_eq!(h.token.balance(&provider), 0);
-    assert_eq!(h.token.balance(&h.contract_id), 1_000);
-    assert!(h.controller.get_payment_record(&input.payment_id).is_none());
-    assert!(
-        h.controller
-            .get_budget_note(&input.remainder_budget_note_id.unwrap())
-            .is_none()
-    );
+    h.controller.settle_standard_payment(&input);
+    assert_eq!(h.token.balance(&provider), 100);
+    assert_eq!(h.token.balance(&h.contract_id), 900);
+    assert!(h.controller.get_payment_record(&input.payment_id).is_some());
     assert_eq!(
         h.controller
             .get_budget_note(&input.source_budget_note_id)
             .unwrap()
             .state,
-        BudgetNoteStatus::Active
+        BudgetNoteStatus::Spent
     );
 }
 
@@ -1172,11 +1045,7 @@ fn failed_provider_transfer_leaves_no_partial_settlement_state() {
     h.env.mock_all_auths();
     StellarAssetClient::new(&h.env, &h.asset).burn(&h.contract_id, &1_000);
 
-    assert!(
-        h.controller
-            .try_settle_standard_payment(&input, &audit_proof(&h.env))
-            .is_err()
-    );
+    assert!(h.controller.try_settle_standard_payment(&input).is_err());
     assert_eq!(h.token.balance(&provider), 0);
     assert!(h.controller.get_payment_record(&input.payment_id).is_none());
     assert!(
