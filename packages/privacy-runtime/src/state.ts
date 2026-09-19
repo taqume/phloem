@@ -50,6 +50,23 @@ export const chainConfirmationSchema = z.object({
   ledgerSequence: z.number().int().positive(),
 }).strict();
 
+export const preparedAuditUpdateSchema = z.object({
+  auditContextHash: fieldDecimalSchema,
+  totalSpendAtomic: u64DecimalSchema,
+  blinding: positiveFieldDecimalSchema,
+  commitment: fieldDecimalSchema,
+  auditVersion: z.number().int().positive(),
+}).strict();
+
+export const preparedPrivateSettlementSchema = z.object({
+  operationId: bytes32HexSchema,
+  voucherSequence: positiveU64DecimalSchema,
+  providerSppOutputCommitment: fieldDecimalSchema,
+  sppRefundOutputCommitment: fieldDecimalSchema,
+  refundBudgetNote: preparedRemainderOpeningSchema.optional(),
+  nextAudit: preparedAuditUpdateSchema,
+}).strict();
+
 export const reservationOpeningSchema = z.object({
   reservationId: bytes32HexSchema,
   sessionId: bytes32HexSchema,
@@ -74,11 +91,19 @@ export const reservationOpeningSchema = z.object({
   preparedRemainder: preparedRemainderOpeningSchema.optional(),
   status: z.enum(["PREPARED", "OPEN", "SETTLEMENT_PENDING", "SETTLED", "RECLAIMED", "EXPIRED"]),
   openConfirmation: chainConfirmationSchema.optional(),
+  settlementConfirmation: chainConfirmationSchema.optional(),
+  preparedSettlement: preparedPrivateSettlementSchema.optional(),
   latestVoucher: voucherOpeningSchema.optional(),
   createdAtUnixMs: unixMillisecondsSchema,
 }).strict().superRefine((value, context) => {
   if ((value.status === "PREPARED") === (value.openConfirmation !== undefined)) {
     context.addIssue({ code: "custom", message: "only a chain-confirmed reservation may leave PREPARED state" });
+  }
+  if ((value.status === "SETTLEMENT_PENDING") !== (value.preparedSettlement !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a pending settlement may carry prepared settlement state" });
+  }
+  if ((value.status === "SETTLED") !== (value.settlementConfirmation !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a settled reservation may carry settlement confirmation" });
   }
 });
 
@@ -115,6 +140,7 @@ export type ReservationOpening = z.infer<typeof reservationOpeningSchema>;
 export type VoucherOpening = z.infer<typeof voucherOpeningSchema>;
 export type PreparedRemainderOpening = z.infer<typeof preparedRemainderOpeningSchema>;
 export type ChainConfirmation = z.infer<typeof chainConfirmationSchema>;
+export type PreparedPrivateSettlement = z.infer<typeof preparedPrivateSettlementSchema>;
 export type AuditAccumulatorOpening = z.infer<typeof auditAccumulatorOpeningSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 

@@ -45,6 +45,21 @@ assert.equal(result.proof.a.length, 64);
 assert.equal(result.proof.b.length, 128);
 assert.equal(result.proof.c.length, 64);
 
+const bindingSetup = resolve(root, ".phloem/private-binding-setup");
+const bindingWitness = JSON.parse(await readFile(
+  resolve(root, "circuits/private-settlement-binding-v1/input.v1.json"),
+  "utf8",
+)) as Groth16Witness;
+const expectedBindingPublic = JSON.parse(await readFile(resolve(bindingSetup, "public.json"), "utf8")) as string[];
+const bindingResult = await new LocalGroth16ProofWorker().prove(bindingWitness, {
+  wasmPath: resolve(bindingSetup, "PrivateSettlementBindingV1_js/PrivateSettlementBindingV1.wasm"),
+  zkeyPath: resolve(bindingSetup, "private_binding_final.zkey"),
+  verificationKeyPath: resolve(bindingSetup, "verification_key.json"),
+  publicInputCount: 16,
+});
+assert.deepEqual(bindingResult.publicSignals.map(String), expectedBindingPublic);
+assert.equal(bindingResult.proof.b.length, 128);
+
 class DeterministicNonProductionRandom implements PrivateRandomSource {
   #counter = 0;
 
@@ -137,4 +152,4 @@ try {
   await rm(privateDirectory, { recursive: true, force: true });
 }
 
-process.stdout.write("LocalProofWorker and PRIVATE reservation planner generated and verified live proofs: PASS\n");
+process.stdout.write("LocalProofWorker generated and verified reservation and settlement-binding proofs: PASS\n");

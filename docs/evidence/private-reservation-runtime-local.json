@@ -25,12 +25,15 @@
     "fixtureFullProveAndVerify": "PASS",
     "localProofWorkerSerialization": "PASS",
     "dynamicReservationPlannerFullProveAndVerify": "PASS",
+    "settlementBindingFullProveAndVerify": "PASS",
+    "settlementStateCommitAbortReconciliation": "PASS",
     "encryptedStateReconciliation": "PASS",
     "rawWitnessTempCleanup": "PASS"
   },
   "limitations": [
     "No contract was deployed and no wallet signature or asset-moving transaction was requested.",
     "The proving setup is local and intentionally ignored by Git.",
-    "The verification key must be used when constructing the Testnet BudgetTransition verifier."
+    "The verification key must be used when constructing the Testnet BudgetTransition verifier.",
+    "The settlement planner validates an SPP adapter boundary; the pinned native SPP wallet/prover is not wired into that boundary yet."
   ]
 }
