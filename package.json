@@ -26,6 +26,7 @@
     "spp:deployment:prepare": "scripts/deploy/prepare-spp-usdc-wasm.sh",
     "spp:deployment:verify": "node scripts/deploy/verify-spp-usdc-testnet.mjs",
     "phloem:deployment:preflight": "node scripts/deploy/preflight-phloem-testnet.mjs",
+    "phloem:instances:preflight": "node scripts/deploy/preflight-phloem-instances-testnet.mjs",
     "phloem:deployment:upload-treasury": "node scripts/deploy/upload-phloem-treasury-controller-testnet.mjs",
     "spp:runtime:simulate": "scripts/spp/simulate-private-runtime.sh",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-19T23:28:08.056Z",
+  "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "uploader": {
+    "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+    "identityAlias": "phloem-testnet-wasm-uploader",
+    "funding": "Stellar Testnet Friendbot",
+    "authority": "none: code upload only; not a Phloem admin, treasury, or contract instance authority",
+    "secretStorage": "macOS Keychain via Stellar CLI secure store"
+  },
+  "transaction": {
+    "hash": "7578f2f8efe43fd9b52fa7cab874df2ef6bf813f9b73a65577e869e50e0191a5",
+    "ledger": 4767380,
+    "feeChargedStroops": "97328357",
+    "maximumFeeStroops": "111902915",
+    "approvedFeeCeilingStroops": "112709770",
+    "operationCount": 1,
+    "hostFunction": "uploadContractWasm",
+    "assetMovement": false,
+    "contractInvocation": false
+  },
+  "artifact": {
+    "name": "TreasuryController",
+    "path": "target/wasm32v1-none/release/phloem_treasury_controller.wasm",
+    "bytes": 73920,
+    "sha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f"
+  },
+  "resources": {
+    "instructions": 63249305,
+    "writeBytes": 74020,
+    "envelopeBytes": 74096,
+    "simulationLedger": 4767378
+  },
+  "verification": {
+    "transactionStatus": "SUCCESS",
+    "networkWasmHash": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+    "networkWasmBytes": 73920
+  }
+}

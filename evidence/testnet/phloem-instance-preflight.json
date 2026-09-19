@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-19T23:31:17.924Z",
+  "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "deployer": {
+    "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+    "authority": "none after creation; constructors pin protocol dependencies and no deployer/admin key"
+  },
+  "dependencies": {
+    "standardAsset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "sppPool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4",
+    "agentAccountWasmHash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d"
+  },
+  "scope": {
+    "signed": false,
+    "submitted": false,
+    "assetMovement": false,
+    "agentAccountInstances": "deferred until session-specific keys and expiry are fixed",
+    "auditAccumulatorVerifier": "excluded from canonical P0 settlement dependencies"
+  },
+  "steps": [
+    {
+      "stepId": "create-ed25519-verifier",
+      "artifact": "ed25519Verifier",
+      "contractId": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
+      "wasmSha256": "aa15e1a91fd5d41a755b5321f97bb4290e0db4595dd4408e2e89f16d4d066600",
+      "saltSha256": "1af8b8677c64146e3547c5ecbc30afd3e0008e8f9fa8311c6cb9c2e6c67cd852",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 464,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 643288,
+        "minResourceFeeStroops": "44478",
+        "totalFeeStroops": "44578",
+        "writeBytes": 104
+      },
+      "safety": {
+        "assetMovement": false,
+        "contractInvocation": false,
+        "hostFunction": "createContractV2",
+        "operationCount": 1,
+        "submitted": false
+      }
+    },
+    {
+      "stepId": "create-budget-transition-verifier-v1",
+      "artifact": "budgetTransitionVerifierV1",
+      "contractId": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "wasmSha256": "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
+      "saltSha256": "42ff44224cd5e5f905990062176bf251e0eac013ffa5ffc7b969662426bfc8dc",
+      "verificationKeySha256": "52d999f482d0309fe332ff042250385419568d2d4d07e97e775439938955d772",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 2912,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1025608,
+        "minResourceFeeStroops": "362177",
+        "totalFeeStroops": "362277",
+        "writeBytes": 1368
+      },
+      "safety": {
+        "assetMovement": false,
+        "contractInvocation": false,
+        "hostFunction": "createContractV2",
+        "operationCount": 1,
+        "submitted": false
+      }
+    },
+    {
+      "stepId": "create-private-root-backing-verifier-v1",
+      "artifact": "privateRootBackingVerifierV1",
+      "contractId": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "wasmSha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
+      "saltSha256": "daedf6d4ea54e86dbecf306256aecf8fb41a707b3eed3627d23577d6c54ac59e",
+      "verificationKeySha256": "36cd9762d1ffcdd5d32c35f11d31e707a03fc1738a6432439a576923e590fb8c",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 2768,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1017383,
+        "minResourceFeeStroops": "344071",
+        "totalFeeStroops": "344171",
+        "writeBytes": 1296
+      },
+      "safety": {
+        "assetMovement": false,
+        "contractInvocation": false,
+        "hostFunction": "createContractV2",
+        "operationCount": 1,
+        "submitted": false
+      }
+    },
+    {
+      "stepId": "create-private-settlement-binding-verifier-v1",
+      "artifact": "privateSettlementBindingVerifierV1",
+      "contractId": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "wasmSha256": "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
+      "saltSha256": "82063e68f9577f51a58772329453bff596e17eaddef90a54a65b23e25c0213c0",
+      "verificationKeySha256": "c727f8b2656231bd50cb0139bde6e998e4f922766f2d351d76ddb88e322c485d",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 4064,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1091410,
+        "minResourceFeeStroops": "507404",
+        "totalFeeStroops": "507504",
+        "writeBytes": 1944
+      },
+      "safety": {
+        "assetMovement": false,
+        "contractInvocation": false,
+        "hostFunction": "createContractV2",
+        "operationCount": 1,
+        "submitted": false
+      }
+    },
+    {
+      "stepId": "create-treasury-controller",
+      "artifact": "treasuryController",
+      "contractId": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
+      "wasmSha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+      "saltSha256": "93a0295eee0ee6b2c2626c2f2499cea55df5108dc2356a4f1b48b867ddc53a11",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 944,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1381240,
+        "minResourceFeeStroops": "171343",
+        "totalFeeStroops": "171443",
+        "writeBytes": 616
+      },
+      "safety": {
+        "assetMovement": false,
+        "contractInvocation": false,
+        "hostFunction": "createContractV2",
+        "operationCount": 1,
+        "submitted": false
+      }
+    }
+  ],
+  "resources": {
+    "transactionCount": 5,
+    "totalFeeStroops": "1429973",
+    "totalFeeXlm": "0.1429973",
+    "totalInstructions": 5158929,
+    "totalWriteBytes": 5328
+  }
+}

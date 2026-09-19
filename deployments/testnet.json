@@ -138,7 +138,7 @@
     }
   },
   "phloem": {
-    "status": "wasm-upload-pending",
+    "status": "wasm-uploaded",
     "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
     "contracts": {},
     "uploaders": {
@@ -178,7 +178,7 @@
       "treasuryController": {
         "sha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
         "bytes": 73920,
-        "provisioning": "pending-upload",
+        "provisioning": "uploaded-by-dedicated-testnet-uploader",
         "supersedes": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62"
       }
     },
@@ -224,30 +224,38 @@
         "ledger": 4767204,
         "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
         "feeChargedStroops": "96394155"
+      },
+      {
+        "step": "upload-treasury-controller",
+        "hash": "7578f2f8efe43fd9b52fa7cab874df2ef6bf813f9b73a65577e869e50e0191a5",
+        "ledger": 4767380,
+        "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+        "feeChargedStroops": "97328357"
       }
     ],
     "resources": {
-      "transactionCount": 6,
-      "maximumFeeStroops": "192979194",
-      "maximumFeeXlm": "19.2979194",
-      "feeChargedStroops": "167816718",
-      "feeChargedXlm": "16.7816718",
-      "totalInstructions": 113665869,
-      "totalWriteBytes": 127920
+      "transactionCount": 7,
+      "currentArtifactCount": 6,
+      "maximumFeeStroops": "304882109",
+      "maximumFeeXlm": "30.4882109",
+      "feeChargedStroops": "265145075",
+      "feeChargedXlm": "26.5145075",
+      "totalInstructions": 176915174,
+      "totalWriteBytes": 201940
     },
     "verification": {
-      "verifiedAt": "2026-09-19T23:14:05.907Z",
+      "verifiedAt": "2026-09-19T23:28:18.861Z",
       "rpcStatus": "healthy",
       "transactionStatus": "SUCCESS",
       "assetMovement": false,
       "contractInstancesCreated": false,
-      "contractWasmHashes": "five current; prior TreasuryController hash retained as superseded evidence",
-      "pendingWasmUploads": 1
+      "contractWasmHashes": "verified; prior TreasuryController hash retained as superseded evidence",
+      "pendingWasmUploads": 0
     }
   },
   "smartAccount": {
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "The fee-only SPP USDC dependency deployment is live. Five pinned Phloem WASM artifacts are current; the revised TreasuryController WASM is pending upload. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
+  "note": "The fee-only SPP USDC dependency deployment is live and all six current Phloem WASM artifacts are uploaded. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
 }
