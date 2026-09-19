@@ -19,6 +19,14 @@ stellar contract bindings typescript \
   --overwrite \
   >/dev/null
 
+# The Stellar generator emits type-only symbols in a value import. Normalize
+# that output so consumers using verbatimModuleSyntax can compile the binding.
+perl -0pi -e '
+  s/  ClientOptions as ContractClientOptions,\n  MethodOptions,\n  Result,\n//;
+  s/import type \{\n/import type {\n  ClientOptions as ContractClientOptions,\n  MethodOptions,\n  Result,\n/;
+  s/\z/\n/ unless /\n\z/;
+' "$temporary/generated/src/index.ts"
+
 if ! cmp -s "$temporary/generated/src/index.ts" "$binding"; then
   echo "TreasuryController TypeScript binding is stale; regenerate it from the current WASM." >&2
   diff -u "$binding" "$temporary/generated/src/index.ts" || true

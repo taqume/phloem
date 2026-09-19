@@ -36,10 +36,10 @@ export interface ContractRejection {
 
 export interface PreparedContractInvocation {
   readonly accepted: true;
-  readonly unsignedTransactionXdr: string;
+  readonly assembledTransactionJson: string;
   readonly simulationHash: string;
   readonly latestLedger: number;
-  readonly requiredSigner: {
+  readonly requiredAuthorizer: {
     readonly kind: "AGENT_SMART_ACCOUNT";
     readonly identity: string;
   };
@@ -54,8 +54,15 @@ export interface TreasuryController {
   ): Promise<ContractSimulation>;
 }
 
-export interface AgentSigner {
-  sign(unsignedTransactionXdr: string, signer: PreparedContractInvocation["requiredSigner"]): Promise<string>;
+export interface AgentAuthorizer {
+  authorize(
+    assembledTransactionJson: string,
+    authorizer: PreparedContractInvocation["requiredAuthorizer"],
+  ): Promise<string>;
+}
+
+export interface TransactionSourceSigner {
+  sign(unsignedTransactionXdr: string): Promise<string>;
 }
 
 export interface SubmissionReceipt {

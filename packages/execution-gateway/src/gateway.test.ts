@@ -26,13 +26,14 @@ function ports(overrides: Partial<ExecutionGatewayPorts> = {}): ExecutionGateway
     treasuryController: {
       simulate: async () => ({
         accepted: true,
-        unsignedTransactionXdr: "unsigned-xdr",
+        assembledTransactionJson: "assembled-json",
         simulationHash: "04".repeat(32),
         latestLedger: 10,
-        requiredSigner: { kind: "AGENT_SMART_ACCOUNT", identity: actor.identity },
+        requiredAuthorizer: { kind: "AGENT_SMART_ACCOUNT", identity: actor.identity },
       }),
     },
-    signer: { sign: async () => "signed-xdr" },
+    agentAuthorizer: { authorize: async () => "authorized-unsigned-xdr" },
+    transactionSourceSigner: { sign: async () => "signed-xdr" },
     submitter: { submit: async () => ({ transactionHash: "05".repeat(32), ledgerSequence: 11, status: "SUCCESS" }) },
     ...overrides,
   };
@@ -60,7 +61,8 @@ test("schema and actor mismatch reject before any protocol port runs", async () 
 });
 
 test("economic-policy rejection comes from contract simulation and never reaches signer", async () => {
-  let signed = false;
+  let authorized = false;
+  let sourceSigned = false;
   let submitted = false;
   const gateway = new ExecutionGateway(ports({
     treasuryController: {
@@ -72,13 +74,15 @@ test("economic-policy rejection comes from contract simulation and never reaches
         latestLedger: 10,
       }),
     },
-    signer: { sign: async () => { signed = true; return "unreachable"; } },
+    agentAuthorizer: { authorize: async () => { authorized = true; return "unreachable"; } },
+    transactionSourceSigner: { sign: async () => { sourceSigned = true; return "unreachable"; } },
     submitter: { submit: async () => { submitted = true; throw new Error("unreachable"); } },
   }));
   const result = await gateway.execute({ requestId, actor, action: payment("999999"), submit: true });
   assert.equal(result.kind, "CONTRACT_REJECTED");
   if (result.kind === "CONTRACT_REJECTED") assert.equal(result.rejection.contractErrorCode, "BudgetExceeded");
-  assert.equal(signed, false);
+  assert.equal(authorized, false);
+  assert.equal(sourceSigned, false);
   assert.equal(submitted, false);
 });
 
@@ -87,12 +91,29 @@ test("accepted financial action preserves simulate-sign-submit ordering", async 
   const base = ports();
   const gateway = new ExecutionGateway(ports({
     treasuryController: { simulate: async (action, actionActor) => { calls.push("simulate"); return base.treasuryController.simulate(action, actionActor); } },
-    signer: { sign: async () => { calls.push("sign"); return "signed-xdr"; } },
+    agentAuthorizer: { authorize: async () => { calls.push("authorize"); return "authorized-unsigned-xdr"; } },
+    transactionSourceSigner: { sign: async () => { calls.push("source-sign"); return "signed-xdr"; } },
     submitter: { submit: async () => { calls.push("submit"); return { transactionHash: "05".repeat(32), ledgerSequence: 11, status: "SUCCESS" }; } },
   }));
   const result = await gateway.execute({ requestId, actor, action: payment(), submit: true });
   assert.equal(result.kind, "SUBMITTED");
-  assert.deepEqual(calls, ["simulate", "sign", "submit"]);
+  assert.deepEqual(calls, ["simulate", "authorize", "source-sign", "submit"]);
+});
+
+test("agent authorization is bound to the simulated Smart Account identity", async () => {
+  let authorizedIdentity = "";
+  const gateway = new ExecutionGateway(ports({
+    agentAuthorizer: {
+      authorize: async (_assembled, authorizer) => {
+        authorizedIdentity = authorizer.identity;
+        return "authorized-unsigned-xdr";
+      },
+    },
+  }));
+
+  const result = await gateway.execute({ requestId, actor, action: payment(), submit: true });
+  assert.equal(result.kind, "SUBMITTED");
+  assert.equal(authorizedIdentity, actor.identity);
 });
 
 test("service action routes only to the controlled provider", async () => {

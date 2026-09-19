@@ -3,12 +3,12 @@ import { Address } from "@stellar/stellar-sdk";
 import {
   AssembledTransaction,
   Client as ContractClient,
-  ClientOptions as ContractClientOptions,
-  MethodOptions,
-  Result,
   Spec as ContractSpec,
 } from "@stellar/stellar-sdk/contract";
 import type {
+  ClientOptions as ContractClientOptions,
+  MethodOptions,
+  Result,
   u32,
   i32,
   u64,

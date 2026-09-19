@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type {
   AgentActor,
-  AgentSigner,
+  AgentAuthorizer,
   ControlledProvider,
   ContractRejection,
   PreparedContractInvocation,
@@ -13,6 +13,7 @@ import type {
   SubmissionReceipt,
   TreasuryController,
   ProtocolReader,
+  TransactionSourceSigner,
 } from "./ports.js";
 
 const gatewayRequestSchema = z.object({
@@ -38,7 +39,8 @@ export interface ExecutionGatewayPorts {
   readonly reader: ProtocolReader;
   readonly provider: ControlledProvider;
   readonly treasuryController: TreasuryController;
-  readonly signer: AgentSigner;
+  readonly agentAuthorizer: AgentAuthorizer;
+  readonly transactionSourceSigner: TransactionSourceSigner;
   readonly submitter: StellarSubmitter;
 }
 
@@ -88,7 +90,11 @@ export class ExecutionGateway {
     if (!simulation.accepted) return { kind: "CONTRACT_REJECTED", requestId, rejection: simulation };
     if (!submit) return { kind: "PREPARED", requestId, invocation: simulation };
 
-    const signed = await this.#ports.signer.sign(simulation.unsignedTransactionXdr, simulation.requiredSigner);
+    const authorizedTransactionXdr = await this.#ports.agentAuthorizer.authorize(
+      simulation.assembledTransactionJson,
+      simulation.requiredAuthorizer,
+    );
+    const signed = await this.#ports.transactionSourceSigner.sign(authorizedTransactionXdr);
     const receipt = await this.#ports.submitter.submit(signed);
     return { kind: "SUBMITTED", requestId, receipt, simulationHash: simulation.simulationHash };
   }
