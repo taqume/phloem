@@ -65,6 +65,7 @@ export const sessionSchema = z.object({
   expiresAtLedger: z.number().int().nonnegative(),
   rootBudgetNodeId: bytes32HexSchema.optional(),
   rootBudgetNoteId: bytes32HexSchema.optional(),
+  treasurySppKeyCommitment: fieldDecimalSchema.optional(),
   settlementCount: u64DecimalSchema,
   unresolvedReservationCount: u64DecimalSchema,
   auditVersion: z.number().int().positive(),

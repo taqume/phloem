@@ -25,6 +25,7 @@ export const POSEIDON_DOMAINS = {
   auditContextInit: 0x50484c4d41554331n,
   auditContextFold: 0x50484c4d41554332n,
   auditTotal: 0x50484c4d41554431n,
+  sppTreasuryKey: 0x50484c4d53544b31n,
   merkleLeaf: 0x50484c4d4c463031n,
   sppNote: 1n,
 } as const;

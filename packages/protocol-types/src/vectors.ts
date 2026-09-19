@@ -77,6 +77,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   const responseHash = sha256(utf8('{"items":[{"id":"genesis-001","score":100}],"version":1}'));
   const policyHash = testField("session-policy");
   const providerSppPublicKey = testField("provider-spp-public-key");
+  const treasurySppPublicKey = testField("treasury-spp-public-key");
 
   const [networkHi, networkLo] = bytes32ToLimbs(network);
   const [sessionHi, sessionLo] = bytes32ToLimbs(sessionId);
@@ -187,8 +188,9 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     reservationBlind,
     POSEIDON_DOMAINS.reservation,
   );
+  const usageRoot = testField("usage-root");
   const voucherContextHash = poseidon2HashFields(
-    [reservationContextHash, offerCommitment, ...bytes32ToLimbs(voucherKey.rawPublicKey())],
+    [reservationContextHash, offerCommitment, ...bytes32ToLimbs(voucherKey.rawPublicKey()), usageRoot],
     POSEIDON_DOMAINS.contextInit,
     POSEIDON_DOMAINS.contextFold,
   );
@@ -235,6 +237,18 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   };
   const auditContextFieldValues = auditContextFields(auditContext);
   const auditContextHashValue = auditContextHash(auditContext);
+  const treasurySppKeyCommitment = poseidon2Hash3(
+    auditContextHashValue,
+    treasurySppPublicKey,
+    testField("treasury-spp-key-blind"),
+    POSEIDON_DOMAINS.sppTreasuryKey,
+  );
+  const sppRefundOutputCommitment = poseidon2Hash3(
+    refundAmount,
+    treasurySppPublicKey,
+    testField("spp-refund-output-blind"),
+    POSEIDON_DOMAINS.sppNote,
+  );
   const initialAuditTotal = 0n;
   const initialAuditBlind = testField("initial-audit-blind");
   const initialAuditTotalCommitment = poseidon2Hash3(
@@ -257,8 +271,6 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     testField("new-audit-blind"),
     POSEIDON_DOMAINS.auditTotal,
   );
-  const usageRoot = testField("usage-root");
-
   const evidence: UsageEvidencePayload = {
     protocolVersion: 1,
     evidenceVersion: 1,
@@ -319,11 +331,16 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   const privateSettlementPublicSignals = [
     reservationContextHash,
     reservationCommitment,
+    voucherContextHash,
     voucherAmountCommitment,
     providerCommitment,
     sppOutputCommitment,
+    treasurySppKeyCommitment,
+    sppRefundOutputCommitment,
+    refundContextHash,
     refundBudgetCommitment,
     providerLeaf,
+    auditContextHashValue,
     oldAuditTotalCommitment,
     newAuditTotalCommitment,
     usageRoot,
@@ -444,6 +461,17 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       transitionOutput2Blind: transitionOutput2Blind.toString(),
       reservationAmount: reservationAmount.toString(),
       reservationBlind: reservationBlind.toString(),
+      voucherSignerPublicKeyFields: decimal(bytes32ToLimbs(voucherKey.rawPublicKey())),
+      voucherAmountBlind: testField("voucher-amount-blind").toString(),
+      providerSppPublicKey: providerSppPublicKey.toString(),
+      providerBlind: testField("provider-blind").toString(),
+      sppOutputBlind: testField("spp-output-blind").toString(),
+      treasurySppPublicKey: treasurySppPublicKey.toString(),
+      treasurySppKeyBlind: testField("treasury-spp-key-blind").toString(),
+      sppRefundOutputBlind: testField("spp-refund-output-blind").toString(),
+      claimAmount: claimAmount.toString(),
+      refundAmount: refundAmount.toString(),
+      refundBlind: testField("refund-blind").toString(),
       initialAuditTotal: initialAuditTotal.toString(),
       initialAuditBlind: initialAuditBlind.toString(),
       oldAuditTotal: oldAuditTotal.toString(),
@@ -464,8 +492,13 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       auditContextHash: auditContextHashValue.toString(),
       initialAuditTotalCommitment: initialAuditTotalCommitment.toString(),
       reservationCommitment: reservationCommitment.toString(),
+      voucherContextHash: voucherContextHash.toString(),
       voucherAmountCommitment: voucherAmountCommitment.toString(),
+      providerCommitment: providerCommitment.toString(),
       sppOutputCommitment: sppOutputCommitment.toString(),
+      treasurySppKeyCommitment: treasurySppKeyCommitment.toString(),
+      sppRefundOutputCommitment: sppRefundOutputCommitment.toString(),
+      refundContextHash: refundContextHash.toString(),
       refundBudgetCommitment: refundBudgetCommitment.toString(),
       oldAuditTotalCommitment: oldAuditTotalCommitment.toString(),
       newAuditTotalCommitment: newAuditTotalCommitment.toString(),

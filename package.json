@@ -16,7 +16,7 @@
     "test": "pnpm --recursive --if-present test",
     "contracts:build": "scripts/contracts/build.sh",
     "contracts:test": "rustup run 1.95.0 cargo test --workspace",
-    "vectors:generate": "pnpm --filter @phloem/protocol-types vectors:generate && node scripts/vectors/write-circom-input.mjs && node scripts/vectors/write-budget-transition-input.mjs && node scripts/vectors/write-audit-accumulator-inputs.mjs",
+    "vectors:generate": "pnpm --filter @phloem/protocol-types vectors:generate && node scripts/vectors/write-circom-input.mjs && node scripts/vectors/write-budget-transition-input.mjs && node scripts/vectors/write-audit-accumulator-inputs.mjs && node scripts/vectors/write-private-settlement-binding-input.mjs",
     "vectors:check": "pnpm --filter @phloem/protocol-types vectors:check",
     "phase0:check": "node scripts/preflight/phase0.mjs",
     "phase1:check": "node scripts/preflight/phase1.mjs",
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@taceo/circom-lib": "0.9.0",
+    "@taceo/poseidon2": "0.2.0",
     "circomlib": "2.0.5",
     "snarkjs": "0.7.6",
     "tsx": "4.23.13",

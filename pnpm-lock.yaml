@@ -11,6 +11,9 @@ importers:
       '@taceo/circom-lib':
         specifier: 0.9.0
         version: 0.9.0(circomlib@2.0.5)
+      '@taceo/poseidon2':
+        specifier: 0.2.0
+        version: 0.2.0
       circomlib:
         specifier: 2.0.5
         version: 2.0.5
