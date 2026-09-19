@@ -16,6 +16,7 @@
     "react": "19.3.0",
     "reactDom": "19.3.0",
     "typescript": "7.0.2",
+    "zod": "4.6.5",
     "stellarSdk": "17.1.0",
     "stellarWalletsKit": "2.6.0",
     "stellarTypescriptWalletSdk": "5.0.0",

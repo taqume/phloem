@@ -52,6 +52,7 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 - Rust/TypeScript/Circom Poseidon2 parity and mutation rejection: passing.
 - Read-only Testnet RPC and Mock Anchor SEP discovery: passing.
 - Minimal Wallets Kit browser surface and live compatibility checks: implemented.
+- Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
 - Wallet-authenticated Anchor flow, contracts, circuits, provider workflow, and final deployments: in progress.
 
 This repository does not yet claim a complete hackathon demo or production readiness.

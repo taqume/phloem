@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "provider": "nvidia-nim",
+  "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+  "environmentVariable": "NVIDIA_API_KEY",
+  "models": {
+    "primary": "z-ai/glm-5-3-flash",
+    "supervisorFallback": "z-ai/glm-5-3"
+  },
+  "security": {
+    "serverOnly": true,
+    "llmCanSign": false,
+    "llmCanSubmitTransactions": false,
+    "exactlyOneToolCallPerTurn": true
+  }
+}
