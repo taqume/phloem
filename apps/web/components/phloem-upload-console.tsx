@@ -13,7 +13,7 @@ import {
   type CompletedPhloemUpload,
   type PreparedPhloemUpload,
 } from "../lib/phloem-deployment-types";
-import { requestWalletConnection, walletErrorMessage } from "../lib/wallet-connection";
+import { requestWalletConnection, walletErrorMessage, walletStageError } from "../lib/wallet-connection";
 
 type ConsoleState = "idle" | "connecting" | "preparing" | "ready" | "signing" | "complete" | "error";
 const STORAGE_KEY = `phloem:contract-wasm-uploads:v1:${PHLOEM_DEPLOYER}`;
@@ -146,6 +146,7 @@ export function PhloemUploadConsole() {
 
     setState("signing");
     setError(null);
+    let failureStage = "Client transaction audit";
     try {
       const [{ StellarWalletsKit }, StellarSdk] = await Promise.all([
         import("@creit.tech/stellar-wallets-kit"),
@@ -175,6 +176,7 @@ export function PhloemUploadConsole() {
         throw new Error("Client audit rejected a fee above the approved preflight limit.");
       }
 
+      failureStage = "Freighter signing";
       const { signedTxXdr, signerAddress } = await StellarWalletsKit.signTransaction(prepared.transactionXdr, {
         address,
         networkPassphrase: PHLOEM_NETWORK.networkPassphrase,
@@ -182,13 +184,16 @@ export function PhloemUploadConsole() {
       if (signerAddress && signerAddress !== address) throw new Error("Freighter signed with a different account.");
       const signed = StellarSdk.TransactionBuilder.fromXDR(signedTxXdr, PHLOEM_NETWORK.networkPassphrase);
       const rpcServer = new StellarSdk.rpc.Server(PHLOEM_NETWORK.rpcUrl);
+      failureStage = "RPC submission";
       const submitted = await rpcServer.sendTransaction(signed);
       if (submitted.status === "ERROR") throw new Error("Testnet rejected the signed WASM upload.");
       if (submitted.status === "TRY_AGAIN_LATER") throw new Error("Testnet is busy. Prepare this upload again.");
+      failureStage = "Testnet confirmation";
       const final = await rpcServer.pollTransaction(submitted.hash, { attempts: 30 });
       if (final.status !== StellarSdk.rpc.Api.GetTransactionStatus.SUCCESS) {
         throw new Error(`WASM upload ended with ${final.status}.`);
       }
+      failureStage = "WASM hash verification";
       const uploaded = await rpcServer.getContractWasmByHash(hexToBytes(artifact.sha256));
       if (await browserSha256(uploaded) !== artifact.sha256) throw new Error("Uploaded Testnet WASM hash verification failed.");
 
@@ -218,7 +223,7 @@ export function PhloemUploadConsole() {
       }
     } catch (reason) {
       setState("error");
-      setError(reason instanceof Error ? reason.message : "Signing or submission failed.");
+      setError(walletStageError(failureStage, reason, "Signing or submission failed."));
     }
   }
 

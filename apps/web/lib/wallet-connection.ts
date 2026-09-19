@@ -31,9 +31,29 @@ export async function requestWalletConnection(
 
 export function walletErrorMessage(reason: unknown, fallback: string): string {
   if (reason instanceof Error && reason.message) return reason.message;
+  if (typeof reason === "string" && reason) return reason;
   if (typeof reason === "object" && reason !== null && "message" in reason) {
     const message = (reason as { message?: unknown }).message;
     if (typeof message === "string" && message) return message;
   }
+  if (typeof reason === "object" && reason !== null && "error" in reason) {
+    return walletErrorMessage((reason as { error?: unknown }).error, fallback);
+  }
   return fallback;
+}
+
+function walletErrorCode(reason: unknown): number | undefined {
+  if (typeof reason !== "object" || reason === null) return undefined;
+  if ("code" in reason && typeof (reason as { code?: unknown }).code === "number") {
+    return (reason as { code: number }).code;
+  }
+  if ("error" in reason) return walletErrorCode((reason as { error?: unknown }).error);
+  return undefined;
+}
+
+export function walletStageError(stage: string, reason: unknown, fallback: string): string {
+  if (stage === "Freighter signing" && walletErrorCode(reason) === -4) {
+    return "Freighter signing: the wallet window closed before returning a signed transaction (SEP-43 code -4). No transaction was submitted.";
+  }
+  return `${stage}: ${walletErrorMessage(reason, fallback)}`;
 }
