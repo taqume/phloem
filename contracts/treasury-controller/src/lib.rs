@@ -9,14 +9,16 @@ pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, NodePolicy,
     RootBudgetNoteInput, SafetyState, Session, SessionLifecycle, SessionPolicy, SettlementMode,
+    StandardDelegationInput,
 };
 
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, U256, contract, contractimpl, panic_with_error, token, xdr::ToXdr,
+    Address, Bytes, BytesN, Env, Executable, U256, contract, contractimpl, panic_with_error, token,
+    xdr::ToXdr,
 };
 
 use crate::{
-    event::{RootFunded, SessionCreated},
+    event::{BudgetDelegated, RootFunded, SessionCreated},
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
         get_next_session_nonce, increment_session_nonce,
@@ -32,10 +34,14 @@ pub struct TreasuryController;
 
 #[contractimpl]
 impl TreasuryController {
-    pub fn __constructor(env: Env, standard_asset: Address) {
-        env.storage()
-            .instance()
-            .set(&DataKey::Config, &Config { standard_asset });
+    pub fn __constructor(env: Env, standard_asset: Address, agent_account_wasm_hash: BytesN<32>) {
+        env.storage().instance().set(
+            &DataKey::Config,
+            &Config {
+                standard_asset,
+                agent_account_wasm_hash,
+            },
+        );
         env.storage()
             .instance()
             .set(&DataKey::NextSessionNonce, &0u64);
@@ -138,16 +144,15 @@ impl TreasuryController {
         }
         validate_field(&env, &root_note.commitment);
 
+        if root_note.node_id == root_note.note_id {
+            panic_with_error!(&env, Error::IdentifierAlreadyUsed);
+        }
+        ensure_budget_identifier_available(&env, &root_note.node_id);
+        ensure_budget_identifier_available(&env, &root_note.note_id);
+
         let node_key = DataKey::BudgetNode(root_note.node_id.clone());
         let note_key = DataKey::BudgetNote(root_note.note_id.clone());
         let amount_key = DataKey::StandardNoteAmount(root_note.note_id.clone());
-        if root_note.node_id == root_note.note_id
-            || env.storage().persistent().has(&node_key)
-            || env.storage().persistent().has(&note_key)
-            || env.storage().persistent().has(&amount_key)
-        {
-            panic_with_error!(&env, Error::IdentifierAlreadyUsed);
-        }
 
         let policy = load_policy_or_fail(&env, &session_id);
         let root_node = BudgetNode {
@@ -212,6 +217,64 @@ impl TreasuryController {
         .publish(&env);
     }
 
+    pub fn delegate_standard_root(
+        env: Env,
+        session_id: BytesN<32>,
+        source_note_id: BytesN<32>,
+        delegation: StandardDelegationInput,
+    ) {
+        let session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+
+        let source_note = load_note_or_fail(&env, &source_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        if source_note.owner != BudgetNodeOwner::RootCompany
+            || source_node.owner != BudgetNodeOwner::RootCompany
+            || session.root_budget_node_id != Some(source_node.id.clone())
+        {
+            panic_with_error!(&env, Error::InvalidBudgetOwner);
+        }
+
+        delegate_standard(
+            &env,
+            &session,
+            source_note,
+            source_node,
+            source_note_id,
+            delegation,
+        );
+    }
+
+    pub fn delegate_standard_budget(
+        env: Env,
+        session_id: BytesN<32>,
+        source_note_id: BytesN<32>,
+        delegation: StandardDelegationInput,
+    ) {
+        let session = load_session_or_fail(&env, &session_id);
+        let source_note = load_note_or_fail(&env, &source_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        let owner = match &source_note.owner {
+            BudgetNodeOwner::AgentSmartAccount(owner) => owner.clone(),
+            BudgetNodeOwner::RootCompany => {
+                panic_with_error!(&env, Error::InvalidBudgetOwner)
+            }
+        };
+        if source_node.owner != source_note.owner {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        owner.require_auth();
+
+        delegate_standard(
+            &env,
+            &session,
+            source_note,
+            source_node,
+            source_note_id,
+            delegation,
+        );
+    }
+
     pub fn get_session(env: Env, session_id: BytesN<32>) -> Option<Session> {
         let key = DataKey::Session(session_id);
         let session: Option<Session> = env.storage().persistent().get(&key);
@@ -249,6 +312,10 @@ impl TreasuryController {
 
     pub fn get_standard_asset(env: Env) -> Address {
         get_config(&env).standard_asset
+    }
+
+    pub fn get_agent_account_wasm_hash(env: Env) -> BytesN<32> {
+        get_config(&env).agent_account_wasm_hash
     }
 }
 
@@ -316,6 +383,255 @@ fn load_policy_or_fail(env: &Env, session_id: &BytesN<32>) -> SessionPolicy {
         .persistent()
         .get(&DataKey::SessionPolicy(session_id.clone()))
         .unwrap_or_else(|| panic_with_error!(env, Error::SessionNotFound))
+}
+
+fn load_node_or_fail(env: &Env, node_id: &BytesN<32>) -> BudgetNode {
+    env.storage()
+        .persistent()
+        .get(&DataKey::BudgetNode(node_id.clone()))
+        .unwrap_or_else(|| panic_with_error!(env, Error::BudgetNodeNotFound))
+}
+
+fn load_note_or_fail(env: &Env, note_id: &BytesN<32>) -> BudgetNoteState {
+    env.storage()
+        .persistent()
+        .get(&DataKey::BudgetNote(note_id.clone()))
+        .unwrap_or_else(|| panic_with_error!(env, Error::BudgetNoteNotFound))
+}
+
+fn delegate_standard(
+    env: &Env,
+    session: &Session,
+    mut source_note: BudgetNoteState,
+    source_node: BudgetNode,
+    source_note_id: BytesN<32>,
+    delegation: StandardDelegationInput,
+) {
+    validate_active_standard_source(env, session, &source_note, &source_node);
+    validate_standard_delegation(env, session, &source_node, &source_note_id, &delegation);
+
+    let source_amount_key = DataKey::StandardNoteAmount(source_note_id.clone());
+    let source_amount: u64 = env
+        .storage()
+        .persistent()
+        .get(&source_amount_key)
+        .unwrap_or_else(|| panic_with_error!(env, Error::BudgetStateMismatch));
+    let remainder_amount = source_amount
+        .checked_sub(delegation.delegated_amount)
+        .unwrap_or_else(|| panic_with_error!(env, Error::InvalidConservation));
+
+    match (
+        remainder_amount,
+        &delegation.remainder_note_id,
+        &delegation.remainder_commitment,
+    ) {
+        (0, None, None) => {}
+        (0, _, _) | (_, None, _) | (_, _, None) => {
+            panic_with_error!(env, Error::InvalidConservation)
+        }
+        (_, Some(_), Some(commitment)) => validate_field(env, commitment),
+    }
+
+    let current_ledger = env.ledger().sequence();
+    let child_owner = BudgetNodeOwner::AgentSmartAccount(delegation.child_owner.clone());
+    let child_node = BudgetNode {
+        id: delegation.child_node_id.clone(),
+        session_id: session.id.clone(),
+        parent_node_id: Some(source_node.id.clone()),
+        owner: child_owner.clone(),
+        depth: source_node
+            .depth
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(env, Error::CounterOverflow)),
+        node_policy: delegation.child_policy.clone(),
+        branch_frozen: false,
+        created_at_ledger: current_ledger,
+        state: BudgetNodeState::Active,
+    };
+    let child_note = BudgetNoteState {
+        id: delegation.child_note_id.clone(),
+        session_id: session.id.clone(),
+        node_id: delegation.child_node_id.clone(),
+        owner: child_owner,
+        policy_hash: session.policy_hash.clone(),
+        commitment: delegation.child_commitment.clone(),
+        state: BudgetNoteStatus::Active,
+        created_at_ledger: current_ledger,
+        spent_at_ledger: None,
+    };
+
+    source_note.state = BudgetNoteStatus::Spent;
+    source_note.spent_at_ledger = Some(current_ledger);
+
+    let source_note_key = DataKey::BudgetNote(source_note_id.clone());
+    let child_node_key = DataKey::BudgetNode(delegation.child_node_id.clone());
+    let child_note_key = DataKey::BudgetNote(delegation.child_note_id.clone());
+    let child_amount_key = DataKey::StandardNoteAmount(delegation.child_note_id.clone());
+
+    env.storage()
+        .persistent()
+        .set(&source_note_key, &source_note);
+    env.storage().persistent().set(&child_node_key, &child_node);
+    env.storage().persistent().set(&child_note_key, &child_note);
+    env.storage()
+        .persistent()
+        .set(&child_amount_key, &delegation.delegated_amount);
+
+    extend_persistent_ttl(env, &source_note_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &source_amount_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &child_node_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &child_note_key, session.expires_at_ledger);
+    extend_persistent_ttl(env, &child_amount_key, session.expires_at_ledger);
+
+    if let (Some(remainder_note_id), Some(remainder_commitment)) = (
+        &delegation.remainder_note_id,
+        &delegation.remainder_commitment,
+    ) {
+        let remainder_note = BudgetNoteState {
+            id: remainder_note_id.clone(),
+            session_id: session.id.clone(),
+            node_id: source_node.id.clone(),
+            owner: source_node.owner.clone(),
+            policy_hash: session.policy_hash.clone(),
+            commitment: remainder_commitment.clone(),
+            state: BudgetNoteStatus::Active,
+            created_at_ledger: current_ledger,
+            spent_at_ledger: None,
+        };
+        let remainder_note_key = DataKey::BudgetNote(remainder_note_id.clone());
+        let remainder_amount_key = DataKey::StandardNoteAmount(remainder_note_id.clone());
+        env.storage()
+            .persistent()
+            .set(&remainder_note_key, &remainder_note);
+        env.storage()
+            .persistent()
+            .set(&remainder_amount_key, &remainder_amount);
+        extend_persistent_ttl(env, &remainder_note_key, session.expires_at_ledger);
+        extend_persistent_ttl(env, &remainder_amount_key, session.expires_at_ledger);
+    }
+
+    extend_instance_ttl(env, session.expires_at_ledger);
+    BudgetDelegated {
+        session_id: session.id.clone(),
+        child_node_id: delegation.child_node_id,
+        source_note_id,
+        child_note_id: delegation.child_note_id,
+        remainder_note_id: delegation.remainder_note_id,
+        delegated_amount: delegation.delegated_amount,
+    }
+    .publish(env);
+}
+
+fn validate_active_standard_source(
+    env: &Env,
+    session: &Session,
+    source_note: &BudgetNoteState,
+    source_node: &BudgetNode,
+) {
+    let current_ledger = env.ledger().sequence();
+    if session.lifecycle != SessionLifecycle::Active {
+        panic_with_error!(env, Error::InvalidLifecycle);
+    }
+    if session.settlement_mode != SettlementMode::Standard {
+        panic_with_error!(env, Error::WrongSettlementMode);
+    }
+    if session.safety != SafetyState::Normal {
+        panic_with_error!(env, Error::SessionFrozen);
+    }
+    if current_ledger >= session.expires_at_ledger {
+        panic_with_error!(env, Error::SessionExpired);
+    }
+    if source_note.state != BudgetNoteStatus::Active {
+        panic_with_error!(env, Error::BudgetNoteSpent);
+    }
+    if source_node.state != BudgetNodeState::Active {
+        panic_with_error!(env, Error::InvalidNodeState);
+    }
+    if source_node.branch_frozen {
+        panic_with_error!(env, Error::BranchFrozen);
+    }
+    if source_node.node_policy.expiry <= current_ledger {
+        panic_with_error!(env, Error::SessionExpired);
+    }
+    if source_note.session_id != session.id
+        || source_node.session_id != session.id
+        || source_note.node_id != source_node.id
+        || source_note.owner != source_node.owner
+        || source_note.policy_hash != session.policy_hash
+    {
+        panic_with_error!(env, Error::BudgetStateMismatch);
+    }
+}
+
+fn validate_standard_delegation(
+    env: &Env,
+    session: &Session,
+    source_node: &BudgetNode,
+    source_note_id: &BytesN<32>,
+    delegation: &StandardDelegationInput,
+) {
+    if delegation.delegated_amount == 0 {
+        panic_with_error!(env, Error::InvalidAmount);
+    }
+    let config = get_config(env);
+    if !matches!(
+        delegation.child_owner.executable(),
+        Some(Executable::Wasm(hash)) if hash == config.agent_account_wasm_hash
+    ) {
+        panic_with_error!(env, Error::InvalidAgentAccount);
+    }
+    validate_field(env, &delegation.child_commitment);
+
+    let parent_policy = &source_node.node_policy;
+    let child_policy = &delegation.child_policy;
+    if child_policy.category_mask & !parent_policy.category_mask != 0
+        || child_policy.allowed_actions_mask & !parent_policy.allowed_actions_mask != 0
+        || child_policy.expiry > parent_policy.expiry
+        || child_policy.expiry <= env.ledger().sequence()
+        || child_policy.remaining_delegation_depth >= parent_policy.remaining_delegation_depth
+    {
+        panic_with_error!(env, Error::InvalidChildPolicy);
+    }
+
+    ensure_budget_identifier_available(env, &delegation.child_node_id);
+    ensure_budget_identifier_available(env, &delegation.child_note_id);
+    if delegation.child_node_id == delegation.child_note_id
+        || delegation.child_node_id == *source_note_id
+        || delegation.child_note_id == *source_note_id
+    {
+        panic_with_error!(env, Error::IdentifierAlreadyUsed);
+    }
+    if let Some(remainder_note_id) = &delegation.remainder_note_id {
+        ensure_budget_identifier_available(env, remainder_note_id);
+        if remainder_note_id == source_note_id
+            || *remainder_note_id == delegation.child_node_id
+            || *remainder_note_id == delegation.child_note_id
+        {
+            panic_with_error!(env, Error::IdentifierAlreadyUsed);
+        }
+    }
+
+    if child_policy.expiry > session.expires_at_ledger {
+        panic_with_error!(env, Error::InvalidChildPolicy);
+    }
+}
+
+fn ensure_budget_identifier_available(env: &Env, identifier: &BytesN<32>) {
+    if env
+        .storage()
+        .persistent()
+        .has(&DataKey::BudgetNode(identifier.clone()))
+        || env
+            .storage()
+            .persistent()
+            .has(&DataKey::BudgetNote(identifier.clone()))
+        || env
+            .storage()
+            .persistent()
+            .has(&DataKey::StandardNoteAmount(identifier.clone()))
+    {
+        panic_with_error!(env, Error::IdentifierAlreadyUsed);
+    }
 }
 
 #[cfg(test)]

@@ -1,15 +1,33 @@
 extern crate std;
 
 use soroban_sdk::{
-    Address, BytesN, Env, IntoVal, Symbol, U256,
-    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Ledger},
+    Address, BytesN, ContractExecutable, Env, Event as _, IntoVal, Symbol, U256, contract,
+    contractimpl,
+    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger},
     token::{StellarAssetClient, TokenClient},
 };
 
 use crate::{
-    BudgetNodeOwner, BudgetNoteStatus, RootBudgetNoteInput, SessionLifecycle, SessionPolicy,
-    SettlementMode, TreasuryController, TreasuryControllerClient,
+    BudgetNodeOwner, BudgetNoteStatus, NodePolicy, RootBudgetNoteInput, SafetyState,
+    SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput, TreasuryController,
+    TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
 };
+
+#[contract]
+struct MockAgentAccount;
+
+#[contractimpl]
+impl MockAgentAccount {
+    pub fn ping() {}
+}
+
+#[contract]
+struct WrongAgentImplementation;
+
+#[contractimpl]
+impl WrongAgentImplementation {
+    pub fn pong() {}
+}
 
 struct Harness<'a> {
     env: Env,
@@ -17,6 +35,7 @@ struct Harness<'a> {
     controller: TreasuryControllerClient<'a>,
     company: Address,
     asset: Address,
+    agent_account_wasm_hash: BytesN<32>,
     token: TokenClient<'a>,
 }
 
@@ -34,7 +53,11 @@ fn setup<'a>() -> Harness<'a> {
     stellar_asset.mint(&company, &10_000);
     env.set_auths(&[]);
 
-    let contract_id = env.register(TreasuryController, (asset.clone(),));
+    let agent_account_wasm_hash = env.upload(MockAgentAccount);
+    let contract_id = env.register(
+        TreasuryController,
+        (asset.clone(), agent_account_wasm_hash.clone()),
+    );
     let controller = TreasuryControllerClient::new(&env, &contract_id);
     let token = TokenClient::new(&env, &asset);
 
@@ -44,6 +67,7 @@ fn setup<'a>() -> Harness<'a> {
         controller,
         company,
         asset,
+        agent_account_wasm_hash,
         token,
     }
 }
@@ -75,6 +99,60 @@ fn create_standard_session(h: &Harness<'_>, expiry: u32) -> BytesN<32> {
         &policy(&h.env, &h.asset, SettlementMode::Standard, expiry),
         &expiry,
     )
+}
+
+fn activate_standard_root(
+    h: &Harness<'_>,
+    expiry: u32,
+    amount: u64,
+    node_byte: u8,
+    note_byte: u8,
+) -> (BytesN<32>, RootBudgetNoteInput) {
+    let session_id = create_standard_session(h, expiry);
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, node_byte),
+        note_id: id(&h.env, note_byte),
+        commitment: U256::from_u32(&h.env, 31),
+    };
+    h.env.mock_all_auths();
+    h.controller
+        .activate_standard_session(&session_id, &root, &amount);
+    (session_id, root)
+}
+
+fn agent_account(h: &Harness<'_>) -> Address {
+    deploy_contract(&h.env, h.agent_account_wasm_hash.clone())
+}
+
+fn deploy_contract(env: &Env, wasm_hash: BytesN<32>) -> Address {
+    env.deployer()
+        .with_address(Address::generate(env), id(env, 0))
+        .deploy_contract(ContractExecutable::Wasm(wasm_hash), ())
+}
+
+fn delegation(
+    env: &Env,
+    owner: Address,
+    child_node_byte: u8,
+    child_note_byte: u8,
+    amount: u64,
+    remainder: Option<u8>,
+) -> StandardDelegationInput {
+    StandardDelegationInput {
+        child_node_id: id(env, child_node_byte),
+        child_note_id: id(env, child_note_byte),
+        child_owner: owner,
+        child_policy: NodePolicy {
+            category_mask: 0b0011,
+            allowed_actions_mask: 0b0011,
+            expiry: 1_900,
+            remaining_delegation_depth: 2,
+        },
+        child_commitment: U256::from_u32(env, 47),
+        delegated_amount: amount,
+        remainder_note_id: remainder.map(|byte| id(env, byte)),
+        remainder_commitment: remainder.map(|_| U256::from_u32(env, 53)),
+    }
 }
 
 #[test]
@@ -307,4 +385,379 @@ fn private_session_cannot_use_standard_activation() {
             .is_err()
     );
     assert_eq!(h.token.balance(&h.contract_id), 0);
+}
+
+#[test]
+fn company_delegates_only_a_bounded_root_amount_with_exact_auth() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 20, 21);
+    let supervisor = agent_account(&h);
+    let input = delegation(&h.env, supervisor.clone(), 22, 23, 600, Some(24));
+
+    h.env.mock_all_auths();
+    h.controller
+        .delegate_standard_root(&session_id, &root.note_id, &input);
+
+    assert_eq!(
+        h.env.auths(),
+        [(
+            h.company.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    h.contract_id.clone(),
+                    Symbol::new(&h.env, "delegate_standard_root"),
+                    (session_id.clone(), root.note_id.clone(), input.clone()).into_val(&h.env),
+                )),
+                sub_invocations: [].into(),
+            },
+        )]
+    );
+    assert_eq!(
+        h.env.events().all(),
+        [BudgetDelegated {
+            session_id: session_id.clone(),
+            child_node_id: input.child_node_id.clone(),
+            source_note_id: root.note_id.clone(),
+            child_note_id: input.child_note_id.clone(),
+            remainder_note_id: input.remainder_note_id.clone(),
+            delegated_amount: 600,
+        }
+        .to_xdr(&h.env, &h.contract_id)]
+    );
+
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Spent
+    );
+    let child_node = h.controller.get_budget_node(&input.child_node_id).unwrap();
+    assert_eq!(child_node.parent_node_id, Some(root.node_id));
+    assert_eq!(
+        child_node.owner,
+        BudgetNodeOwner::AgentSmartAccount(supervisor)
+    );
+    assert_eq!(child_node.depth, 1);
+    assert_eq!(
+        h.controller.get_standard_note_amount(&input.child_note_id),
+        Some(600)
+    );
+    assert_eq!(
+        h.controller
+            .get_standard_note_amount(&input.remainder_note_id.unwrap()),
+        Some(400)
+    );
+    assert_eq!(h.token.balance(&h.contract_id), 1_000);
+}
+
+#[test]
+fn agent_owner_delegates_its_note_but_cannot_consume_root_authority() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 30, 31);
+    let supervisor = agent_account(&h);
+    let supervisor_input = delegation(&h.env, supervisor.clone(), 32, 33, 800, Some(34));
+    h.env.mock_all_auths();
+    h.controller
+        .delegate_standard_root(&session_id, &root.note_id, &supervisor_input);
+
+    let child = agent_account(&h);
+    let mut child_input = delegation(&h.env, child.clone(), 35, 36, 300, Some(37));
+    child_input.child_policy.remaining_delegation_depth = 1;
+    h.env.mock_all_auths();
+    h.controller.delegate_standard_budget(
+        &session_id,
+        &supervisor_input.child_note_id,
+        &child_input,
+    );
+
+    assert_eq!(
+        h.env.auths(),
+        [(
+            supervisor.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    h.contract_id.clone(),
+                    Symbol::new(&h.env, "delegate_standard_budget"),
+                    (
+                        session_id.clone(),
+                        supervisor_input.child_note_id.clone(),
+                        child_input.clone(),
+                    )
+                        .into_val(&h.env),
+                )),
+                sub_invocations: [].into(),
+            },
+        )]
+    );
+    assert_eq!(
+        h.controller
+            .get_standard_note_amount(&child_input.child_note_id),
+        Some(300)
+    );
+    assert_eq!(
+        h.controller
+            .get_standard_note_amount(&child_input.remainder_note_id.clone().unwrap()),
+        Some(500)
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_node(&child_input.child_node_id)
+            .unwrap()
+            .owner,
+        BudgetNodeOwner::AgentSmartAccount(child)
+    );
+
+    let root_remainder = supervisor_input.remainder_note_id.unwrap();
+    let illegal = delegation(&h.env, agent_account(&h), 38, 39, 50, Some(40));
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_delegate_standard_budget(&session_id, &root_remainder, &illegal)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&root_remainder).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn delegation_rejects_policy_widening_without_consuming_the_note() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 50, 51);
+    let mut input = delegation(&h.env, agent_account(&h), 52, 53, 600, Some(54));
+    input.child_policy.allowed_actions_mask = 0b1000;
+
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &input)
+            .is_err()
+    );
+
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+    assert!(h.controller.get_budget_node(&input.child_node_id).is_none());
+    assert_eq!(
+        h.controller.get_standard_note_amount(&root.note_id),
+        Some(1_000)
+    );
+}
+
+#[test]
+fn delegation_requires_exact_conservation_and_remainder_shape() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 60, 61);
+    let agent = agent_account(&h);
+
+    let excessive = delegation(&h.env, agent.clone(), 62, 63, 1_001, None);
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &excessive)
+            .is_err()
+    );
+
+    let missing_remainder = delegation(&h.env, agent.clone(), 64, 65, 600, None);
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &missing_remainder)
+            .is_err()
+    );
+
+    let unexpected_remainder = delegation(&h.env, agent, 66, 67, 1_000, Some(68));
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &unexpected_remainder)
+            .is_err()
+    );
+
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+    assert_eq!(h.token.balance(&h.contract_id), 1_000);
+}
+
+#[test]
+fn delegation_rejects_spent_notes_duplicate_ids_and_non_contract_owners() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 70, 71);
+    let first = delegation(&h.env, agent_account(&h), 72, 73, 1_000, None);
+    h.env.mock_all_auths();
+    h.controller
+        .delegate_standard_root(&session_id, &root.note_id, &first);
+
+    let retry = delegation(&h.env, agent_account(&h), 74, 75, 1_000, None);
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &retry)
+            .is_err()
+    );
+
+    let duplicate = delegation(&h.env, agent_account(&h), 76, 72, 1_000, None);
+    assert!(
+        h.controller
+            .try_delegate_standard_budget(&session_id, &first.child_note_id, &duplicate)
+            .is_err()
+    );
+
+    let account_owner = Address::generate(&h.env);
+    let invalid_owner = delegation(&h.env, account_owner, 77, 78, 1_000, None);
+    assert!(
+        h.controller
+            .try_delegate_standard_budget(&session_id, &first.child_note_id, &invalid_owner)
+            .is_err()
+    );
+
+    let wrong_wasm_hash = h.env.upload(WrongAgentImplementation);
+    let wrong_contract = deploy_contract(&h.env, wrong_wasm_hash);
+    let wrong_implementation = delegation(&h.env, wrong_contract, 79, 80, 1_000, None);
+    assert!(
+        h.controller
+            .try_delegate_standard_budget(&session_id, &first.child_note_id, &wrong_implementation,)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&first.child_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn delegation_rejects_after_session_expiry() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 80, 81);
+    let input = delegation(&h.env, agent_account(&h), 82, 83, 1_000, None);
+    h.env.ledger().set_sequence_number(2_000);
+
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &input)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn delegation_requires_the_company_or_source_agent_authorization() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 90, 91);
+    let supervisor = agent_account(&h);
+    let supervisor_input = delegation(&h.env, supervisor, 92, 93, 800, Some(94));
+
+    h.env.set_auths(&[]);
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &supervisor_input)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+
+    h.env.mock_all_auths();
+    h.controller
+        .delegate_standard_root(&session_id, &root.note_id, &supervisor_input);
+    let mut child_input = delegation(&h.env, agent_account(&h), 95, 96, 800, None);
+    child_input.child_policy.remaining_delegation_depth = 1;
+
+    h.env.set_auths(&[]);
+    assert!(
+        h.controller
+            .try_delegate_standard_budget(
+                &session_id,
+                &supervisor_input.child_note_id,
+                &child_input,
+            )
+            .is_err()
+    );
+    assert_eq!(
+        h.controller
+            .get_budget_note(&supervisor_input.child_note_id)
+            .unwrap()
+            .state,
+        BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn delegation_rejects_frozen_session_and_source_branch() {
+    let h = setup();
+    let (session_id, root) = activate_standard_root(&h, 2_000, 1_000, 100, 101);
+    let input = delegation(&h.env, agent_account(&h), 102, 103, 1_000, None);
+
+    let mut session = h.controller.get_session(&session_id).unwrap();
+    session.safety = SafetyState::Frozen;
+    h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::Session(session_id.clone()), &session);
+    });
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &input)
+            .is_err()
+    );
+
+    session.safety = SafetyState::Normal;
+    let mut root_node = h.controller.get_budget_node(&root.node_id).unwrap();
+    root_node.branch_frozen = true;
+    h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::Session(session_id.clone()), &session);
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::BudgetNode(root.node_id.clone()), &root_node);
+    });
+    assert!(
+        h.controller
+            .try_delegate_standard_root(&session_id, &root.note_id, &input)
+            .is_err()
+    );
+    assert_eq!(
+        h.controller.get_budget_note(&root.note_id).unwrap().state,
+        BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn root_activation_rejects_cross_type_identifier_reuse() {
+    let h = setup();
+    let (_first_session_id, first_root) = activate_standard_root(&h, 2_000, 1_000, 110, 111);
+    let second_session_id = create_standard_session(&h, 2_000);
+    let reused = RootBudgetNoteInput {
+        node_id: first_root.note_id,
+        note_id: id(&h.env, 112),
+        commitment: U256::from_u32(&h.env, 59),
+    };
+
+    h.env.mock_all_auths();
+    assert!(
+        h.controller
+            .try_activate_standard_session(&second_session_id, &reused, &500)
+            .is_err()
+    );
+    assert_eq!(h.token.balance(&h.company), 9_000);
+    assert_eq!(h.token.balance(&h.contract_id), 1_000);
+    assert_eq!(
+        h.controller
+            .get_session(&second_session_id)
+            .unwrap()
+            .lifecycle,
+        SessionLifecycle::Draft
+    );
 }

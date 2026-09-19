@@ -128,3 +128,16 @@ pub struct RootBudgetNoteInput {
     pub note_id: BytesN<32>,
     pub commitment: U256,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StandardDelegationInput {
+    pub child_node_id: BytesN<32>,
+    pub child_note_id: BytesN<32>,
+    pub child_owner: Address,
+    pub child_policy: NodePolicy,
+    pub child_commitment: U256,
+    pub delegated_amount: u64,
+    pub remainder_note_id: Option<BytesN<32>>,
+    pub remainder_commitment: Option<U256>,
+}

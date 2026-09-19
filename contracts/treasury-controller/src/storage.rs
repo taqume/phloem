@@ -8,6 +8,7 @@ const ARCHIVE_BUFFER_LEDGERS: u32 = 17_280;
 #[derive(Clone)]
 pub struct Config {
     pub standard_asset: Address,
+    pub agent_account_wasm_hash: BytesN<32>,
 }
 
 #[contracttype]

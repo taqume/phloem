@@ -188,7 +188,7 @@
                         "symbol": "node_id"
                       },
                       "val": {
-                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                        "bytes": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e"
                       }
                     },
                     {
@@ -196,13 +196,13 @@
                         "symbol": "note_id"
                       },
                       "val": {
-                        "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                        "bytes": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"
                       }
                     }
                   ]
                 },
                 {
-                  "u64": "4000"
+                  "u64": "1000"
                 }
               ]
             }
@@ -221,7 +221,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     },
                     {
-                      "i128": "4000"
+                      "i128": "1000"
                     }
                   ]
                 }
@@ -232,8 +232,118 @@
         }
       ]
     ],
-    [],
-    [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+              "function_name": "create_session",
+              "args": [
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                },
+                {
+                  "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                },
+                {
+                  "vec": [
+                    {
+                      "symbol": "Standard"
+                    }
+                  ]
+                },
+                {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "allowed_actions_mask"
+                      },
+                      "val": {
+                        "u64": "7"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "approved_provider_root"
+                      },
+                      "val": {
+                        "u256": "17"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "asset"
+                      },
+                      "val": {
+                        "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "category_schema_version"
+                      },
+                      "val": {
+                        "u32": 1
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "max_delegation_depth"
+                      },
+                      "val": {
+                        "u32": 3
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "policy_hash"
+                      },
+                      "val": {
+                        "u256": "23"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "session_expiry"
+                      },
+                      "val": {
+                        "u32": 2000
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "settlement_mode"
+                      },
+                      "val": {
+                        "vec": [
+                          {
+                            "symbol": "Standard"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "version"
+                      },
+                      "val": {
+                        "u32": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "u32": 2000
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
     [],
     [],
     [],
@@ -339,6 +449,26 @@
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
               "key": {
                 "ledger_key_nonce": {
+                  "nonce": "2032731177588607455"
+                }
+              },
+              "durability": "temporary",
+              "val": "void"
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 6312999
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+              "key": {
+                "ledger_key_nonce": {
                   "nonce": "4837995959683129791"
                 }
               },
@@ -363,7 +493,7 @@
                     "symbol": "BudgetNode"
                   },
                   {
-                    "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                    "bytes": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e"
                   }
                 ]
               },
@@ -399,7 +529,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                      "bytes": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e"
                     }
                   },
                   {
@@ -502,7 +632,7 @@
                     "symbol": "BudgetNote"
                   },
                   {
-                    "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                    "bytes": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"
                   }
                 ]
               },
@@ -530,7 +660,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                      "bytes": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"
                     }
                   },
                   {
@@ -538,7 +668,7 @@
                       "symbol": "node_id"
                     },
                     "val": {
-                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                      "bytes": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e"
                     }
                   },
                   {
@@ -726,7 +856,7 @@
                       "symbol": "root_budget_node_id"
                     },
                     "val": {
-                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                      "bytes": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e"
                     }
                   },
                   {
@@ -734,8 +864,194 @@
                       "symbol": "root_budget_note_id"
                     },
                     "val": {
-                      "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                      "bytes": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "safety"
+                    },
+                    "val": {
+                      "vec": [
+                        {
+                          "symbol": "Normal"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "settlement_count"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "settlement_mode"
+                    },
+                    "val": {
+                      "vec": [
+                        {
+                          "symbol": "Standard"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "unresolved_reservation_count"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 19280
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "Session"
+                  },
+                  {
+                    "bytes": "ef83d752fb99110254e095b409b190014ff96f457e481ee5433ebd9759ac8570"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "approved_provider_root"
+                    },
+                    "val": {
+                      "u256": "17"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "asset"
+                    },
+                    "val": {
+                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "audit_finalized"
+                    },
+                    "val": {
+                      "bool": false
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "audit_version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "category_schema_version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "company"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "created_at_ledger"
+                    },
+                    "val": {
+                      "u32": 1000
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "created_protocol_version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "expires_at_ledger"
+                    },
+                    "val": {
+                      "u32": 2000
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "final_audit_snapshot_hash"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
+                      "symbol": "id"
+                    },
+                    "val": {
+                      "bytes": "ef83d752fb99110254e095b409b190014ff96f457e481ee5433ebd9759ac8570"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "lifecycle"
+                    },
+                    "val": {
+                      "vec": [
+                        {
+                          "symbol": "Draft"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "policy_hash"
+                    },
+                    "val": {
+                      "u256": "23"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "root_budget_node_id"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
+                      "symbol": "root_budget_note_id"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -899,16 +1215,120 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "StandardNoteAmount"
+                    "symbol": "SessionPolicy"
                   },
                   {
-                    "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                    "bytes": "ef83d752fb99110254e095b409b190014ff96f457e481ee5433ebd9759ac8570"
                   }
                 ]
               },
               "durability": "persistent",
               "val": {
-                "u64": "4000"
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "allowed_actions_mask"
+                    },
+                    "val": {
+                      "u64": "7"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "approved_provider_root"
+                    },
+                    "val": {
+                      "u256": "17"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "asset"
+                    },
+                    "val": {
+                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "category_schema_version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "max_delegation_depth"
+                    },
+                    "val": {
+                      "u32": 3
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "policy_hash"
+                    },
+                    "val": {
+                      "u256": "23"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "session_expiry"
+                    },
+                    "val": {
+                      "u32": 2000
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "settlement_mode"
+                    },
+                    "val": {
+                      "vec": [
+                        {
+                          "symbol": "Standard"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 19280
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "StandardNoteAmount"
+                  },
+                  {
+                    "bytes": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u64": "1000"
               }
             }
           },
@@ -969,7 +1389,7 @@
                         ]
                       },
                       "val": {
-                        "u64": "1"
+                        "u64": "2"
                       }
                     }
                   ]
@@ -1006,7 +1426,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "6000"
+                      "i128": "9000"
                     }
                   },
                   {
@@ -1058,7 +1478,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "4000"
+                      "i128": "1000"
                     }
                   },
                   {

@@ -23,3 +23,16 @@ pub struct RootFunded {
     pub root_note_id: BytesN<32>,
     pub funding_amount: u64,
 }
+
+#[contractevent(topics = ["phloem", "budget_delegated"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BudgetDelegated {
+    #[topic]
+    pub session_id: BytesN<32>,
+    #[topic]
+    pub child_node_id: BytesN<32>,
+    pub source_note_id: BytesN<32>,
+    pub child_note_id: BytesN<32>,
+    pub remainder_note_id: Option<BytesN<32>>,
+    pub delegated_amount: u64,
+}
