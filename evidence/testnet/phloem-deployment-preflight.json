@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-09-19T22:24:00.351Z",
+  "checkedAt": "2026-09-19T22:59:30.846Z",
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "rpcUrl": "https://soroban-testnet.stellar.org",
@@ -32,47 +32,23 @@
     {
       "artifactId": "ed25519Verifier",
       "artifactBytes": 1283,
-      "resource": {
-        "diskReadBytes": 0,
-        "envelopeBytes": 1460,
-        "footprintReadOnlyEntries": 0,
-        "footprintReadWriteEntries": 1,
-        "inclusionFeeStroops": "100",
-        "instructions": 2177209,
-        "latestLedger": 4766609,
-        "minResourceFeeStroops": "3515333",
-        "totalFeeStroops": "3515433",
-        "writeBytes": 1384
-      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "uploadContractWasm",
-        "operationCount": 1
+        "hostFunction": "none",
+        "reason": "WASM already present on Testnet"
       },
-      "status": "simulation-only",
+      "status": "reuse-existing-testnet-code",
       "wasmSha256": "aa15e1a91fd5d41a755b5321f97bb4290e0db4595dd4408e2e89f16d4d066600"
     },
     {
       "artifactId": "budgetTransitionVerifierV1",
       "artifactBytes": 4271,
-      "resource": {
-        "diskReadBytes": 0,
-        "envelopeBytes": 4448,
-        "footprintReadOnlyEntries": 0,
-        "footprintReadWriteEntries": 1,
-        "inclusionFeeStroops": "100",
-        "instructions": 4697936,
-        "latestLedger": 4766609,
-        "minResourceFeeStroops": "9630158",
-        "totalFeeStroops": "9630258",
-        "writeBytes": 4372
-      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "uploadContractWasm",
-        "operationCount": 1
+        "hostFunction": "none",
+        "reason": "WASM already present on Testnet"
       },
-      "status": "simulation-only",
+      "status": "reuse-existing-testnet-code",
       "wasmSha256": "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
       "verificationKey": {
         "path": "contracts/budget-transition-verifier/test-fixtures/verification_key.json",
@@ -82,24 +58,12 @@
     {
       "artifactId": "privateRootBackingVerifierV1",
       "artifactBytes": 4271,
-      "resource": {
-        "diskReadBytes": 0,
-        "envelopeBytes": 4448,
-        "footprintReadOnlyEntries": 0,
-        "footprintReadWriteEntries": 1,
-        "inclusionFeeStroops": "100",
-        "instructions": 4697936,
-        "latestLedger": 4766609,
-        "minResourceFeeStroops": "9630158",
-        "totalFeeStroops": "9630258",
-        "writeBytes": 4372
-      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "uploadContractWasm",
-        "operationCount": 1
+        "hostFunction": "none",
+        "reason": "WASM already present on Testnet"
       },
-      "status": "simulation-only",
+      "status": "reuse-existing-testnet-code",
       "wasmSha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
       "verificationKey": {
         "path": "contracts/private-root-backing-verifier/test-fixtures/verification_key.json",
@@ -109,24 +73,12 @@
     {
       "artifactId": "privateSettlementBindingVerifierV1",
       "artifactBytes": 4271,
-      "resource": {
-        "diskReadBytes": 0,
-        "envelopeBytes": 4448,
-        "footprintReadOnlyEntries": 0,
-        "footprintReadWriteEntries": 1,
-        "inclusionFeeStroops": "100",
-        "instructions": 4697936,
-        "latestLedger": 4766610,
-        "minResourceFeeStroops": "9630158",
-        "totalFeeStroops": "9630258",
-        "writeBytes": 4372
-      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "uploadContractWasm",
-        "operationCount": 1
+        "hostFunction": "none",
+        "reason": "WASM already present on Testnet"
       },
-      "status": "simulation-only",
+      "status": "reuse-existing-testnet-code",
       "wasmSha256": "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
       "verificationKey": {
         "path": "contracts/private-settlement-binding-verifier/test-fixtures/verification_key.json",
@@ -136,24 +88,12 @@
     {
       "artifactId": "agentAccount",
       "artifactBytes": 39444,
-      "resource": {
-        "diskReadBytes": 0,
-        "envelopeBytes": 39620,
-        "footprintReadOnlyEntries": 0,
-        "footprintReadWriteEntries": 1,
-        "inclusionFeeStroops": "100",
-        "instructions": 34266604,
-        "latestLedger": 4766610,
-        "minResourceFeeStroops": "49512389",
-        "totalFeeStroops": "49512489",
-        "writeBytes": 39544
-      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "uploadContractWasm",
-        "operationCount": 1
+        "hostFunction": "none",
+        "reason": "WASM already present on Testnet"
       },
-      "status": "simulation-only",
+      "status": "reuse-existing-testnet-code",
       "wasmSha256": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d"
     },
     {
@@ -166,9 +106,9 @@
         "footprintReadWriteEntries": 1,
         "inclusionFeeStroops": "100",
         "instructions": 63128248,
-        "latestLedger": 4766610,
-        "minResourceFeeStroops": "109027101",
-        "totalFeeStroops": "109027201",
+        "latestLedger": 4767036,
+        "minResourceFeeStroops": "110159436",
+        "totalFeeStroops": "110159536",
         "writeBytes": 73876
       },
       "safety": {
@@ -181,10 +121,10 @@
     }
   ],
   "resources": {
-    "pendingUploadCount": 6,
-    "totalFeeStroops": "190945897",
-    "totalFeeXlm": "19.0945897",
-    "totalInstructions": 113665869,
-    "totalWriteBytes": 127920
+    "pendingUploadCount": 1,
+    "totalFeeStroops": "110159536",
+    "totalFeeXlm": "11.0159536",
+    "totalInstructions": 63128248,
+    "totalWriteBytes": 73876
   }
 }

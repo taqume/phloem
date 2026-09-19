@@ -178,10 +178,14 @@ export async function preparePhloemUpload(input: PreparePhloemUploadInput): Prom
   const artifactGuardrail = feeGuardrailStroops(artifact.maxFeeStroops);
   const totalGuardrail = feeGuardrailStroops(PHLOEM_UPLOAD_FEE_LIMIT_STROOPS);
   if (BigInt(resource.totalFeeStroops) > BigInt(artifactGuardrail)) {
-    throw new Error(`${artifact.label} fee exceeds its approved preflight maximum; transaction was not exposed for signing.`);
+    throw new Error(
+      `${artifact.label} fee ${resource.totalFeeStroops} stroops exceeds its approved ${artifactGuardrail}-stroop guardrail; transaction was not exposed for signing.`,
+    );
   }
   if (projectedTotal > BigInt(totalGuardrail)) {
-    throw new Error("Projected upload fees exceed the approved total; transaction was not exposed for signing.");
+    throw new Error(
+      `Projected upload fees ${projectedTotal} stroops exceed the approved ${totalGuardrail}-stroop total guardrail; transaction was not exposed for signing.`,
+    );
   }
 
   return {
