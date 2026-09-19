@@ -6,7 +6,7 @@ upstream_root="${repo_root}/.phloem/upstream"
 
 "${repo_root}/scripts/bootstrap/fetch-pinned-upstreams.sh"
 
-rustup run 1.91.0 cargo test \
+rustup run 1.95.0 cargo test \
   --manifest-path "${upstream_root}/stellar-contracts/Cargo.toml" \
   -p stellar-accounts
 

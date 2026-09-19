@@ -49,12 +49,12 @@ The P0 provider is a single Phloem-controlled Research Data Service. It must com
 ## Repository status
 
 - Phase 0 protocol encoding, schemas, interfaces, and cross-language vectors: implemented.
-- Rust/TypeScript/Circom Poseidon2 parity and mutation rejection: passing.
+- Rust/TypeScript/Circom plus Soroban host Poseidon2 parity and mutation rejection: passing.
 - Read-only Testnet RPC and Mock Anchor SEP discovery: passing.
 - Wallets Kit/Freighter funding surface, exact Circle USDC trustline checks, validated SEP-10 challenge path, server-confined Anchor session, and SEP-38/SEP-6 deposit UI: implemented; the first live TRY → USDC Testnet completion has passed.
 - Server-only NVIDIA NIM provider abstraction and strictly typed agent action runtime: implemented; live inference awaits the user-supplied key.
 - Deterministic ExecutionGateway ports and contract-origin rejection evidence path: implemented; live contract adapter remains pending.
-- TreasuryController authority backbone: session creation, company-controlled Root materialization, real SAC custody funding, and bounded STANDARD Root → Supervisor → child delegation are implemented. Exact company/agent authorization trees, conservation, policy narrowing, expiry/freeze rejection, pinned Agent Account WASM identity, and rollback behavior are covered by native contract tests. Proof verification and atomic STANDARD settlement remain Phase 2 work.
+- TreasuryController authority backbone: session creation, company-controlled Root materialization, real SAC custody funding, bounded STANDARD Root → Supervisor → child delegation, and the protocol-native BN254 Poseidon2 adapter are implemented. Exact company/agent authorization trees, conservation, policy narrowing, expiry/freeze rejection, pinned Agent Account WASM identity, rollback behavior, and host/circuit commitment parity are covered by native contract tests. Proof verification and atomic STANDARD settlement remain Phase 2 work.
 - The scoped Agent Smart Account and Ed25519 verifier compile from the pinned OpenZeppelin revision. Native tests enforce one expiring `CallContract(TreasuryController)` rule, one external agent key, no policies, no Default rule, and rejection of wrong-contract or expired authorization. Live SDK wiring remains gated because the current upstream Smart Account Kit targets SDK 16.3 / Protocol 27 while this app uses SDK 17.1 on Protocol 28.
 - Contracts, circuits, wallet-authorized Phloem session funding, provider workflow, and final deployments: in progress.
 

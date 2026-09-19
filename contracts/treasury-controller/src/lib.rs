@@ -2,6 +2,7 @@
 
 mod error;
 mod event;
+pub mod poseidon2;
 mod storage;
 mod types;
 

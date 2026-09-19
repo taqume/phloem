@@ -40,8 +40,8 @@ for (const path of generatedFiles) {
 
 run("pnpm", ["typecheck"]);
 run("pnpm", ["test"]);
-run("rustup", ["run", "1.91.0", "cargo", "fmt", "--all", "--", "--check"]);
-run("rustup", ["run", "1.91.0", "cargo", "test", "--workspace"]);
+run("rustup", ["run", "1.95.0", "cargo", "fmt", "--all", "--", "--check"]);
+run("rustup", ["run", "1.95.0", "cargo", "test", "--workspace"]);
 run(process.execPath, ["scripts/preflight/check-circom-vector.mjs"]);
 run("git", ["check-ignore", "-q", "PHLOEM_MASTER_SPEC.md"], { quiet: true });
 run("git", ["check-ignore", "-q", ".phloem/private-state.v1.enc"], { quiet: true });

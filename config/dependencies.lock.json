@@ -5,7 +5,7 @@
   "toolchain": {
     "node": "24.19.0",
     "pnpm": "11.22.0",
-    "rust": "1.91.0",
+    "rust": "1.95.0",
     "rustForContractBuild": "1.95.0",
     "rustForPinnedSppBuild": "1.95.0",
     "stellarCli": "28.0.0",
@@ -29,6 +29,7 @@
   },
   "sourcePins": {
     "openZeppelinStellarContracts": "f11f8c0f7001f0ac61ffedb4c4f234ecfe7e1feb",
+    "stellarSorobanPoseidon": "b3e86e306252593ed6b2a7aa11cab40f59f9c2d7",
     "smartAccountKit": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "stellarPrivatePayments": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
     "stellarPrivatePaymentsCliCompatibility": "b93d2f5d8369511c49fa3e459e1479563639b2a5",

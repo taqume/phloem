@@ -10,7 +10,7 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "MIT"
-rust-version = "1.91"
+rust-version = "1.95"
 
 [workspace.dependencies]
 ark-bn254 = "=0.6.0"
@@ -20,6 +20,7 @@ serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.145"
 sha2 = "=0.10.9"
 soroban-sdk = "=28.0.0"
+soroban-poseidon = { git = "https://github.com/stellar/rs-soroban-poseidon.git", rev = "b3e86e306252593ed6b2a7aa11cab40f59f9c2d7" }
 taceo-poseidon2 = { version = "=0.3.0", default-features = false, features = ["bn254", "t2", "t3", "t4"] }
 
 [profile.release]

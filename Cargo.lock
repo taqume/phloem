@@ -1340,6 +1340,7 @@ dependencies = [
 name = "phloem-treasury-controller"
 version = "0.1.0"
 dependencies = [
+ "soroban-poseidon",
  "soroban-sdk 28.0.0",
 ]
 
@@ -1909,6 +1910,14 @@ dependencies = [
  "soroban-env-common 28.0.2",
  "soroban-env-host 28.0.2",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "soroban-poseidon"
+version = "27.0.0"
+source = "git+https://github.com/stellar/rs-soroban-poseidon.git?rev=b3e86e306252593ed6b2a7aa11cab40f59f9c2d7#b3e86e306252593ed6b2a7aa11cab40f59f9c2d7"
+dependencies = [
+ "soroban-sdk 28.0.0",
 ]
 
 [[package]]
