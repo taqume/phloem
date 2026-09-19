@@ -10,6 +10,7 @@ pub struct Config {
     pub standard_asset: Address,
     pub agent_account_wasm_hash: BytesN<32>,
     pub budget_transition_verifier: Address,
+    pub private_root_backing_verifier: Address,
     pub private_binding_verifier: Address,
     pub spp_pool: Address,
 }

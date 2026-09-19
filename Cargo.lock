@@ -1346,6 +1346,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "phloem-private-root-backing-verifier"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254 0.6.0",
+ "ark-ff 0.6.0",
+ "serde",
+ "serde_json",
+ "soroban-sdk 28.0.0",
+]
+
+[[package]]
 name = "phloem-private-settlement-binding-verifier"
 version = "0.1.0"
 dependencies = [

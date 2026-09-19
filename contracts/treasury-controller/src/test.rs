@@ -14,10 +14,10 @@ use soroban_sdk::{
 use crate::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
     NodePolicy, PaymentStatus, PrivateReservationInput, PrivateReservationStatus,
-    PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput, SafetyState, SessionAuditState,
-    SessionLifecycle, SessionPolicy, SettlementMode, SppExtData, SppPoolError, SppProof,
-    StandardDelegationInput, StandardSettlementInput, TreasuryController, TreasuryControllerClient,
-    event::BudgetDelegated, storage::DataKey,
+    PrivateRootBackingInput, PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput,
+    SafetyState, SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, SppExtData,
+    SppPoolError, SppProof, StandardDelegationInput, StandardSettlementInput, TreasuryController,
+    TreasuryControllerClient, event::BudgetDelegated, storage::DataKey,
 };
 
 #[contract]
@@ -74,10 +74,29 @@ impl MockPrivateBindingVerifier {
 }
 
 #[contract]
+struct MockPrivateRootBackingVerifier;
+
+#[contractimpl]
+impl MockPrivateRootBackingVerifier {
+    pub fn verify(env: Env, _proof: Groth16Proof, public_inputs: Vec<U256>) -> bool {
+        public_inputs.len() == 7
+            && public_inputs.get_unchecked(4) != U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(5) != U256::from_u32(&env, 0)
+            && public_inputs.get_unchecked(6) != U256::from_u32(&env, 0)
+    }
+}
+
+#[contract]
 struct MockSppPool;
 
 #[contractimpl]
 impl MockSppPool {
+    pub fn __constructor(env: Env, asset: Address) {
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "asset"), &asset);
+    }
+
     pub fn transact(
         env: Env,
         proof: SppProof,
@@ -85,10 +104,7 @@ impl MockSppPool {
         sender: Address,
     ) -> Result<(), SppPoolError> {
         sender.require_auth();
-        if proof.public_amount != U256::from_u32(&env, 0)
-            || ext_data.ext_amount != soroban_sdk::I256::from_i32(&env, 0)
-            || ext_data.recipient != env.current_contract_address()
-        {
+        if ext_data.recipient != env.current_contract_address() {
             return Err(SppPoolError::WrongExtAmount);
         }
         if proof.root == U256::from_u32(&env, 999) {
@@ -97,6 +113,25 @@ impl MockSppPool {
                 &proof.output_commitment0,
             );
             return Err(SppPoolError::InvalidProof);
+        }
+        let ext_amount = ext_data
+            .ext_amount
+            .to_i128()
+            .ok_or(SppPoolError::WrongExtAmount)?;
+        if ext_amount < 0 || proof.public_amount != U256::from_u128(&env, ext_amount as u128) {
+            return Err(SppPoolError::WrongExtAmount);
+        }
+        if ext_amount > 0 {
+            let asset: Address = env
+                .storage()
+                .instance()
+                .get(&Symbol::new(&env, "asset"))
+                .ok_or(SppPoolError::NotInitialized)?;
+            TokenClient::new(&env, &asset).transfer(
+                &sender,
+                &env.current_contract_address(),
+                &ext_amount,
+            );
         }
         env.storage().instance().set(
             &Symbol::new(&env, "last_output0"),
@@ -120,6 +155,7 @@ struct Harness<'a> {
     asset: Address,
     agent_account_wasm_hash: BytesN<32>,
     budget_transition_verifier: Address,
+    private_root_backing_verifier: Address,
     private_binding_verifier: Address,
     spp_pool: Address,
     token: TokenClient<'a>,
@@ -160,10 +196,15 @@ fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> H
     let (private_binding_verifier, spp_pool) = if private_settlement {
         (
             env.register(MockPrivateBindingVerifier, ()),
-            env.register(MockSppPool, ()),
+            env.register(MockSppPool, (asset.clone(),)),
         )
     } else {
         (company.clone(), company.clone())
+    };
+    let private_root_backing_verifier = if private_settlement {
+        env.register(MockPrivateRootBackingVerifier, ())
+    } else {
+        company.clone()
     };
     let contract_id = env.register(
         TreasuryController,
@@ -171,6 +212,7 @@ fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> H
             asset.clone(),
             agent_account_wasm_hash.clone(),
             budget_transition_verifier.clone(),
+            private_root_backing_verifier.clone(),
             private_binding_verifier.clone(),
             spp_pool.clone(),
         ),
@@ -186,6 +228,7 @@ fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> H
         asset,
         agent_account_wasm_hash,
         budget_transition_verifier,
+        private_root_backing_verifier,
         private_binding_verifier,
         spp_pool,
         token,
@@ -238,6 +281,36 @@ fn activate_standard_root(
     h.controller
         .activate_standard_session(&session_id, &root, &amount);
     (session_id, root)
+}
+
+fn private_root_backing_input(
+    h: &Harness<'_>,
+    root: RootBudgetNoteInput,
+    amount: u64,
+) -> PrivateRootBackingInput {
+    PrivateRootBackingInput {
+        root_note: root,
+        funding_amount: amount,
+        initial_audit_total_commitment: U256::from_u32(&h.env, 47),
+        treasury_spp_key_commitment: U256::from_u32(&h.env, 53),
+        spp_proof: SppProof {
+            proof: dummy_proof(&h.env),
+            root: U256::from_u32(&h.env, 59),
+            input_nullifiers: soroban_sdk::vec![&h.env, U256::from_u32(&h.env, 0)],
+            output_commitment0: U256::from_u32(&h.env, 61),
+            output_commitment1: U256::from_u32(&h.env, 67),
+            public_amount: U256::from_u128(&h.env, amount as u128),
+            ext_data_hash: id(&h.env, 68),
+            asp_membership_root: U256::from_u32(&h.env, 71),
+            asp_non_membership_root: U256::from_u32(&h.env, 73),
+        },
+        spp_ext_data: SppExtData {
+            recipient: h.spp_pool.clone(),
+            ext_amount: soroban_sdk::I256::from_i128(&h.env, amount as i128),
+            encrypted_output0: Bytes::from_slice(&h.env, b"treasury-funding-note"),
+            encrypted_output1: Bytes::from_slice(&h.env, b"zero-padding-note"),
+        },
+    }
 }
 
 fn agent_account(h: &Harness<'_>) -> Address {
@@ -559,12 +632,16 @@ fn create_session_requires_company_authorization() {
 }
 
 #[test]
-fn constructor_pins_the_budget_transition_verifier() {
+fn constructor_pins_protocol_dependencies() {
     let h = setup();
 
     assert_eq!(
         h.controller.get_budget_transition_verifier(),
         h.budget_transition_verifier
+    );
+    assert_eq!(
+        h.controller.get_root_backing_verifier(),
+        h.private_root_backing_verifier
     );
     assert_eq!(
         h.controller.get_private_binding_verifier(),
@@ -857,6 +934,158 @@ fn private_session_cannot_use_standard_activation() {
             .is_err()
     );
     assert_eq!(h.token.balance(&h.contract_id), 0);
+}
+
+#[test]
+fn private_activation_atomically_deposits_to_spp_and_materializes_hidden_root() {
+    let h = setup_with_private_settlement();
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 9),
+        note_id: id(&h.env, 10),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    let input = private_root_backing_input(&h, root.clone(), 2_000);
+
+    h.controller
+        .activate_private_session(&session_id, &input, &dummy_proof(&h.env));
+
+    assert_eq!(h.token.balance(&h.company), 8_000);
+    assert_eq!(h.token.balance(&h.spp_pool), 2_000);
+    assert_eq!(h.token.balance(&h.contract_id), 0);
+    let session = h.controller.get_session(&session_id).unwrap();
+    assert_eq!(session.lifecycle, SessionLifecycle::Active);
+    assert_eq!(session.root_budget_node_id, Some(root.node_id.clone()));
+    assert_eq!(session.root_budget_note_id, Some(root.note_id.clone()));
+    assert_eq!(
+        session.treasury_spp_key_commitment,
+        Some(input.treasury_spp_key_commitment.clone())
+    );
+    let note = h.controller.get_budget_note(&root.note_id).unwrap();
+    assert_eq!(note.commitment, root.commitment);
+    assert_eq!(note.owner, BudgetNodeOwner::RootCompany);
+    assert_eq!(h.controller.get_standard_note_amount(&root.note_id), None);
+    let audit = h.controller.get_audit_state(&session_id).unwrap();
+    assert_eq!(
+        audit.total_spend_commitment,
+        input.initial_audit_total_commitment
+    );
+    assert_eq!(audit.standard_total_spend_atomic, None);
+}
+
+#[test]
+fn private_activation_rejects_overmint_and_invalid_backing_proof_before_deposit() {
+    let h = setup_with_private_settlement();
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 11),
+        note_id: id(&h.env, 12),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    let mut overmint = private_root_backing_input(&h, root.clone(), 2_000);
+    overmint.funding_amount = 2_001;
+    assert!(
+        h.controller
+            .try_activate_private_session(&session_id, &overmint, &dummy_proof(&h.env))
+            .is_err()
+    );
+
+    let mut invalid_proof = private_root_backing_input(&h, root, 2_000);
+    invalid_proof.treasury_spp_key_commitment = U256::from_u32(&h.env, 0);
+    assert!(
+        h.controller
+            .try_activate_private_session(&session_id, &invalid_proof, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert_eq!(h.token.balance(&h.company), 10_000);
+    assert_eq!(h.token.balance(&h.spp_pool), 0);
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Draft
+    );
+}
+
+#[test]
+fn failed_spp_private_activation_rolls_back_pool_and_controller_state() {
+    let h = setup_with_private_settlement();
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 13),
+        note_id: id(&h.env, 14),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    let mut input = private_root_backing_input(&h, root.clone(), 2_000);
+    input.spp_proof.root = U256::from_u32(&h.env, 999);
+
+    assert!(
+        h.controller
+            .try_activate_private_session(&session_id, &input, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert_eq!(h.token.balance(&h.company), 10_000);
+    assert_eq!(h.token.balance(&h.spp_pool), 0);
+    assert_eq!(h.controller.get_budget_note(&root.note_id), None);
+    assert_eq!(
+        MockSppPoolClient::new(&h.env, &h.spp_pool).get_last_output0(),
+        None
+    );
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Draft
+    );
+}
+
+#[test]
+fn private_root_can_only_be_backed_once() {
+    let h = setup_with_private_settlement();
+    let expiry = 2_000;
+    h.env.mock_all_auths();
+    let session_id = h.controller.create_session(
+        &h.company,
+        &h.asset,
+        &SettlementMode::Private,
+        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &expiry,
+    );
+    let root = RootBudgetNoteInput {
+        node_id: id(&h.env, 15),
+        note_id: id(&h.env, 16),
+        commitment: U256::from_u32(&h.env, 43),
+    };
+    let input = private_root_backing_input(&h, root, 2_000);
+    h.controller
+        .activate_private_session(&session_id, &input, &dummy_proof(&h.env));
+    assert!(
+        h.controller
+            .try_activate_private_session(&session_id, &input, &dummy_proof(&h.env))
+            .is_err()
+    );
+    assert_eq!(h.token.balance(&h.company), 8_000);
+    assert_eq!(h.token.balance(&h.spp_pool), 2_000);
 }
 
 #[test]

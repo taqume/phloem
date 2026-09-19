@@ -285,6 +285,16 @@ export interface PrivateReservationInput {
 }
 
 
+export interface PrivateRootBackingInput {
+  funding_amount: u64;
+  initial_audit_total_commitment: u256;
+  root_note: RootBudgetNoteInput;
+  spp_ext_data: SppExtData;
+  spp_proof: SppProof;
+  treasury_spp_key_commitment: u256;
+}
+
+
 export interface StandardDelegationInput {
   child_commitment: u256;
   child_node_id: Buffer;
@@ -411,6 +421,11 @@ export interface Client {
   settle_standard_payment: ({input}: {input: StandardSettlementInput}, options?: MethodOptions) => Promise<AssembledTransaction<PaymentRecord>>
 
   /**
+   * Construct and simulate a activate_private_session transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  activate_private_session: ({session_id, input, backing_proof}: {session_id: Buffer, input: PrivateRootBackingInput, backing_proof: Groth16Proof}, options?: MethodOptions) => Promise<AssembledTransaction<null>>
+
+  /**
    * Construct and simulate a delegate_standard_budget transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   delegate_standard_budget: ({session_id, source_note_id, delegation}: {session_id: Buffer, source_note_id: Buffer, delegation: StandardDelegationInput}, options?: MethodOptions) => Promise<AssembledTransaction<null>>
@@ -434,6 +449,11 @@ export interface Client {
    * Construct and simulate a activate_standard_session transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
   activate_standard_session: ({session_id, root_note, funding_amount}: {session_id: Buffer, root_note: RootBudgetNoteInput, funding_amount: u64}, options?: MethodOptions) => Promise<AssembledTransaction<null>>
+
+  /**
+   * Construct and simulate a get_root_backing_verifier transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_root_backing_verifier: (options?: MethodOptions) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a get_private_payment_record transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -464,7 +484,7 @@ export interface Client {
 export class Client extends ContractClient {
   static async deploy<T = Client>(
         /** Constructor/Initialization Args for the contract's `__constructor` method */
-        {standard_asset, agent_account_wasm_hash, budget_transition_verifier, private_binding_verifier, spp_pool}: {standard_asset: string, agent_account_wasm_hash: Buffer, budget_transition_verifier: string, private_binding_verifier: string, spp_pool: string},
+        {standard_asset, agent_account_wasm_hash, budget_transition_verifier, private_root_backing_verifier, private_binding_verifier, spp_pool}: {standard_asset: string, agent_account_wasm_hash: Buffer, budget_transition_verifier: string, private_root_backing_verifier: string, private_binding_verifier: string, spp_pool: string},
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions &
       Omit<ContractClientOptions, "contractId"> & {
@@ -476,13 +496,13 @@ export class Client extends ContractClient {
         format?: "hex" | "base64";
       }
   ): Promise<AssembledTransaction<T>> {
-    return ContractClient.deploy({standard_asset, agent_account_wasm_hash, budget_transition_verifier, private_binding_verifier, spp_pool}, options)
+    return ContractClient.deploy({standard_asset, agent_account_wasm_hash, budget_transition_verifier, private_root_backing_verifier, private_binding_verifier, spp_pool}, options)
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
       new ContractSpec([ "AAAAAAAAAAAAAAALZ2V0X3Nlc3Npb24AAAAAAQAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAABAAAD6AAAB9AAAAAHU2Vzc2lvbgA=",
         "AAAAAAAAAAAAAAAMZ2V0X3NwcF9wb29sAAAAAAAAAAEAAAAT",
-        "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAUAAAAAAAAADnN0YW5kYXJkX2Fzc2V0AAAAAAATAAAAAAAAABdhZ2VudF9hY2NvdW50X3dhc21faGFzaAAAAAPuAAAAIAAAAAAAAAAaYnVkZ2V0X3RyYW5zaXRpb25fdmVyaWZpZXIAAAAAABMAAAAAAAAAGHByaXZhdGVfYmluZGluZ192ZXJpZmllcgAAABMAAAAAAAAACHNwcF9wb29sAAAAEwAAAAA=",
+        "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAYAAAAAAAAADnN0YW5kYXJkX2Fzc2V0AAAAAAATAAAAAAAAABdhZ2VudF9hY2NvdW50X3dhc21faGFzaAAAAAPuAAAAIAAAAAAAAAAaYnVkZ2V0X3RyYW5zaXRpb25fdmVyaWZpZXIAAAAAABMAAAAAAAAAHXByaXZhdGVfcm9vdF9iYWNraW5nX3ZlcmlmaWVyAAAAAAAAEwAAAAAAAAAYcHJpdmF0ZV9iaW5kaW5nX3ZlcmlmaWVyAAAAEwAAAAAAAAAIc3BwX3Bvb2wAAAATAAAAAA==",
         "AAAAAAAAAAAAAAAOY3JlYXRlX3Nlc3Npb24AAAAAAAUAAAAAAAAAB2NvbXBhbnkAAAAAEwAAAAAAAAAFYXNzZXQAAAAAAAATAAAAAAAAAA9zZXR0bGVtZW50X21vZGUAAAAH0AAAAA5TZXR0bGVtZW50TW9kZQAAAAAAAAAAAAxkcmFmdF9wb2xpY3kAAAfQAAAADVNlc3Npb25Qb2xpY3kAAAAAAAAAAAAACmV4cGlyZXNfYXQAAAAAAAQAAAABAAAD7gAAACA=",
         "AAAAAAAAAAAAAAAPZ2V0X2F1ZGl0X3N0YXRlAAAAAAEAAAAAAAAACnNlc3Npb25faWQAAAAAA+4AAAAgAAAAAQAAA+gAAAfQAAAAEVNlc3Npb25BdWRpdFN0YXRlAAAA",
         "AAAAAAAAAAAAAAAPZ2V0X2J1ZGdldF9ub2RlAAAAAAEAAAAAAAAAB25vZGVfaWQAAAAD7gAAACAAAAABAAAD6AAAB9AAAAAKQnVkZ2V0Tm9kZQAA",
@@ -496,11 +516,13 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAWdmVyaWZ5X3ByaXZhdGVfdm91Y2hlcgAAAAAAAgAAAAAAAAAHdm91Y2hlcgAAAAfQAAAADlByaXZhdGVWb3VjaGVyAAAAAAAAAAAACXNpZ25hdHVyZQAAAAAAA+4AAABAAAAAAQAAAAE=",
         "AAAAAAAAAAAAAAAXZ2V0X3ByaXZhdGVfcmVzZXJ2YXRpb24AAAAAAQAAAAAAAAAOcmVzZXJ2YXRpb25faWQAAAAAA+4AAAAgAAAAAQAAA+gAAAfQAAAAGVByaXZhdGVQYXltZW50UmVzZXJ2YXRpb24AAAA=",
         "AAAAAAAAAAAAAAAXc2V0dGxlX3N0YW5kYXJkX3BheW1lbnQAAAAAAQAAAAAAAAAFaW5wdXQAAAAAAAfQAAAAF1N0YW5kYXJkU2V0dGxlbWVudElucHV0AAAAAAEAAAfQAAAADVBheW1lbnRSZWNvcmQAAAA=",
+        "AAAAAAAAAAAAAAAYYWN0aXZhdGVfcHJpdmF0ZV9zZXNzaW9uAAAAAwAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAABWlucHV0AAAAAAAH0AAAABdQcml2YXRlUm9vdEJhY2tpbmdJbnB1dAAAAAAAAAAADWJhY2tpbmdfcHJvb2YAAAAAAAfQAAAADEdyb3RoMTZQcm9vZgAAAAA=",
         "AAAAAAAAAAAAAAAYZGVsZWdhdGVfc3RhbmRhcmRfYnVkZ2V0AAAAAwAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAADnNvdXJjZV9ub3RlX2lkAAAAAAPuAAAAIAAAAAAAAAAKZGVsZWdhdGlvbgAAAAAH0AAAABdTdGFuZGFyZERlbGVnYXRpb25JbnB1dAAAAAAA",
         "AAAAAAAAAAAAAAAYZ2V0X3Byb3ZpZGVyX3BvbGljeV9sZWFmAAAABQAAAAAAAAARcHJvdmlkZXJfaWRlbnRpdHkAAAAAAAATAAAAAAAAABdwcm92aWRlcl9zcHBfcHVibGljX2tleQAAAAAMAAAAAAAAAA9zZXJ2aWNlX2lkX2hhc2gAAAAD7gAAACAAAAAAAAAAC2NhdGVnb3J5X2lkAAAAAAQAAAAAAAAAGGFsbG93ZWRfc2V0dGxlbWVudF9tb2RlcwAAAAQAAAABAAAADA==",
         "AAAAAAAAAAAAAAAYZ2V0X3N0YW5kYXJkX25vdGVfYW1vdW50AAAAAQAAAAAAAAAHbm90ZV9pZAAAAAPuAAAAIAAAAAEAAAPoAAAABg==",
         "AAAAAAAAAAAAAAAYb3Blbl9wcml2YXRlX3Jlc2VydmF0aW9uAAAAAgAAAAAAAAAFaW5wdXQAAAAAAAfQAAAAF1ByaXZhdGVSZXNlcnZhdGlvbklucHV0AAAAAAAAAAAFcHJvb2YAAAAAAAfQAAAADEdyb3RoMTZQcm9vZgAAAAEAAAfQAAAAGVByaXZhdGVQYXltZW50UmVzZXJ2YXRpb24AAAA=",
         "AAAAAAAAAAAAAAAZYWN0aXZhdGVfc3RhbmRhcmRfc2Vzc2lvbgAAAAAAAAMAAAAAAAAACnNlc3Npb25faWQAAAAAA+4AAAAgAAAAAAAAAAlyb290X25vdGUAAAAAAAfQAAAAE1Jvb3RCdWRnZXROb3RlSW5wdXQAAAAAAAAAAA5mdW5kaW5nX2Ftb3VudAAAAAAABgAAAAA=",
+        "AAAAAAAAAAAAAAAZZ2V0X3Jvb3RfYmFja2luZ192ZXJpZmllcgAAAAAAAAAAAAABAAAAEw==",
         "AAAAAAAAAAAAAAAaZ2V0X3ByaXZhdGVfcGF5bWVudF9yZWNvcmQAAAAAAAEAAAAAAAAADnJlc2VydmF0aW9uX2lkAAAAAAPuAAAAIAAAAAEAAAPoAAAH0AAAABRQcml2YXRlUGF5bWVudFJlY29yZA==",
         "AAAAAAAAAAAAAAAbZ2V0X2FnZW50X2FjY291bnRfd2FzbV9oYXNoAAAAAAAAAAABAAAD7gAAACA=",
         "AAAAAAAAAAAAAAAcZ2V0X2J1ZGdldF9ub3RlX2NvbnRleHRfaGFzaAAAAAEAAAAAAAAAB25vdGVfaWQAAAAD7gAAACAAAAABAAAADA==",
@@ -535,6 +557,7 @@ export class Client extends ContractClient {
         "AAAAAQAAAAAAAAAAAAAAFFByaXZhdGVQYXltZW50UmVjb3JkAAAACwAAAAAAAAAWYXVkaXRfdG90YWxfY29tbWl0bWVudAAAAAAADAAAAAAAAAAecHJvdmlkZXJfc3BwX291dHB1dF9jb21taXRtZW50AAAAAAAMAAAAAAAAABVyZWZ1bmRfYnVkZ2V0X25vdGVfaWQAAAAAAAPoAAAD7gAAACAAAAAAAAAADnJlc2VydmF0aW9uX2lkAAAAAAPuAAAAIAAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAAEXNldHRsZWRfYXRfbGVkZ2VyAAAAAAAABAAAAAAAAAAOc2V0dGxlbWVudF9yZWYAAAAAA+4AAAAgAAAAAAAAABxzcHBfcmVmdW5kX291dHB1dF9jb21taXRtZW50AAAADAAAAAAAAAAGc3RhdHVzAAAAAAfQAAAADVBheW1lbnRTdGF0dXMAAAAAAAAAAAAACnVzYWdlX3Jvb3QAAAAAAAwAAAAAAAAAEHZvdWNoZXJfc2VxdWVuY2UAAAAG",
         "AAAAAQAAAAAAAAAAAAAAFlByaXZhdGVTZXR0bGVtZW50SW5wdXQAAAAAAAgAAAAAAAAADWJpbmRpbmdfcHJvb2YAAAAAAAfQAAAADEdyb3RoMTZQcm9vZgAAAAAAAAAabmV3X2F1ZGl0X3RvdGFsX2NvbW1pdG1lbnQAAAAAAAwAAAAAAAAAGHJlZnVuZF9idWRnZXRfY29tbWl0bWVudAAAA+gAAAAMAAAAAAAAABVyZWZ1bmRfYnVkZ2V0X25vdGVfaWQAAAAAAAPoAAAD7gAAACAAAAAAAAAADHNwcF9leHRfZGF0YQAAB9AAAAAKU3BwRXh0RGF0YQAAAAAAAAAAAAlzcHBfcHJvb2YAAAAAAAfQAAAACFNwcFByb29mAAAAAAAAAAd2b3VjaGVyAAAAB9AAAAAOUHJpdmF0ZVZvdWNoZXIAAAAAAAAAAAARdm91Y2hlcl9zaWduYXR1cmUAAAAAAAPuAAAAQA==",
         "AAAAAQAAAAAAAAAAAAAAF1ByaXZhdGVSZXNlcnZhdGlvbklucHV0AAAAAAsAAAAAAAAAEWFtb3VudF9jb21taXRtZW50AAAAAAAADAAAAAAAAAALY2F0ZWdvcnlfaWQAAAAABAAAAAAAAAAVY2xhaW1fZGVhZGxpbmVfbGVkZ2VyAAAAAAAABAAAAAAAAAAQb2ZmZXJfY29tbWl0bWVudAAAAAwAAAAAAAAAE3Byb3ZpZGVyX2NvbW1pdG1lbnQAAAAADAAAAAAAAAAYcmVtYWluZGVyX2J1ZGdldF9ub3RlX2lkAAAD6AAAA+4AAAAgAAAAAAAAABRyZW1haW5kZXJfY29tbWl0bWVudAAAA+gAAAAMAAAAAAAAAA5yZXNlcnZhdGlvbl9pZAAAAAAD7gAAACAAAAAAAAAACnNlc3Npb25faWQAAAAAA+4AAAAgAAAAAAAAABVzb3VyY2VfYnVkZ2V0X25vdGVfaWQAAAAAAAPuAAAAIAAAAAAAAAAZdm91Y2hlcl9zaWduZXJfcHVibGljX2tleQAAAAAAA+4AAAAg",
+        "AAAAAQAAAAAAAAAAAAAAF1ByaXZhdGVSb290QmFja2luZ0lucHV0AAAAAAYAAAAAAAAADmZ1bmRpbmdfYW1vdW50AAAAAAAGAAAAAAAAAB5pbml0aWFsX2F1ZGl0X3RvdGFsX2NvbW1pdG1lbnQAAAAAAAwAAAAAAAAACXJvb3Rfbm90ZQAAAAAAB9AAAAATUm9vdEJ1ZGdldE5vdGVJbnB1dAAAAAAAAAAADHNwcF9leHRfZGF0YQAAB9AAAAAKU3BwRXh0RGF0YQAAAAAAAAAAAAlzcHBfcHJvb2YAAAAAAAfQAAAACFNwcFByb29mAAAAAAAAABt0cmVhc3VyeV9zcHBfa2V5X2NvbW1pdG1lbnQAAAAADA==",
         "AAAAAQAAAAAAAAAAAAAAF1N0YW5kYXJkRGVsZWdhdGlvbklucHV0AAAAAAgAAAAAAAAAEGNoaWxkX2NvbW1pdG1lbnQAAAAMAAAAAAAAAA1jaGlsZF9ub2RlX2lkAAAAAAAD7gAAACAAAAAAAAAADWNoaWxkX25vdGVfaWQAAAAAAAPuAAAAIAAAAAAAAAALY2hpbGRfb3duZXIAAAAAEwAAAAAAAAAMY2hpbGRfcG9saWN5AAAH0AAAAApOb2RlUG9saWN5AAAAAAAAAAAAEGRlbGVnYXRlZF9hbW91bnQAAAAGAAAAAAAAABRyZW1haW5kZXJfY29tbWl0bWVudAAAA+gAAAAMAAAAAAAAABFyZW1haW5kZXJfbm90ZV9pZAAAAAAAA+gAAAPuAAAAIA==",
         "AAAAAQAAAAAAAAAAAAAAF1N0YW5kYXJkU2V0dGxlbWVudElucHV0AAAAAA0AAAAAAAAAGGFsbG93ZWRfc2V0dGxlbWVudF9tb2RlcwAAAAQAAAAAAAAADWFtb3VudF9hdG9taWMAAAAAAAAGAAAAAAAAAAtjYXRlZ29yeV9pZAAAAAAEAAAAAAAAABRvZmZlcl9yZWZlcmVuY2VfaGFzaAAAA+4AAAAgAAAAAAAAAApwYXltZW50X2lkAAAAAAPuAAAAIAAAAAAAAAAIcHJvdmlkZXIAAAATAAAAAAAAABdwcm92aWRlcl9zcHBfcHVibGljX2tleQAAAAAMAAAAAAAAABhyZW1haW5kZXJfYnVkZ2V0X25vdGVfaWQAAAPoAAAD7gAAACAAAAAAAAAAFHJlbWFpbmRlcl9jb21taXRtZW50AAAD6AAAAAwAAAAAAAAAD3NlcnZpY2VfaWRfaGFzaAAAAAPuAAAAIAAAAAAAAAAKc2Vzc2lvbl9pZAAAAAAD7gAAACAAAAAAAAAAFXNvdXJjZV9idWRnZXRfbm90ZV9pZAAAAAAAA+4AAAAgAAAAAAAAAAp1c2FnZV9yb290AAAAAAAM",
         "AAAAAgAAAAAAAAAAAAAAGFByaXZhdGVSZXNlcnZhdGlvblN0YXR1cwAAAAQAAAAAAAAAAAAAAARPcGVuAAAAAAAAAAAAAAAHU2V0dGxlZAAAAAAAAAAAAAAAAAlSZWNsYWltZWQAAAAAAAAAAAAAAAAAAAdFeHBpcmVkAA==",
@@ -558,11 +581,13 @@ export class Client extends ContractClient {
         verify_private_voucher: this.txFromJSON<boolean>,
         get_private_reservation: this.txFromJSON<Option<PrivatePaymentReservation>>,
         settle_standard_payment: this.txFromJSON<PaymentRecord>,
+        activate_private_session: this.txFromJSON<null>,
         delegate_standard_budget: this.txFromJSON<null>,
         get_provider_policy_leaf: this.txFromJSON<u256>,
         get_standard_note_amount: this.txFromJSON<Option<u64>>,
         open_private_reservation: this.txFromJSON<PrivatePaymentReservation>,
         activate_standard_session: this.txFromJSON<null>,
+        get_root_backing_verifier: this.txFromJSON<string>,
         get_private_payment_record: this.txFromJSON<Option<PrivatePaymentRecord>>,
         get_agent_account_wasm_hash: this.txFromJSON<Buffer>,
         get_budget_note_context_hash: this.txFromJSON<u256>,

@@ -6,6 +6,7 @@ members = [
     "contracts/ed25519-verifier",
     "contracts/budget-transition-verifier",
     "contracts/private-settlement-binding-verifier",
+    "contracts/private-root-backing-verifier",
     "contracts/treasury-controller",
     "crates/protocol-encoding",
 ]

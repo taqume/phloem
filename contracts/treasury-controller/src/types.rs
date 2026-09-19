@@ -135,6 +135,17 @@ pub struct RootBudgetNoteInput {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivateRootBackingInput {
+    pub root_note: RootBudgetNoteInput,
+    pub funding_amount: u64,
+    pub initial_audit_total_commitment: U256,
+    pub treasury_spp_key_commitment: U256,
+    pub spp_proof: SppProof,
+    pub spp_ext_data: SppExtData,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StandardDelegationInput {
     pub child_node_id: BytesN<32>,
     pub child_note_id: BytesN<32>,

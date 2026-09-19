@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-19",
+  "scope": "local-final-code",
+  "circuit": {
+    "name": "PrivateRootBackingV1",
+    "constraints": 3476,
+    "publicInputs": 7,
+    "r1csSha256": "fa0c4fcb481b7dd1e3b17b357487d1bb504b858803a5be872e61f2a0e007ee5f",
+    "verificationKeySha256": "36cd9762d1ffcdd5d32c35f11d31e707a03fc1738a6432439a576923e590fb8c",
+    "setup": "non-production single-contributor fixture"
+  },
+  "wasm": {
+    "verifierBytes": 4271,
+    "verifierSha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
+    "controllerBytes": 69962,
+    "controllerSha256": "b60c97223344754093db839f0bfcb3e15127d326253ff0d250599567da9c7805"
+  },
+  "tests": [
+    {
+      "name": "verifies_the_real_private_root_backing_v1_proof",
+      "result": "PASS"
+    },
+    {
+      "name": "private_activation_atomically_deposits_to_spp_and_materializes_hidden_root",
+      "result": "PASS"
+    },
+    {
+      "name": "private_activation_rejects_overmint_and_invalid_backing_proof_before_deposit",
+      "result": "PASS"
+    },
+    {
+      "name": "failed_spp_private_activation_rolls_back_pool_and_controller_state",
+      "result": "PASS"
+    },
+    {
+      "name": "private_root_can_only_be_backed_once",
+      "result": "PASS"
+    }
+  ],
+  "limitations": [
+    "The controller composition currently uses an ABI-compatible local SPP pool double; the pinned real SPP deposit proof is tested separately.",
+    "No Testnet deployment, wallet authorization, or asset-moving transaction was performed for this evidence.",
+    "Deployment-grade setup provenance and Testnet resource measurements remain pending."
+  ]
+}

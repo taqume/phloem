@@ -17,10 +17,10 @@ pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
     NodePolicy, PaymentRecord, PaymentStatus, PrivatePaymentRecord, PrivatePaymentReservation,
-    PrivateReservationInput, PrivateReservationStatus, PrivateSettlementInput, PrivateVoucher,
-    RootBudgetNoteInput, SafetyState, Session, SessionAuditState, SessionLifecycle, SessionPolicy,
-    SettlementMode, SppExtData, SppPoolError, SppProof, StandardDelegationInput,
-    StandardSettlementInput,
+    PrivateReservationInput, PrivateReservationStatus, PrivateRootBackingInput,
+    PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput, SafetyState, Session,
+    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, SppExtData, SppPoolError,
+    SppProof, StandardDelegationInput, StandardSettlementInput,
 };
 
 use soroban_sdk::{
@@ -58,6 +58,7 @@ impl TreasuryController {
         standard_asset: Address,
         agent_account_wasm_hash: BytesN<32>,
         budget_transition_verifier: Address,
+        private_root_backing_verifier: Address,
         private_binding_verifier: Address,
         spp_pool: Address,
     ) {
@@ -67,6 +68,7 @@ impl TreasuryController {
                 standard_asset,
                 agent_account_wasm_hash,
                 budget_transition_verifier,
+                private_root_backing_verifier,
                 private_binding_verifier,
                 spp_pool,
             },
@@ -270,6 +272,160 @@ impl TreasuryController {
             root_node_id: root_note.node_id,
             root_note_id: root_note.note_id,
             funding_amount,
+        }
+        .publish(&env);
+    }
+
+    pub fn activate_private_session(
+        env: Env,
+        session_id: BytesN<32>,
+        input: PrivateRootBackingInput,
+        backing_proof: Groth16Proof,
+    ) {
+        let mut session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+
+        if session.lifecycle != SessionLifecycle::Draft {
+            panic_with_error!(&env, Error::InvalidLifecycle);
+        }
+        if session.settlement_mode != SettlementMode::Private {
+            panic_with_error!(&env, Error::WrongSettlementMode);
+        }
+        if session.safety != SafetyState::Normal {
+            panic_with_error!(&env, Error::SessionFrozen);
+        }
+        if env.ledger().sequence() >= session.expires_at_ledger {
+            panic_with_error!(&env, Error::SessionExpired);
+        }
+        if input.funding_amount == 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+
+        validate_field(&env, &input.root_note.commitment);
+        validate_field(&env, &input.initial_audit_total_commitment);
+        validate_field(&env, &input.treasury_spp_key_commitment);
+        validate_field(&env, &input.spp_proof.output_commitment0);
+        validate_field(&env, &input.spp_proof.output_commitment1);
+        validate_field(&env, &input.spp_proof.public_amount);
+
+        if input.root_note.node_id == input.root_note.note_id {
+            panic_with_error!(&env, Error::IdentifierAlreadyUsed);
+        }
+        ensure_budget_identifier_available(&env, &input.root_note.node_id);
+        ensure_budget_identifier_available(&env, &input.root_note.note_id);
+
+        let funding_field = U256::from_u128(&env, input.funding_amount as u128);
+        let expected_ext_amount = soroban_sdk::I256::from_i128(&env, input.funding_amount as i128);
+        let config = get_config(&env);
+        if input.spp_proof.public_amount != funding_field
+            || input.spp_ext_data.ext_amount != expected_ext_amount
+            || input.spp_ext_data.recipient != config.spp_pool
+        {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+
+        let policy = load_policy_or_fail(&env, &session_id);
+        let root_node = BudgetNode {
+            id: input.root_note.node_id.clone(),
+            session_id: session_id.clone(),
+            parent_node_id: None,
+            owner: BudgetNodeOwner::RootCompany,
+            depth: 0,
+            node_policy: NodePolicy {
+                category_mask: u64::MAX,
+                allowed_actions_mask: policy.allowed_actions_mask,
+                expiry: policy.session_expiry,
+                remaining_delegation_depth: policy.max_delegation_depth,
+            },
+            branch_frozen: false,
+            created_at_ledger: env.ledger().sequence(),
+            state: BudgetNodeState::Active,
+        };
+        let root_note = BudgetNoteState {
+            id: input.root_note.note_id.clone(),
+            session_id: session_id.clone(),
+            node_id: input.root_note.node_id.clone(),
+            owner: BudgetNodeOwner::RootCompany,
+            policy_hash: session.policy_hash.clone(),
+            commitment: input.root_note.commitment.clone(),
+            state: BudgetNoteStatus::Active,
+            created_at_ledger: env.ledger().sequence(),
+            spent_at_ledger: None,
+        };
+        let root_context_hash = budget_context_hash_for_note(&env, &session, &root_note);
+        let audit_context_hash = audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        let public_inputs = soroban_sdk::vec![
+            &env,
+            root_context_hash,
+            input.root_note.commitment.clone(),
+            audit_context_hash,
+            input.initial_audit_total_commitment.clone(),
+            input.treasury_spp_key_commitment.clone(),
+            input.spp_proof.output_commitment0.clone(),
+            funding_field,
+        ];
+        let backing_verified: bool = env.invoke_contract(
+            &config.private_root_backing_verifier,
+            &symbol_short!("verify"),
+            (backing_proof, public_inputs).into_val(&env),
+        );
+        if !backing_verified {
+            panic_with_error!(&env, Error::InvalidProof);
+        }
+
+        // The real SPP deposit, Root authority materialization and private
+        // audit initialization share one Soroban call tree.
+        spp::SppPoolClient::new(&env, &config.spp_pool).transact(
+            &input.spp_proof,
+            &input.spp_ext_data,
+            &session.company,
+        );
+
+        let audit_state = SessionAuditState {
+            session_id: session_id.clone(),
+            total_spend_commitment: input.initial_audit_total_commitment,
+            settlement_count: 0,
+            unresolved_reservation_count: 0,
+            audit_version: 1,
+            policy_hash: session.policy_hash.clone(),
+            finalized: false,
+            final_snapshot_hash: None,
+            standard_total_spend_atomic: None,
+        };
+        session.lifecycle = SessionLifecycle::Active;
+        session.root_budget_node_id = Some(input.root_note.node_id.clone());
+        session.root_budget_note_id = Some(input.root_note.note_id.clone());
+        session.treasury_spp_key_commitment = Some(input.treasury_spp_key_commitment);
+
+        let node_key = DataKey::BudgetNode(input.root_note.node_id.clone());
+        let note_key = DataKey::BudgetNote(input.root_note.note_id.clone());
+        let audit_key = DataKey::SessionAudit(session_id.clone());
+        let session_key = DataKey::Session(session_id.clone());
+        env.storage().persistent().set(&node_key, &root_node);
+        env.storage().persistent().set(&note_key, &root_note);
+        env.storage().persistent().set(&audit_key, &audit_state);
+        env.storage().persistent().set(&session_key, &session);
+
+        extend_persistent_ttl(&env, &node_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &note_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_instance_ttl(&env, session.expires_at_ledger);
+
+        RootFunded {
+            session_id,
+            root_node_id: input.root_note.node_id,
+            root_note_id: input.root_note.note_id,
+            funding_amount: input.funding_amount,
         }
         .publish(&env);
     }
@@ -1117,6 +1273,10 @@ impl TreasuryController {
 
     pub fn get_budget_transition_verifier(env: Env) -> Address {
         get_config(&env).budget_transition_verifier
+    }
+
+    pub fn get_root_backing_verifier(env: Env) -> Address {
+        get_config(&env).private_root_backing_verifier
     }
 
     pub fn get_private_binding_verifier(env: Env) -> Address {

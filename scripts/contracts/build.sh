@@ -12,6 +12,7 @@ for package in \
   phloem-audit-accumulator-verifier \
   phloem-budget-transition-verifier \
   phloem-private-settlement-binding-verifier \
+  phloem-private-root-backing-verifier \
   phloem-agent-account \
   phloem-treasury-controller
 do

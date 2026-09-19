@@ -606,6 +606,14 @@
                           },
                           {
                             "key": {
+                              "symbol": "private_root_backing_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
                               "symbol": "spp_pool"
                             },
                             "val": {

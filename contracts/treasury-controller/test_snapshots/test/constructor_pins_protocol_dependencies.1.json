@@ -51,6 +51,7 @@
     [],
     [],
     [],
+    [],
     []
   ],
   "ledger": {
@@ -168,6 +169,14 @@
                           {
                             "key": {
                               "symbol": "private_binding_verifier"
+                            },
+                            "val": {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "private_root_backing_verifier"
                             },
                             "val": {
                               "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"

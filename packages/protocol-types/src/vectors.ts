@@ -243,6 +243,12 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     testField("treasury-spp-key-blind"),
     POSEIDON_DOMAINS.sppTreasuryKey,
   );
+  const sppFundingOutputCommitment = poseidon2Hash3(
+    budgetAmount,
+    treasurySppPublicKey,
+    testField("spp-funding-output-blind"),
+    POSEIDON_DOMAINS.sppNote,
+  );
   const sppRefundOutputCommitment = poseidon2Hash3(
     refundAmount,
     treasurySppPublicKey,
@@ -345,6 +351,15 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     newAuditTotalCommitment,
     usageRoot,
     offerCommitment,
+  ];
+  const privateRootBackingPublicSignals = [
+    contextHash,
+    budgetCommitment,
+    auditContextHashValue,
+    initialAuditTotalCommitment,
+    treasurySppKeyCommitment,
+    sppFundingOutputCommitment,
+    budgetAmount,
   ];
   const auditPublicSignals = [auditContextHashValue, newAuditTotalCommitment, 500_000n, testField("snapshot-hash-field")];
   const auditAccumulatorInitPublicSignals = [
@@ -469,6 +484,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       treasurySppPublicKey: treasurySppPublicKey.toString(),
       treasurySppKeyBlind: testField("treasury-spp-key-blind").toString(),
       sppRefundOutputBlind: testField("spp-refund-output-blind").toString(),
+      sppFundingOutputBlind: testField("spp-funding-output-blind").toString(),
       claimAmount: claimAmount.toString(),
       refundAmount: refundAmount.toString(),
       refundBlind: testField("refund-blind").toString(),
@@ -498,6 +514,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       sppOutputCommitment: sppOutputCommitment.toString(),
       treasurySppKeyCommitment: treasurySppKeyCommitment.toString(),
       sppRefundOutputCommitment: sppRefundOutputCommitment.toString(),
+      sppFundingOutputCommitment: sppFundingOutputCommitment.toString(),
       refundContextHash: refundContextHash.toString(),
       refundBudgetCommitment: refundBudgetCommitment.toString(),
       oldAuditTotalCommitment: oldAuditTotalCommitment.toString(),
@@ -508,6 +525,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
         auditAccumulatorInitV1: decimal(auditAccumulatorInitPublicSignals),
         auditAccumulatorUpdateV1: decimal(auditAccumulatorUpdatePublicSignals),
         privateSettlementBindingV1: decimal(privateSettlementPublicSignals),
+        privateRootBackingV1: decimal(privateRootBackingPublicSignals),
         auditTotalSpendLeqV1: decimal(auditPublicSignals),
       },
     },
