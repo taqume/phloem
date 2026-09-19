@@ -143,6 +143,10 @@ mod tests {
         audit_context_fields: Vec<String>,
         budget_amount: String,
         budget_blind: String,
+        transition_output1_amount: String,
+        transition_output1_blind: String,
+        transition_output2_amount: String,
+        transition_output2_blind: String,
         initial_audit_total: String,
         initial_audit_blind: String,
         old_audit_total: String,
@@ -156,6 +160,10 @@ mod tests {
     struct Expected {
         context_hash: String,
         budget_commitment: String,
+        transition_output1_context_hash: String,
+        transition_output1_commitment: String,
+        transition_output2_context_hash: String,
+        transition_output2_commitment: String,
         provider_leaf: String,
         offer_commitment: String,
         audit_context_hash: String,
@@ -366,6 +374,31 @@ mod tests {
             Fr::from(BUDGET_NOTE),
         );
         assert_eq!(field_to_decimal(budget), vector.expected.budget_commitment);
+
+        let transition_output = |context: &str, amount: &str, blinding: &str| {
+            poseidon2_hash3(
+                field_from_decimal(context).unwrap(),
+                field_from_decimal(amount).unwrap(),
+                field_from_decimal(blinding).unwrap(),
+                Fr::from(BUDGET_NOTE),
+            )
+        };
+        assert_eq!(
+            field_to_decimal(transition_output(
+                &vector.expected.transition_output1_context_hash,
+                &vector.circom.transition_output1_amount,
+                &vector.circom.transition_output1_blind,
+            )),
+            vector.expected.transition_output1_commitment
+        );
+        assert_eq!(
+            field_to_decimal(transition_output(
+                &vector.expected.transition_output2_context_hash,
+                &vector.circom.transition_output2_amount,
+                &vector.circom.transition_output2_blind,
+            )),
+            vector.expected.transition_output2_commitment
+        );
 
         let audit_context = poseidon2_hash_fields(
             &fields(&vector.circom.audit_context_fields),

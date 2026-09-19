@@ -43,6 +43,7 @@ run("pnpm", ["test"]);
 run("rustup", ["run", "1.95.0", "cargo", "fmt", "--all", "--", "--check"]);
 run("rustup", ["run", "1.95.0", "cargo", "test", "--workspace"]);
 run(process.execPath, ["scripts/preflight/check-circom-vector.mjs"]);
+run(process.execPath, ["scripts/preflight/check-budget-transition.mjs"]);
 run("git", ["check-ignore", "-q", "PHLOEM_MASTER_SPEC.md"], { quiet: true });
 run("git", ["check-ignore", "-q", ".phloem/private-state.v1.enc"], { quiet: true });
 

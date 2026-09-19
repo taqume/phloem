@@ -99,6 +99,43 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   const budgetBlind = testField("budget-blind");
   const budgetCommitment = poseidon2Hash3(contextHash, budgetAmount, budgetBlind, POSEIDON_DOMAINS.budgetNote);
 
+  const transitionOutput1Id = testId("PHLOEM_BUDGET_NOTE_ID_V1", "transition-output-1");
+  const transitionOutput2Id = testId("PHLOEM_BUDGET_NOTE_ID_V1", "transition-output-2");
+  const transitionOutput1ContextFields = [
+    ...contextFields.slice(0, 17),
+    ...bytes32ToLimbs(transitionOutput1Id),
+  ];
+  const transitionOutput2ContextFields = [
+    ...contextFields.slice(0, 17),
+    ...bytes32ToLimbs(transitionOutput2Id),
+  ];
+  const transitionOutput1ContextHash = poseidon2HashFields(
+    transitionOutput1ContextFields,
+    POSEIDON_DOMAINS.contextInit,
+    POSEIDON_DOMAINS.contextFold,
+  );
+  const transitionOutput2ContextHash = poseidon2HashFields(
+    transitionOutput2ContextFields,
+    POSEIDON_DOMAINS.contextInit,
+    POSEIDON_DOMAINS.contextFold,
+  );
+  const transitionOutput1Amount = 1_500_000n;
+  const transitionOutput2Amount = budgetAmount - transitionOutput1Amount;
+  const transitionOutput1Blind = testField("transition-output-1-blind");
+  const transitionOutput2Blind = testField("transition-output-2-blind");
+  const transitionOutput1Commitment = poseidon2Hash3(
+    transitionOutput1ContextHash,
+    transitionOutput1Amount,
+    transitionOutput1Blind,
+    POSEIDON_DOMAINS.budgetNote,
+  );
+  const transitionOutput2Commitment = poseidon2Hash3(
+    transitionOutput2ContextHash,
+    transitionOutput2Amount,
+    transitionOutput2Blind,
+    POSEIDON_DOMAINS.budgetNote,
+  );
+
   const [serviceHi, serviceLo] = bytes32ToLimbs(serviceIdHash);
   const providerLeafFields = [
     1n,
@@ -258,7 +295,16 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
   };
   const voucherBytes = encodePrivateVoucher(voucher);
 
-  const budgetPublicSignals = [contextHash, budgetCommitment, refundBudgetCommitment, 1n, 0n, 0n];
+  const budgetPublicSignals = [
+    contextHash,
+    budgetCommitment,
+    transitionOutput1ContextHash,
+    transitionOutput1Commitment,
+    1n,
+    transitionOutput2ContextHash,
+    transitionOutput2Commitment,
+    1n,
+  ];
   const privateSettlementPublicSignals = [
     reservationContextHash,
     reservationCommitment,
@@ -303,6 +349,8 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       },
       values: {
         budgetAmount: budgetAmount.toString(), reservationAmount: reservationAmount.toString(),
+        transitionOutput1Amount: transitionOutput1Amount.toString(),
+        transitionOutput2Amount: transitionOutput2Amount.toString(),
         claimAmount: claimAmount.toString(), refundAmount: refundAmount.toString(),
         initialAuditTotal: initialAuditTotal.toString(), oldAuditTotal: oldAuditTotal.toString(),
         newAuditTotal: newAuditTotal.toString(),
@@ -365,6 +413,10 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       auditContextFields: decimal(auditContextFieldValues),
       budgetAmount: budgetAmount.toString(),
       budgetBlind: budgetBlind.toString(),
+      transitionOutput1Amount: transitionOutput1Amount.toString(),
+      transitionOutput1Blind: transitionOutput1Blind.toString(),
+      transitionOutput2Amount: transitionOutput2Amount.toString(),
+      transitionOutput2Blind: transitionOutput2Blind.toString(),
       initialAuditTotal: initialAuditTotal.toString(),
       initialAuditBlind: initialAuditBlind.toString(),
       oldAuditTotal: oldAuditTotal.toString(),
@@ -376,6 +428,10 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     expected: {
       contextHash: contextHash.toString(),
       budgetCommitment: budgetCommitment.toString(),
+      transitionOutput1ContextHash: transitionOutput1ContextHash.toString(),
+      transitionOutput1Commitment: transitionOutput1Commitment.toString(),
+      transitionOutput2ContextHash: transitionOutput2ContextHash.toString(),
+      transitionOutput2Commitment: transitionOutput2Commitment.toString(),
       providerLeaf: providerLeaf.toString(),
       offerCommitment: offerCommitment.toString(),
       auditContextHash: auditContextHashValue.toString(),
