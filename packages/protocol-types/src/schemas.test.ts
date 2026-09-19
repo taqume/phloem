@@ -24,9 +24,13 @@ test("STANDARD remainder identifier and commitment are inseparable", () => {
     sourceBudgetNoteId: "02".repeat(32),
     amountAtomic: "100000",
     provider: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    providerSppPublicKey: "1",
+    serviceIdHash: "05".repeat(32),
     categoryId: 7,
+    allowedSettlementModes: 1,
     usageRoot: "1",
     offerReferenceHash: "03".repeat(32),
+    newAuditCommitment: "2",
   };
   assert.equal(standardSettlementInputSchema.safeParse(common).success, true);
   assert.equal(standardSettlementInputSchema.safeParse({ ...common, remainderBudgetNoteId: "04".repeat(32) }).success, false);

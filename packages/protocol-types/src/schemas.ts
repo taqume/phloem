@@ -161,11 +161,15 @@ export const standardSettlementInputSchema = z.object({
   sourceBudgetNoteId: bytes32HexSchema,
   amountAtomic: u64DecimalSchema,
   provider: stellarAddressSchema,
+  providerSppPublicKey: fieldDecimalSchema,
+  serviceIdHash: bytes32HexSchema,
   categoryId: z.number().int().nonnegative(),
+  allowedSettlementModes: z.number().int().min(1).max(3),
   usageRoot: fieldDecimalSchema,
   offerReferenceHash: bytes32HexSchema,
   remainderBudgetNoteId: bytes32HexSchema.optional(),
   remainderCommitment: fieldDecimalSchema.optional(),
+  newAuditCommitment: fieldDecimalSchema,
 }).strict().superRefine((value, context) => {
   if ((value.remainderBudgetNoteId === undefined) !== (value.remainderCommitment === undefined)) {
     context.addIssue({ code: "custom", message: "remainder id and commitment must appear together" });

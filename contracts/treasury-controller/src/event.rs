@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, BytesN, contractevent};
 
-use crate::SettlementMode;
+use crate::{PaymentStatus, SettlementMode};
 
 #[contractevent(topics = ["phloem", "session_created"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,4 +35,20 @@ pub struct BudgetDelegated {
     pub child_note_id: BytesN<32>,
     pub remainder_note_id: Option<BytesN<32>>,
     pub delegated_amount: u64,
+}
+
+#[contractevent(topics = ["phloem", "payment_settled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentSettled {
+    #[topic]
+    pub payment_id: BytesN<32>,
+    #[topic]
+    pub session_id: BytesN<32>,
+    pub source_budget_note_id: BytesN<32>,
+    pub remainder_budget_note_id: Option<BytesN<32>>,
+    pub amount_atomic: u64,
+    pub provider: Address,
+    pub category_id: u32,
+    pub settlement_ref: BytesN<32>,
+    pub status: PaymentStatus,
 }

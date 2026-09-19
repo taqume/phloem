@@ -735,6 +735,14 @@
                       "val": {
                         "bool": true
                       }
+                    },
+                    {
+                      "key": {
+                        "u32": 1
+                      },
+                      "val": {
+                        "bool": true
+                      }
                     }
                   ]
                 }

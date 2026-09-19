@@ -147,6 +147,48 @@ pub struct StandardDelegationInput {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StandardSettlementInput {
+    pub payment_id: BytesN<32>,
+    pub session_id: BytesN<32>,
+    pub source_budget_note_id: BytesN<32>,
+    pub amount_atomic: u64,
+    pub provider: Address,
+    pub provider_spp_public_key: U256,
+    pub service_id_hash: BytesN<32>,
+    pub category_id: u32,
+    pub allowed_settlement_modes: u32,
+    pub usage_root: U256,
+    pub offer_reference_hash: BytesN<32>,
+    pub remainder_budget_note_id: Option<BytesN<32>>,
+    pub remainder_commitment: Option<U256>,
+    pub new_audit_commitment: U256,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PaymentStatus {
+    Settled,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentRecord {
+    pub payment_id: BytesN<32>,
+    pub session_id: BytesN<32>,
+    pub source_budget_note_id: BytesN<32>,
+    pub remainder_budget_note_id: Option<BytesN<32>>,
+    pub amount_atomic: u64,
+    pub provider: Address,
+    pub category_id: u32,
+    pub usage_root: U256,
+    pub offer_reference_hash: BytesN<32>,
+    pub settlement_ref: BytesN<32>,
+    pub status: PaymentStatus,
+    pub settled_at_ledger: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Groth16Proof {
     pub a: Bn254G1Affine,
     pub b: Bn254G2Affine,

@@ -7,14 +7,16 @@ mod encoding;
 mod error;
 mod event;
 pub mod poseidon2;
+mod provider;
 mod storage;
 mod types;
 
 pub use error::Error;
 pub use types::{
     BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, RootBudgetNoteInput, SafetyState, Session, SessionAuditState, SessionLifecycle,
-    SessionPolicy, SettlementMode, StandardDelegationInput,
+    NodePolicy, PaymentRecord, PaymentStatus, RootBudgetNoteInput, SafetyState, Session,
+    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, StandardDelegationInput,
+    StandardSettlementInput,
 };
 
 use soroban_sdk::{
@@ -23,7 +25,7 @@ use soroban_sdk::{
 };
 
 use crate::{
-    event::{BudgetDelegated, RootFunded, SessionCreated},
+    event::{BudgetDelegated, PaymentSettled, RootFunded, SessionCreated},
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
         get_next_session_nonce, increment_session_nonce,
@@ -33,6 +35,10 @@ use crate::{
 const PROTOCOL_VERSION: u32 = 1;
 const POLICY_VERSION: u32 = 1;
 const MAX_DELEGATION_DEPTH: u32 = 3;
+const ACTION_DELEGATE_BUDGET: u64 = 1;
+const ACTION_SETTLE_PAYMENT: u64 = 1 << 1;
+const SETTLEMENT_MODE_STANDARD: u32 = 1;
+const SETTLEMENT_MODE_MASK: u32 = 0b11;
 
 #[contract]
 pub struct TreasuryController;
@@ -329,6 +335,239 @@ impl TreasuryController {
         );
     }
 
+    pub fn settle_standard_payment(
+        env: Env,
+        input: StandardSettlementInput,
+        audit_update_proof: Groth16Proof,
+    ) -> PaymentRecord {
+        let mut session = load_session_or_fail(&env, &input.session_id);
+        let mut source_note = load_note_or_fail(&env, &input.source_budget_note_id);
+        let source_node = load_node_or_fail(&env, &source_note.node_id);
+        let owner = match &source_note.owner {
+            BudgetNodeOwner::AgentSmartAccount(owner) => owner.clone(),
+            BudgetNodeOwner::RootCompany => {
+                panic_with_error!(&env, Error::InvalidBudgetOwner)
+            }
+        };
+        if source_node.owner != source_note.owner {
+            panic_with_error!(&env, Error::BudgetStateMismatch);
+        }
+        owner.require_auth();
+
+        validate_active_standard_source(&env, &session, &source_note, &source_node);
+        if input.amount_atomic == 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+        validate_field(&env, &input.provider_spp_public_key);
+        validate_field(&env, &input.usage_root);
+        validate_field(&env, &input.new_audit_commitment);
+
+        let payment_key = DataKey::PaymentRecord(input.payment_id.clone());
+        if env.storage().persistent().has(&payment_key) {
+            panic_with_error!(&env, Error::PaymentAlreadySettled);
+        }
+
+        let category_bit = 1u64
+            .checked_shl(input.category_id)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CategoryNotAllowed));
+        if source_node.node_policy.category_mask & category_bit == 0 {
+            panic_with_error!(&env, Error::CategoryNotAllowed);
+        }
+        if source_node.node_policy.allowed_actions_mask & ACTION_SETTLE_PAYMENT == 0 {
+            panic_with_error!(&env, Error::ActionNotAllowed);
+        }
+        if input.allowed_settlement_modes & SETTLEMENT_MODE_STANDARD == 0
+            || input.allowed_settlement_modes & !SETTLEMENT_MODE_MASK != 0
+        {
+            panic_with_error!(&env, Error::ProviderNotApproved);
+        }
+        let provider_leaf = provider::leaf_hash_v1(
+            &env,
+            &provider::ProviderPolicyLeafV1 {
+                provider_identity: &input.provider,
+                provider_spp_public_key: &input.provider_spp_public_key,
+                service_id_hash: &input.service_id_hash,
+                category_id: input.category_id,
+                allowed_settlement_modes: input.allowed_settlement_modes,
+            },
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        // P0 has exactly one controlled provider, so the policy root is the
+        // canonical provider leaf itself. Merkle membership is reserved for a
+        // future multi-provider policy without weakening this check.
+        if provider_leaf != session.approved_provider_root {
+            panic_with_error!(&env, Error::ProviderNotApproved);
+        }
+
+        let source_amount_key = DataKey::StandardNoteAmount(input.source_budget_note_id.clone());
+        let source_amount: u64 = env
+            .storage()
+            .persistent()
+            .get(&source_amount_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::BudgetStateMismatch));
+        let remainder_amount = source_amount
+            .checked_sub(input.amount_atomic)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidConservation));
+        match (
+            remainder_amount,
+            &input.remainder_budget_note_id,
+            &input.remainder_commitment,
+        ) {
+            (0, None, None) => {}
+            (0, _, _) | (_, None, _) | (_, _, None) => {
+                panic_with_error!(&env, Error::InvalidConservation)
+            }
+            (_, Some(note_id), Some(commitment)) => {
+                ensure_budget_identifier_available(&env, note_id);
+                if *note_id == input.source_budget_note_id {
+                    panic_with_error!(&env, Error::IdentifierAlreadyUsed);
+                }
+                validate_field(&env, commitment);
+            }
+        }
+
+        let audit_key = DataKey::SessionAudit(input.session_id.clone());
+        let mut audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&audit_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        if audit_state.session_id != session.id
+            || audit_state.policy_hash != session.policy_hash
+            || audit_state.settlement_count != session.settlement_count
+            || audit_state.audit_version != session.audit_version
+            || audit_state.finalized
+            || session.audit_finalized
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+        let audit_context_hash = audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        let audit_inputs = soroban_sdk::vec![
+            &env,
+            audit_context_hash,
+            U256::from_u32(&env, 1),
+            audit_state.total_spend_commitment.clone(),
+            input.new_audit_commitment.clone(),
+            U256::from_u128(&env, input.amount_atomic as u128),
+        ];
+        let config = get_config(&env);
+        if !audit_verifier::verify(
+            &env,
+            &config.audit_accumulator_verifier,
+            &audit_update_proof,
+            &audit_inputs,
+        ) {
+            panic_with_error!(&env, Error::InvalidProof);
+        }
+
+        let next_settlement_count = session
+            .settlement_count
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
+        let next_audit_version = session
+            .audit_version
+            .checked_add(1)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::CounterOverflow));
+        let settled_at_ledger = env.ledger().sequence();
+        let settlement_ref = derive_standard_settlement_ref(&env, &input, settled_at_ledger);
+        let record = PaymentRecord {
+            payment_id: input.payment_id.clone(),
+            session_id: input.session_id.clone(),
+            source_budget_note_id: input.source_budget_note_id.clone(),
+            remainder_budget_note_id: input.remainder_budget_note_id.clone(),
+            amount_atomic: input.amount_atomic,
+            provider: input.provider.clone(),
+            category_id: input.category_id,
+            usage_root: input.usage_root.clone(),
+            offer_reference_hash: input.offer_reference_hash.clone(),
+            settlement_ref: settlement_ref.clone(),
+            status: PaymentStatus::Settled,
+            settled_at_ledger,
+        };
+
+        // The nested SAC transfer and every canonical protocol mutation below
+        // share one call tree. Any failure rolls back the transfer and all state.
+        token::Client::new(&env, &session.asset).transfer(
+            &env.current_contract_address(),
+            &input.provider,
+            &(input.amount_atomic as i128),
+        );
+
+        source_note.state = BudgetNoteStatus::Spent;
+        source_note.spent_at_ledger = Some(settled_at_ledger);
+        session.settlement_count = next_settlement_count;
+        session.audit_version = next_audit_version;
+        audit_state.total_spend_commitment = input.new_audit_commitment.clone();
+        audit_state.settlement_count = next_settlement_count;
+        audit_state.audit_version = next_audit_version;
+
+        let session_key = DataKey::Session(input.session_id.clone());
+        let source_note_key = DataKey::BudgetNote(input.source_budget_note_id.clone());
+        env.storage()
+            .persistent()
+            .set(&source_note_key, &source_note);
+        env.storage().persistent().set(&session_key, &session);
+        env.storage().persistent().set(&audit_key, &audit_state);
+        env.storage().persistent().set(&payment_key, &record);
+
+        extend_persistent_ttl(&env, &source_note_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &source_amount_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &payment_key, session.expires_at_ledger);
+
+        if let (Some(remainder_note_id), Some(remainder_commitment)) =
+            (&input.remainder_budget_note_id, &input.remainder_commitment)
+        {
+            let remainder_note = BudgetNoteState {
+                id: remainder_note_id.clone(),
+                session_id: session.id.clone(),
+                node_id: source_node.id.clone(),
+                owner: source_node.owner.clone(),
+                policy_hash: session.policy_hash.clone(),
+                commitment: remainder_commitment.clone(),
+                state: BudgetNoteStatus::Active,
+                created_at_ledger: settled_at_ledger,
+                spent_at_ledger: None,
+            };
+            let remainder_note_key = DataKey::BudgetNote(remainder_note_id.clone());
+            let remainder_amount_key = DataKey::StandardNoteAmount(remainder_note_id.clone());
+            env.storage()
+                .persistent()
+                .set(&remainder_note_key, &remainder_note);
+            env.storage()
+                .persistent()
+                .set(&remainder_amount_key, &remainder_amount);
+            extend_persistent_ttl(&env, &remainder_note_key, session.expires_at_ledger);
+            extend_persistent_ttl(&env, &remainder_amount_key, session.expires_at_ledger);
+        }
+
+        extend_instance_ttl(&env, session.expires_at_ledger);
+        PaymentSettled {
+            payment_id: record.payment_id.clone(),
+            session_id: record.session_id.clone(),
+            source_budget_note_id: record.source_budget_note_id.clone(),
+            remainder_budget_note_id: record.remainder_budget_note_id.clone(),
+            amount_atomic: record.amount_atomic,
+            provider: record.provider.clone(),
+            category_id: record.category_id,
+            settlement_ref,
+            status: PaymentStatus::Settled,
+        }
+        .publish(&env);
+
+        record
+    }
+
     pub fn get_session(env: Env, session_id: BytesN<32>) -> Option<Session> {
         let key = DataKey::Session(session_id);
         let session: Option<Session> = env.storage().persistent().get(&key);
@@ -362,6 +601,38 @@ impl TreasuryController {
         env.storage()
             .persistent()
             .get(&DataKey::StandardNoteAmount(note_id))
+    }
+
+    pub fn get_payment_record(env: Env, payment_id: BytesN<32>) -> Option<PaymentRecord> {
+        let key = DataKey::PaymentRecord(payment_id);
+        let record: Option<PaymentRecord> = env.storage().persistent().get(&key);
+        if let Some(value) = &record {
+            let session = load_session_or_fail(&env, &value.session_id);
+            extend_persistent_ttl(&env, &key, session.expires_at_ledger);
+        }
+        record
+    }
+
+    pub fn get_provider_policy_leaf(
+        env: Env,
+        provider_identity: Address,
+        provider_spp_public_key: U256,
+        service_id_hash: BytesN<32>,
+        category_id: u32,
+        allowed_settlement_modes: u32,
+    ) -> U256 {
+        validate_field(&env, &provider_spp_public_key);
+        provider::leaf_hash_v1(
+            &env,
+            &provider::ProviderPolicyLeafV1 {
+                provider_identity: &provider_identity,
+                provider_spp_public_key: &provider_spp_public_key,
+                service_id_hash: &service_id_hash,
+                category_id,
+                allowed_settlement_modes,
+            },
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding))
     }
 
     pub fn get_standard_asset(env: Env) -> Address {
@@ -438,6 +709,27 @@ fn derive_session_id(env: &Env, company: &Address, nonce: u64) -> BytesN<32> {
         env.current_contract_address(),
         company.clone(),
         nonce,
+    )
+        .to_xdr(env);
+    env.crypto().sha256(&preimage).to_bytes()
+}
+
+fn derive_standard_settlement_ref(
+    env: &Env,
+    input: &StandardSettlementInput,
+    settled_at_ledger: u32,
+) -> BytesN<32> {
+    let domain = Bytes::from_slice(env, b"PHLOEM_STANDARD_SETTLEMENT_V1");
+    let preimage = (
+        domain,
+        env.current_contract_address(),
+        input.payment_id.clone(),
+        input.session_id.clone(),
+        input.source_budget_note_id.clone(),
+        input.provider.clone(),
+        input.amount_atomic,
+        input.offer_reference_hash.clone(),
+        settled_at_ledger,
     )
         .to_xdr(env);
     env.crypto().sha256(&preimage).to_bytes()
@@ -696,6 +988,9 @@ fn validate_standard_delegation(
 
     let parent_policy = &source_node.node_policy;
     let child_policy = &delegation.child_policy;
+    if parent_policy.allowed_actions_mask & ACTION_DELEGATE_BUDGET == 0 {
+        panic_with_error!(env, Error::ActionNotAllowed);
+    }
     if child_policy.category_mask & !parent_policy.category_mask != 0
         || child_policy.allowed_actions_mask & !parent_policy.allowed_actions_mask != 0
         || child_policy.expiry > parent_policy.expiry

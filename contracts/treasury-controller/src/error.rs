@@ -29,4 +29,9 @@ pub enum Error {
     InvalidAddressEncoding = 23,
     InvalidProof = 24,
     AuditStateNotFound = 25,
+    PaymentAlreadySettled = 26,
+    ProviderNotApproved = 27,
+    CategoryNotAllowed = 28,
+    ActionNotAllowed = 29,
+    AuditStateMismatch = 30,
 }

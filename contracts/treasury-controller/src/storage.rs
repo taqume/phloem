@@ -23,6 +23,7 @@ pub enum DataKey {
     BudgetNote(BytesN<32>),
     StandardNoteAmount(BytesN<32>),
     SessionAudit(BytesN<32>),
+    PaymentRecord(BytesN<32>),
 }
 
 pub fn get_config(env: &Env) -> Config {
