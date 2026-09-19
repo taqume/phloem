@@ -1,0 +1,20 @@
+{
+  "status": "not-deployed",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "protocolVersion": 1,
+  "storageSchemaVersion": 1,
+  "gitCommit": null,
+  "contracts": {},
+  "spp": {
+    "sourceRevision": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+    "pool": null,
+    "registry": null,
+    "verifiers": {}
+  },
+  "smartAccount": {
+    "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
+    "wasmSha256": null
+  },
+  "note": "Final contract IDs and artifact hashes are populated only from actual Phloem deployments."
+}

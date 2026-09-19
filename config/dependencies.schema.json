@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phloem.dev/schemas/dependencies.schema.json",
+  "type": "object",
+  "required": ["manifestVersion", "policy", "toolchain", "packages", "sourcePins"],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "policy": { "const": "known-good-first" },
+    "toolchain": { "type": "object", "additionalProperties": { "type": "string" } },
+    "packages": { "type": "object", "additionalProperties": { "type": "string" } },
+    "sourcePins": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+    },
+    "excludedFromP0": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

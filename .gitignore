@@ -1,0 +1,63 @@
+/PHLOEM_MASTER_SPEC.md
+
+# Private/internal architecture and working documents
+/protocol/*.md
+/docs/EVIDENCE.md
+/docs/PHASE1_STATUS.md
+/docs/SUBMISSION_CHECKLIST.md
+/design-system/
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# JavaScript
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+.next/
+dist/
+coverage/
+
+# Rust / Soroban
+target/
+**/*.wasm
+!generated/zk-artifacts/.gitkeep
+
+# Circom / Groth16 generated artifacts
+circuits/**/build/
+circuits/**/out/
+circuits/**/*.r1cs
+circuits/**/*.sym
+circuits/**/*_js/
+circuits/**/*.wtns
+circuits/**/*.zkey
+circuits/**/*.ptau
+circuits/**/verification_key.json
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jwt
+
+# Private protocol state and demo identities
+.phloem/
+private-state/
+demo-state/
+wallet-db/
+
+# Local deployment outputs; canonical public manifest stays tracked
+deployments/local/
+deployments/*.local.json
+
+# Tool-local state
+.serena/project.local.yml
+.playwright-cli/
+
+# Local preflight/bootstrap tool installations
+.phloem/toolchain/

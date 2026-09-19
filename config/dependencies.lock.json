@@ -1,0 +1,46 @@
+{
+  "$schema": "./dependencies.schema.json",
+  "manifestVersion": 1,
+  "policy": "known-good-first",
+  "toolchain": {
+    "node": "24.19.0",
+    "pnpm": "11.22.0",
+    "rust": "1.91.0",
+    "rustForPinnedSppBuild": "1.95.0",
+    "stellarCli": "28.0.0",
+    "circom": "2.2.3",
+    "snarkjs": "0.7.6"
+  },
+  "packages": {
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "reactDom": "19.3.0",
+    "typescript": "7.0.2",
+    "stellarSdk": "17.1.0",
+    "stellarWalletsKit": "2.6.0",
+    "stellarTypescriptWalletSdk": "5.0.0",
+    "taceoPoseidon2Js": "0.2.0",
+    "taceoCircomLib": "0.9.0",
+    "taceoPoseidon2Rust": "0.3.0"
+  },
+  "sourcePins": {
+    "openZeppelinStellarContracts": "f11f8c0f7001f0ac61ffedb4c4f234ecfe7e1feb",
+    "smartAccountKit": "33f4044330ced023d45d200b004e7f42f0ea9eed",
+    "stellarPrivatePayments": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+    "stellarPrivatePaymentsCliCompatibility": "b93d2f5d8369511c49fa3e459e1479563639b2a5",
+    "stellarGroth16Example": "1f5aeb53d3db5d0e61e53f59d5e6c5ab58eaf8ce",
+    "circom": "a100faedb1c62d4d3e1463f8a3f88342d82351cd",
+    "snarkjs": "9a8f1c0083d18b9b5e18f526cfd729e7259423be",
+    "circomlib": "35e54ea21da3e8762557234298dbb553c175ea8d"
+  },
+  "excludedFromP0": [
+    "stellar-mpp-sdk",
+    "one-way-channel",
+    "ultrahonk-privacy"
+  ],
+  "notes": [
+    "Source pins are historical known-good compatibility points, not permission for blind upgrades.",
+    "The npm package versions must pass Phase 1 compatibility checks before product integration.",
+    "SPP remains WIP/unaudited and its pinned build uses a separate Rust toolchain where required."
+  ]
+}

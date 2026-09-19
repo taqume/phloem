@@ -1,0 +1,20 @@
+{
+  "homeDomain": "tr-mock-anchor.fly.dev",
+  "baseUrl": "https://tr-mock-anchor.fly.dev",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "signingKey": "GDXYO6FJCNXZEWGXD54GT76FGFYLOLSOGSOJLNQ6WGHCGEQPO7NTE73M",
+  "endpoints": {
+    "sep10": "https://tr-mock-anchor.fly.dev/auth",
+    "sep6": "https://tr-mock-anchor.fly.dev/sep6",
+    "sep12": "https://tr-mock-anchor.fly.dev/sep12",
+    "sep38": "https://tr-mock-anchor.fly.dev/sep38"
+  },
+  "asset": {
+    "code": "USDC",
+    "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    "status": "test",
+    "anchorAsset": "TRY"
+  },
+  "verifiedAt": "2026-09-19T10:38:44Z",
+  "discoveryOnly": true
+}
