@@ -181,10 +181,43 @@ h1 span { color: var(--accent); }
 .boundary-note p { margin: 0; color: #cbd5e1; line-height: 1.65; }
 footer { min-height: 88px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; }
 
+.deploy-console { padding: 64px 0 88px; }
+.deploy-overview { display: grid; grid-template-columns: 1.25fr 0.75fr; gap: clamp(40px, 8vw, 96px); align-items: end; padding-bottom: 48px; border-bottom: 1px solid var(--border); }
+.deploy-overview h1 { font-size: clamp(2.8rem, 7vw, 6rem); }
+.deploy-overview > div > p:last-child { max-width: 62ch; margin: 28px 0 0; color: #cbd5e1; line-height: 1.65; }
+.deploy-overview dl, .transaction-review dl { margin: 0; border-top: 1px solid var(--border); }
+.deploy-overview dl div, .transaction-review dl div { display: flex; justify-content: space-between; gap: 20px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.deploy-overview dt, .transaction-review dt { color: var(--muted); font-size: 0.72rem; }
+.deploy-overview dd, .transaction-review dd { margin: 0; text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; font-weight: 700; }
+.deploy-panel { min-height: 0; margin-top: 32px; }
+.deploy-action { max-width: 760px; margin: 28px 0 0; }
+.deploy-action > p { color: var(--muted); line-height: 1.6; }
+.deploy-action > .primary-button { max-width: 440px; }
+.deploy-action .step-index { color: var(--primary); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; }
+.deploy-action h3 { margin: 10px 0; font-size: 1.35rem; }
+.transaction-review { display: grid; gap: 18px; padding: 22px; border: 1px solid rgba(245, 158, 11, 0.38); background: rgba(245, 158, 11, 0.06); }
+.transaction-review > p { margin: 0; color: #fde68a; line-height: 1.55; }
+.transaction-review code, .deploy-complete code { overflow-wrap: anywhere; color: #c4b5fd; font-size: 0.72rem; line-height: 1.6; }
+.deploy-complete { display: grid; gap: 10px; margin-top: 28px; padding: 24px; border: 1px solid rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.07); }
+.deploy-complete strong { color: var(--ready); font-size: 1.1rem; }
+.deploy-complete span { color: #cbd5e1; }
+.deploy-ledger { display: grid; grid-template-columns: 0.55fr 1.45fr; gap: 48px; padding-top: 64px; }
+.deploy-ledger ol { margin: 0; padding: 0; border: 1px solid var(--border); list-style: none; }
+.deploy-ledger li { display: grid; grid-template-columns: 42px 1fr auto; gap: 14px; align-items: center; min-height: 72px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(15, 23, 42, 0.76); }
+.deploy-ledger li:last-child { border-bottom: 0; }
+.deploy-ledger li > span { color: var(--muted); font: 700 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+.deploy-ledger li strong, .deploy-ledger li small { display: block; }
+.deploy-ledger li strong { font-size: 0.82rem; }
+.deploy-ledger li small { margin-top: 5px; color: var(--muted); font: 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+.deploy-ledger li b { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; }
+.deploy-ledger li.is-current { background: rgba(245, 158, 11, 0.08); }
+.deploy-ledger li.is-current > span, .deploy-ledger li.is-current b { color: var(--primary); }
+.deploy-ledger li.is-complete > span, .deploy-ledger li.is-complete b { color: var(--ready); }
+
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 860px) {
-  .hero, .authority-section, .workspace-grid { grid-template-columns: 1fr; }
+  .hero, .authority-section, .workspace-grid, .deploy-overview, .deploy-ledger { grid-template-columns: 1fr; }
   .hero { min-height: auto; gap: 48px; padding: 64px 0; }
   .authority-flow { grid-template-columns: repeat(2, 1fr); }
   .authority-flow li:nth-child(2)::after { display: none; }
@@ -206,6 +239,9 @@ footer { min-height: 88px; border-top: 1px solid var(--border); color: var(--mut
   .boundary-note { grid-template-columns: 1fr; gap: 12px; }
   .balance-grid { grid-template-columns: 1fr; }
   .button-row .primary-button { width: 100%; }
+  .deploy-console { padding-top: 44px; }
+  .deploy-ledger li { grid-template-columns: 34px 1fr; }
+  .deploy-ledger li b { grid-column: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
