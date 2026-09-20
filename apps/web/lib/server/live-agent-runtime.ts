@@ -178,7 +178,9 @@ export async function createP0LiveAgentRuntime(
       treasuryController: PHLOEM_NETWORK.treasuryControllerId,
       provider,
     });
-    const proofWorker = new LocalGroth16ProofWorker();
+    const proofWorker = new LocalGroth16ProofWorker({
+      snarkJsCli: join(repositoryRoot(), "node_modules/snarkjs/build/cli.cjs"),
+    });
     const artifacts = budgetTransitionArtifacts();
     const random = { bytes: (length: number) => randomBytes(length) };
     const issuer = new PrivateVoucherIssuer(store, random);
