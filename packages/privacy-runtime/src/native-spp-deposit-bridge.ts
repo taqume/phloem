@@ -53,7 +53,10 @@ export class NativeSppDepositProcess implements SppDepositBridgeProcess {
     return new Promise((resolve, reject) => {
       const child = spawn(this.#binaryPath, [], {
         cwd: this.#workingDirectory,
-        env: { PATH: process.env.PATH ?? "" },
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          PATH: process.env.PATH ?? "",
+        },
         shell: false,
         stdio: ["pipe", "pipe", "pipe"],
       });
