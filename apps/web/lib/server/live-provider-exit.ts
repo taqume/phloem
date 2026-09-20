@@ -7,6 +7,7 @@ import {
   deriveSppNotePublicKey,
   deriveX25519PublicKey,
 } from "@phloem/privacy-runtime";
+import { RpcStellarSubmitter, StellarCliSourceSigner } from "@phloem/execution-gateway";
 import {
   BN254_SCALAR_MODULUS,
   fieldToBytes,
@@ -20,12 +21,14 @@ import {
   TransactionBuilder,
   checkAuthEntryReadiness,
   inspectAuthEntry,
+  rpc,
 } from "@stellar/stellar-sdk";
 
 import { PHLOEM_NETWORK } from "../network";
 import { openEncryptedAgentIdentityVault } from "./live-agent-runtime";
 
 const PROVIDER_EXIT_FEE_CEILING_STROOPS = 100_000_000n;
+const FEE_PAYER_IDENTITY_ALIAS = "phloem-testnet-wasm-uploader";
 
 function repositoryRoot(): string {
   const cwd = process.cwd();
@@ -115,8 +118,60 @@ function assertProviderExitEnvelope(transactionXdr: string): Transaction {
   return parsed;
 }
 
-/** Recovers the exact settled provider output and simulates a full public USDC exit without submission. */
-export async function simulateLiveProviderSppExit(input: {
+interface HorizonBalance {
+  readonly asset_type: string;
+  readonly asset_code?: string;
+  readonly asset_issuer?: string;
+  readonly balance: string;
+}
+
+interface HorizonAccount {
+  readonly balances: readonly HorizonBalance[];
+}
+
+export function decimalAmountToAtomic(value: string): bigint {
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,7}))?$/u.exec(value);
+  if (!match) throw new Error("Horizon returned a non-canonical USDC balance");
+  const whole = BigInt(match[1]!);
+  const fraction = (match[2] ?? "").padEnd(7, "0");
+  return whole * 10_000_000n + BigInt(fraction || "0");
+}
+
+async function providerUsdcBalanceAtomic(account: string): Promise<bigint> {
+  const response = await fetch(`${PHLOEM_NETWORK.horizonUrl}/accounts/${account}`, {
+    cache: "no-store",
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`provider settlement account lookup failed with Horizon HTTP ${response.status}`);
+  }
+  const body = (await response.json()) as HorizonAccount;
+  const balance = body.balances.find((item) => (
+    item.asset_type !== "native"
+      && item.asset_code === PHLOEM_NETWORK.assetCode
+      && item.asset_issuer === PHLOEM_NETWORK.assetIssuer
+  ));
+  if (!balance) throw new Error("provider settlement account needs the pinned Circle Testnet USDC trustline");
+  return decimalAmountToAtomic(balance.balance);
+}
+
+async function waitForProviderUsdcBalance(input: {
+  readonly account: string;
+  readonly expectedAtomic: bigint;
+  readonly attempts?: number;
+}): Promise<bigint> {
+  const attempts = input.attempts ?? 30;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const observed = await providerUsdcBalanceAtomic(input.account);
+    if (observed === input.expectedAtomic) return observed;
+    if (attempt + 1 < attempts) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
+    }
+  }
+  throw new Error("confirmed provider exit did not reach the expected Horizon USDC balance before timeout");
+}
+
+async function prepareLiveProviderSppExit(input: {
   readonly sessionId: unknown;
   readonly reservationId: unknown;
 }) {
@@ -181,22 +236,8 @@ export async function simulateLiveProviderSppExit(input: {
       reservationId: toHex(reservationId),
       settlementTransactionHash: reservation.settlementConfirmation.transactionHash,
       providerSettlementAccount: recipient,
-      assetMovement: Object.freeze({
-        asset: "Circle Testnet USDC",
-        amountAtomic: prepared.withdrawalAmountAtomic.toString(),
-        direction: "SPP_POOL_TO_PROVIDER" as const,
-      }),
-      unsignedTransactionXdr: prepared.unsignedTransactionXdr,
-      transactionHash: toHex(transaction.hash()),
-      maximumFeeStroops: transaction.fee,
-      resource: prepared.resource,
-      safety: Object.freeze({
-        signed: false as const,
-        submitted: false as const,
-        source: PHLOEM_NETWORK.executionFeePayerPublicKey,
-        providerNoteRecoveredFromExactSettlementEvent: true as const,
-        upstreamSqliteUsed: false as const,
-      }),
+      prepared,
+      transaction,
     });
   } finally {
     notePrivateKeyLe?.fill(0);
@@ -204,4 +245,97 @@ export async function simulateLiveProviderSppExit(input: {
     membershipBlindingLe?.fill(0);
     store.close();
   }
+}
+
+function providerExitPreview(preflight: Awaited<ReturnType<typeof prepareLiveProviderSppExit>>) {
+  return Object.freeze({
+    sessionId: preflight.sessionId,
+    reservationId: preflight.reservationId,
+    settlementTransactionHash: preflight.settlementTransactionHash,
+    providerSettlementAccount: preflight.providerSettlementAccount,
+    assetMovement: Object.freeze({
+      asset: "Circle Testnet USDC",
+      amountAtomic: preflight.prepared.withdrawalAmountAtomic.toString(),
+      direction: "SPP_POOL_TO_PROVIDER" as const,
+    }),
+    unsignedTransactionXdr: preflight.prepared.unsignedTransactionXdr,
+    transactionHash: toHex(preflight.transaction.hash()),
+    maximumFeeStroops: preflight.transaction.fee,
+    resource: preflight.prepared.resource,
+    safety: Object.freeze({
+      signed: false as const,
+      submitted: false as const,
+      source: PHLOEM_NETWORK.executionFeePayerPublicKey,
+      providerNoteRecoveredFromExactSettlementEvent: true as const,
+      upstreamSqliteUsed: false as const,
+    }),
+  });
+}
+
+/** Recovers the exact settled provider output and simulates a full public USDC exit without submission. */
+export async function simulateLiveProviderSppExit(input: {
+  readonly sessionId: unknown;
+  readonly reservationId: unknown;
+}) {
+  return providerExitPreview(await prepareLiveProviderSppExit(input));
+}
+
+/** Publicly exits the exact provider note and verifies the recipient's pinned USDC balance delta. */
+export async function submitLiveProviderSppExit(input: {
+  readonly sessionId: unknown;
+  readonly reservationId: unknown;
+}) {
+  const preflight = await prepareLiveProviderSppExit(input);
+  const balanceBeforeAtomic = await providerUsdcBalanceAtomic(preflight.providerSettlementAccount);
+  const signer = new StellarCliSourceSigner({
+    identityAlias: FEE_PAYER_IDENTITY_ALIAS,
+    networkName: "testnet",
+    networkPassphrase: PHLOEM_NETWORK.networkPassphrase,
+    sourcePublicKey: PHLOEM_NETWORK.executionFeePayerPublicKey,
+    treasuryControllerId: PHLOEM_NETWORK.sppPoolId,
+  });
+  const submitter = new RpcStellarSubmitter({
+    server: new rpc.Server(PHLOEM_NETWORK.rpcUrl),
+    networkPassphrase: PHLOEM_NETWORK.networkPassphrase,
+    sourcePublicKey: PHLOEM_NETWORK.executionFeePayerPublicKey,
+    treasuryControllerId: PHLOEM_NETWORK.sppPoolId,
+  });
+  const signed = await signer.sign(preflight.prepared.unsignedTransactionXdr);
+  const receipt = await submitter.submit(signed);
+  const expectedBalanceAfterAtomic = balanceBeforeAtomic + preflight.prepared.withdrawalAmountAtomic;
+  const balanceAfterAtomic = await waitForProviderUsdcBalance({
+    account: preflight.providerSettlementAccount,
+    expectedAtomic: expectedBalanceAfterAtomic,
+  });
+  const observedDeltaAtomic = balanceAfterAtomic - balanceBeforeAtomic;
+  if (observedDeltaAtomic !== preflight.prepared.withdrawalAmountAtomic) {
+    throw new Error(
+      `provider exit ${receipt.transactionHash} confirmed but its Horizon USDC balance delta did not reconcile`,
+    );
+  }
+  return Object.freeze({
+    sessionId: preflight.sessionId,
+    reservationId: preflight.reservationId,
+    settlementTransactionHash: preflight.settlementTransactionHash,
+    providerSettlementAccount: preflight.providerSettlementAccount,
+    transactionHash: receipt.transactionHash,
+    ledgerSequence: receipt.ledgerSequence,
+    assetMovement: Object.freeze({
+      asset: "Circle Testnet USDC",
+      amountAtomic: preflight.prepared.withdrawalAmountAtomic.toString(),
+      direction: "SPP_POOL_TO_PROVIDER" as const,
+      balanceBeforeAtomic: balanceBeforeAtomic.toString(),
+      balanceAfterAtomic: balanceAfterAtomic.toString(),
+      observedDeltaAtomic: observedDeltaAtomic.toString(),
+    }),
+    maximumFeeStroops: preflight.transaction.fee,
+    resource: preflight.prepared.resource,
+    safety: Object.freeze({
+      signedByPinnedFeePayer: true as const,
+      submitted: true as const,
+      providerNoteRecoveredFromExactSettlementEvent: true as const,
+      upstreamSqliteUsed: false as const,
+      publicBalanceDeltaReconciled: true as const,
+    }),
+  });
 }
