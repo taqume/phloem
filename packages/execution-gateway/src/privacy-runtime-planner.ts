@@ -1,5 +1,5 @@
 import type { AgentAction } from "@phloem/agent-runtime";
-import type { PrivateReservationProofPlanner } from "@phloem/privacy-runtime";
+import type { PrivateReservationProofPlanner } from "@phloem/privacy-runtime/reservation";
 
 import type { AgentActor } from "./ports.js";
 import {

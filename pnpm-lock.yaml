@@ -35,6 +35,12 @@ importers:
       '@creit.tech/stellar-wallets-kit':
         specifier: 2.6.0
         version: 2.6.0(@types/react@19.3.0)(bufferutil@4.1.0)(debug@4.4.3)(near-api-js@5.1.1)(react@19.3.0)(tslib@2.8.1)(typescript@7.0.2)(utf-8-validate@6.0.6)(zod@3.25.76)
+      '@phloem/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
+      '@phloem/execution-gateway':
+        specifier: workspace:*
+        version: link:../../packages/execution-gateway
       '@phloem/privacy-runtime':
         specifier: workspace:*
         version: link:../../packages/privacy-runtime

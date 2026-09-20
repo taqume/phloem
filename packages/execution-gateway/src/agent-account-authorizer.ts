@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { AgentDigestSignature, PublicAgentIdentity } from "@phloem/privacy-runtime";
+import type { AgentDigestSignature, PublicAgentIdentity } from "@phloem/privacy-runtime/agent-identities";
 import {
   Address,
   Operation,

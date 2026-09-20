@@ -6,7 +6,10 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./agent-identities": "./src/agent-identity-vault.ts",
     "./keys": "./src/treasury-privacy-key.ts",
+    "./reservation": "./src/reservation-proof-planner.ts",
+    "./state-store": "./src/privacy-state-store.ts",
     "./session-policy": "./src/private-session-policy.ts"
   },
   "scripts": {

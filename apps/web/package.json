@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
+    "build": "next build --webpack",
+    "dev": "next dev --webpack",
     "start": "next start",
     "test": "tsx --test \"lib/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@phloem/agent-runtime": "workspace:*",
+    "@phloem/execution-gateway": "workspace:*",
     "@phloem/privacy-runtime": "workspace:*",
     "@phloem/protocol-types": "workspace:*",
     "@phloem/treasury-controller-client": "workspace:*",
