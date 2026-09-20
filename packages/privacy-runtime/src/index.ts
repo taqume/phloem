@@ -1,4 +1,5 @@
 export * from "./local-proof-worker.js";
+export * from "./audit-query-planner.js";
 export * from "./agent-identity-vault.js";
 export * from "./native-spp-deposit-bridge.js";
 export * from "./native-spp-provider-withdraw.js";

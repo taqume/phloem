@@ -97,3 +97,32 @@ pub struct PrivateSettled {
     pub settlement_ref: BytesN<32>,
     pub status: PaymentStatus,
 }
+
+#[contractevent(topics = ["phloem", "session_draining"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionDraining {
+    #[topic]
+    pub session_id: BytesN<32>,
+    pub advanced_at_ledger: u32,
+    pub permissionless: bool,
+}
+
+#[contractevent(topics = ["phloem", "audit_finalized"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuditFinalized {
+    #[topic]
+    pub session_id: BytesN<32>,
+    pub snapshot_hash: BytesN<32>,
+    pub audit_version: u32,
+    pub settlement_count: u64,
+    pub finalized_at_ledger: u32,
+}
+
+#[contractevent(topics = ["phloem", "session_closed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionClosed {
+    #[topic]
+    pub session_id: BytesN<32>,
+    pub final_audit_snapshot_hash: BytesN<32>,
+    pub closed_at_ledger: u32,
+}

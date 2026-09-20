@@ -364,3 +364,16 @@ pub struct SessionAuditState {
     pub final_snapshot_hash: Option<BytesN<32>>,
     pub standard_total_spend_atomic: Option<u64>,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FinalAuditSnapshot {
+    pub session_id: BytesN<32>,
+    pub settlement_mode: SettlementMode,
+    pub total_spend_commitment: U256,
+    pub settlement_count: u64,
+    pub policy_hash: U256,
+    pub audit_version: u32,
+    pub finalized_at_ledger: u32,
+    pub snapshot_hash: BytesN<32>,
+}

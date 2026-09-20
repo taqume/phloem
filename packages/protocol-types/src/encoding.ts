@@ -27,6 +27,8 @@ export const POSEIDON_DOMAINS = {
   auditContextInit: 0x50484c4d41554331n,
   auditContextFold: 0x50484c4d41554332n,
   auditTotal: 0x50484c4d41554431n,
+  auditQueryInit: 0x50484c4d41514931n,
+  auditQueryFold: 0x50484c4d41514631n,
   sppTreasuryKey: 0x50484c4d53544b31n,
   merkleLeaf: 0x50484c4d4c463031n,
   sppNote: 1n,
@@ -250,6 +252,26 @@ export function poseidon2HashFields(
     accumulator = poseidon2Hash3(accumulator, BigInt(index), fields[index]!, foldDomain);
   }
   return accumulator;
+}
+
+export function finalAuditQueryStatementHash(
+  auditContextHashValue: bigint,
+  snapshotHash: Bytes32,
+  totalSpendCommitment: bigint,
+  auditVersion: number,
+): bigint {
+  const [snapshotHigh, snapshotLow] = bytes32ToLimbs(snapshotHash);
+  return poseidon2HashFields(
+    [
+      auditContextHashValue,
+      snapshotHigh,
+      snapshotLow,
+      totalSpendCommitment,
+      checkedUnsigned(auditVersion, 32, "auditVersion"),
+    ],
+    POSEIDON_DOMAINS.auditQueryInit,
+    POSEIDON_DOMAINS.auditQueryFold,
+  );
 }
 
 export function auditContextFields(value: AuditContextInput): readonly bigint[] {

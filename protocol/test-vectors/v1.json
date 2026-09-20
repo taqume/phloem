@@ -189,6 +189,8 @@
       "auditContextInit": "5784957616049701681",
       "auditContextFold": "5784957616049701682",
       "auditTotal": "5784957616049701937",
+      "auditQueryInit": "5784957616049441073",
+      "auditQueryFold": "5784957616049440305",
       "sppTreasuryKey": "5784957616351628081",
       "merkleLeaf": "5784957616233263153",
       "sppNote": "1"

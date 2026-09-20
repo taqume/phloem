@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "contracts/agent-account",
     "contracts/audit-accumulator-verifier",
+    "contracts/audit-total-spend-leq-verifier",
     "contracts/ed25519-verifier",
     "contracts/budget-transition-verifier",
     "contracts/private-settlement-binding-verifier",

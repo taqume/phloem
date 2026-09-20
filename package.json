@@ -31,6 +31,7 @@
     "phloem:deployment:upload-treasury": "node scripts/deploy/upload-phloem-treasury-controller-testnet.mjs",
     "spp:runtime:simulate": "scripts/spp/simulate-private-runtime.sh",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",
+    "zk:setup:audit-total-spend-leq": "node scripts/zk/setup-audit-total-spend-leq.mjs",
     "zk:check:local-worker": "tsx scripts/zk/check-local-proof-worker.ts"
   },
   "devDependencies": {

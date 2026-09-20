@@ -26,6 +26,7 @@ pub enum DataKey {
     BudgetNote(BytesN<32>),
     StandardNoteAmount(BytesN<32>),
     SessionAudit(BytesN<32>),
+    FinalAuditSnapshot(BytesN<32>),
     PaymentRecord(BytesN<32>),
     PrivateReservation(BytesN<32>),
     PrivatePaymentRecord(BytesN<32>),

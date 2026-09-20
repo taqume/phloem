@@ -658,7 +658,7 @@ fn constructor_pins_protocol_dependencies() {
     let h = setup();
 
     assert_eq!(h.controller.protocol_version(), 1);
-    assert_eq!(h.controller.storage_schema_version(), 1);
+    assert_eq!(h.controller.storage_schema_version(), 2);
     assert_eq!(h.controller.get_standard_asset(), h.asset);
     assert_eq!(
         h.controller.get_agent_account_wasm_hash(),
@@ -2233,5 +2233,188 @@ fn private_reservation_rejects_expired_or_ungranted_authority() {
             .unwrap()
             .state,
         BudgetNoteStatus::Active
+    );
+}
+
+#[test]
+fn company_can_drain_finalize_and_close_with_an_immutable_snapshot() {
+    let h = setup();
+    let (session_id, _) = activate_standard_root(&h, 2_000, 1_000, 140, 141);
+
+    h.env.mock_all_auths();
+    h.controller.begin_draining(&session_id);
+    assert_eq!(
+        h.env.auths(),
+        [(
+            h.company.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    h.contract_id.clone(),
+                    Symbol::new(&h.env, "begin_draining"),
+                    (session_id.clone(),).into_val(&h.env),
+                )),
+                sub_invocations: [].into(),
+            },
+        )]
+    );
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Draining
+    );
+
+    h.env.mock_all_auths();
+    let snapshot = h.controller.finalize_audit(&session_id);
+    let session = h.controller.get_session(&session_id).unwrap();
+    let audit = h.controller.get_audit_state(&session_id).unwrap();
+    assert!(session.audit_finalized);
+    assert!(audit.finalized);
+    assert_eq!(
+        session.final_audit_snapshot_hash,
+        Some(snapshot.snapshot_hash.clone())
+    );
+    assert_eq!(
+        audit.final_snapshot_hash,
+        Some(snapshot.snapshot_hash.clone())
+    );
+    assert_eq!(
+        h.controller.get_final_audit_snapshot(&session_id),
+        Some(snapshot.clone())
+    );
+    let audit_query_inputs = h
+        .controller
+        .get_total_spend_leq_inputs(&session_id, &500_000);
+    assert_eq!(audit_query_inputs.len(), 7);
+    assert_eq!(
+        audit_query_inputs.get_unchecked(0),
+        h.controller.get_audit_context_hash(&session_id)
+    );
+    let mut snapshot_limbs = Vec::new(&h.env);
+    crate::encoding::push_bytes32_limbs(&h.env, &mut snapshot_limbs, &snapshot.snapshot_hash);
+    assert_eq!(
+        audit_query_inputs.get_unchecked(1),
+        snapshot_limbs.get_unchecked(0)
+    );
+    assert_eq!(
+        audit_query_inputs.get_unchecked(2),
+        snapshot_limbs.get_unchecked(1)
+    );
+    assert_eq!(
+        audit_query_inputs.get_unchecked(3),
+        snapshot.total_spend_commitment
+    );
+    assert_eq!(
+        audit_query_inputs.get_unchecked(4),
+        U256::from_u32(&h.env, 500_000)
+    );
+    assert_eq!(
+        audit_query_inputs.get_unchecked(5),
+        U256::from_u32(&h.env, snapshot.audit_version)
+    );
+    assert_eq!(
+        audit_query_inputs.get_unchecked(6),
+        crate::audit::final_query_statement_hash_v1(
+            &h.env,
+            &audit_query_inputs.get_unchecked(0),
+            &snapshot.snapshot_hash,
+            &snapshot.total_spend_commitment,
+            snapshot.audit_version,
+        )
+        .unwrap()
+    );
+    assert!(h.controller.try_finalize_audit(&session_id).is_err());
+
+    h.controller.close_session(&session_id);
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Closed
+    );
+    assert_eq!(
+        h.controller.get_final_audit_snapshot(&session_id).unwrap(),
+        snapshot
+    );
+}
+
+#[test]
+fn permissionless_drain_is_available_only_when_expiry_is_reached() {
+    let h = setup();
+    let (session_id, _) = activate_standard_root(&h, 2_000, 1_000, 142, 143);
+    h.env.set_auths(&[]);
+
+    assert!(h.controller.try_advance_to_draining(&session_id).is_err());
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Active
+    );
+
+    h.env.ledger().set_sequence_number(2_000);
+    h.controller.advance_to_draining(&session_id);
+    assert!(h.env.auths().is_empty());
+    assert_eq!(
+        h.controller.get_session(&session_id).unwrap().lifecycle,
+        SessionLifecycle::Draining
+    );
+}
+
+#[test]
+fn unresolved_private_liability_blocks_audit_finalization_and_close() {
+    let h = setup_with_private_settlement();
+    let (fixture, _) = private_settlement_fixture(&h);
+    h.env.mock_all_auths();
+    h.controller.begin_draining(&fixture.session_id);
+
+    assert!(
+        h.controller
+            .try_finalize_audit(&fixture.session_id)
+            .is_err()
+    );
+    assert!(h.controller.try_close_session(&fixture.session_id).is_err());
+    assert!(
+        h.controller
+            .get_final_audit_snapshot(&fixture.session_id)
+            .is_none()
+    );
+    assert_eq!(
+        h.controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .lifecycle,
+        SessionLifecycle::Draining
+    );
+}
+
+#[test]
+fn draining_blocks_new_risk_but_preserves_an_existing_private_claim() {
+    let h = setup_with_private_settlement();
+    let (fixture, input) = private_settlement_fixture(&h);
+    h.env.mock_all_auths();
+    h.controller.begin_draining(&fixture.session_id);
+
+    let mut second_reservation = fixture.input.clone();
+    second_reservation.reservation_id = id(&h.env, 144);
+    second_reservation.source_budget_note_id = fixture.input.remainder_budget_note_id.unwrap();
+    second_reservation.voucher_signer_public_key = id(&h.env, 145);
+    second_reservation.remainder_budget_note_id = None;
+    second_reservation.remainder_commitment = None;
+    assert!(
+        h.controller
+            .try_open_private_reservation(&second_reservation, &dummy_proof(&h.env))
+            .is_err()
+    );
+
+    let record = h.controller.settle_private_payment(&input);
+    assert_eq!(record.status, PaymentStatus::Settled);
+    assert_eq!(
+        h.controller
+            .get_private_reservation(&fixture.input.reservation_id)
+            .unwrap()
+            .status,
+        PrivateReservationStatus::Settled
+    );
+    assert_eq!(
+        h.controller
+            .get_session(&fixture.session_id)
+            .unwrap()
+            .unresolved_reservation_count,
+        0
     );
 }

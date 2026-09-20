@@ -40,4 +40,8 @@ pub enum Error {
     InvalidReservation = 34,
     InvalidVoucher = 35,
     InvalidPrivateSettlement = 36,
+    UnresolvedReservations = 37,
+    AuditAlreadyFinalized = 38,
+    AuditNotFinalized = 39,
+    FinalAuditSnapshotNotFound = 40,
 }

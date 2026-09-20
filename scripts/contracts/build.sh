@@ -10,6 +10,7 @@ cd "${repo_root}"
 for package in \
   phloem-ed25519-verifier \
   phloem-audit-accumulator-verifier \
+  phloem-audit-total-spend-leq-verifier \
   phloem-budget-transition-verifier \
   phloem-private-settlement-binding-verifier \
   phloem-private-root-backing-verifier \

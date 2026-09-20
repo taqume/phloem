@@ -16,12 +16,13 @@ mod voucher;
 
 pub use error::Error;
 pub use types::{
-    BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus, Groth16Proof,
-    NodePolicy, PaymentRecord, PaymentStatus, PrivateDelegationInput, PrivatePaymentRecord,
-    PrivatePaymentReservation, PrivateReservationInput, PrivateReservationStatus,
-    PrivateRootBackingInput, PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput,
-    SafetyState, Session, SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode,
-    SppExtData, SppPoolError, SppProof, StandardDelegationInput, StandardSettlementInput,
+    BudgetNode, BudgetNodeOwner, BudgetNodeState, BudgetNoteState, BudgetNoteStatus,
+    FinalAuditSnapshot, Groth16Proof, NodePolicy, PaymentRecord, PaymentStatus,
+    PrivateDelegationInput, PrivatePaymentRecord, PrivatePaymentReservation,
+    PrivateReservationInput, PrivateReservationStatus, PrivateRootBackingInput,
+    PrivateSettlementInput, PrivateVoucher, RootBudgetNoteInput, SafetyState, Session,
+    SessionAuditState, SessionLifecycle, SessionPolicy, SettlementMode, SppExtData, SppPoolError,
+    SppProof, StandardDelegationInput, StandardSettlementInput,
 };
 
 use soroban_sdk::{
@@ -31,8 +32,8 @@ use soroban_sdk::{
 
 use crate::{
     event::{
-        BudgetDelegated, PaymentSettled, PrivateBudgetDelegated, PrivateReserved, PrivateSettled,
-        RootFunded, SessionCreated,
+        AuditFinalized, BudgetDelegated, PaymentSettled, PrivateBudgetDelegated, PrivateReserved,
+        PrivateSettled, RootFunded, SessionClosed, SessionCreated, SessionDraining,
     },
     storage::{
         Config, DataKey, extend_instance_ttl, extend_persistent_ttl, get_config,
@@ -41,7 +42,7 @@ use crate::{
 };
 
 const PROTOCOL_VERSION: u32 = 1;
-const STORAGE_SCHEMA_VERSION: u32 = 1;
+const STORAGE_SCHEMA_VERSION: u32 = 2;
 const POLICY_VERSION: u32 = 1;
 const MAX_DELEGATION_DEPTH: u32 = 3;
 const ACTION_DELEGATE_BUDGET: u64 = 1;
@@ -1213,6 +1214,142 @@ impl TreasuryController {
         record
     }
 
+    pub fn begin_draining(env: Env, session_id: BytesN<32>) {
+        let mut session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+        transition_to_draining(&env, &mut session, false);
+    }
+
+    pub fn advance_to_draining(env: Env, session_id: BytesN<32>) {
+        let mut session = load_session_or_fail(&env, &session_id);
+        if env.ledger().sequence() < session.expires_at_ledger {
+            panic_with_error!(&env, Error::SessionExpired);
+        }
+        transition_to_draining(&env, &mut session, true);
+    }
+
+    pub fn finalize_audit(env: Env, session_id: BytesN<32>) -> FinalAuditSnapshot {
+        let mut session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+        if session.lifecycle != SessionLifecycle::Draining {
+            panic_with_error!(&env, Error::InvalidLifecycle);
+        }
+        if session.audit_finalized || session.final_audit_snapshot_hash.is_some() {
+            panic_with_error!(&env, Error::AuditAlreadyFinalized);
+        }
+        if session.unresolved_reservation_count != 0 {
+            panic_with_error!(&env, Error::UnresolvedReservations);
+        }
+
+        let audit_key = DataKey::SessionAudit(session_id.clone());
+        let mut audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&audit_key)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        validate_field(&env, &audit_state.total_spend_commitment);
+        if audit_state.session_id != session.id
+            || audit_state.policy_hash != session.policy_hash
+            || audit_state.settlement_count != session.settlement_count
+            || audit_state.unresolved_reservation_count != session.unresolved_reservation_count
+            || audit_state.audit_version != session.audit_version
+            || audit_state.finalized
+            || audit_state.final_snapshot_hash.is_some()
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+
+        let finalized_at_ledger = env.ledger().sequence();
+        let snapshot_hash =
+            derive_final_audit_snapshot_hash(&env, &session, &audit_state, finalized_at_ledger);
+        let snapshot = FinalAuditSnapshot {
+            session_id: session.id.clone(),
+            settlement_mode: session.settlement_mode.clone(),
+            total_spend_commitment: audit_state.total_spend_commitment.clone(),
+            settlement_count: audit_state.settlement_count,
+            policy_hash: session.policy_hash.clone(),
+            audit_version: audit_state.audit_version,
+            finalized_at_ledger,
+            snapshot_hash: snapshot_hash.clone(),
+        };
+
+        session.audit_finalized = true;
+        session.final_audit_snapshot_hash = Some(snapshot_hash.clone());
+        audit_state.finalized = true;
+        audit_state.final_snapshot_hash = Some(snapshot_hash.clone());
+
+        let session_key = DataKey::Session(session_id.clone());
+        let snapshot_key = DataKey::FinalAuditSnapshot(session_id.clone());
+        env.storage().persistent().set(&session_key, &session);
+        env.storage().persistent().set(&audit_key, &audit_state);
+        env.storage().persistent().set(&snapshot_key, &snapshot);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &audit_key, session.expires_at_ledger);
+        extend_persistent_ttl(&env, &snapshot_key, session.expires_at_ledger);
+        extend_instance_ttl(&env, session.expires_at_ledger);
+
+        AuditFinalized {
+            session_id,
+            snapshot_hash,
+            audit_version: snapshot.audit_version,
+            settlement_count: snapshot.settlement_count,
+            finalized_at_ledger,
+        }
+        .publish(&env);
+
+        snapshot
+    }
+
+    pub fn close_session(env: Env, session_id: BytesN<32>) {
+        let mut session = load_session_or_fail(&env, &session_id);
+        session.company.require_auth();
+        if session.lifecycle != SessionLifecycle::Draining {
+            panic_with_error!(&env, Error::InvalidLifecycle);
+        }
+        if session.unresolved_reservation_count != 0 {
+            panic_with_error!(&env, Error::UnresolvedReservations);
+        }
+        if !session.audit_finalized {
+            panic_with_error!(&env, Error::AuditNotFinalized);
+        }
+        let expected_snapshot_hash = session
+            .final_audit_snapshot_hash
+            .clone()
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditNotFinalized));
+        let audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::SessionAudit(session_id.clone()))
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        let snapshot: FinalAuditSnapshot = env
+            .storage()
+            .persistent()
+            .get(&DataKey::FinalAuditSnapshot(session_id.clone()))
+            .unwrap_or_else(|| panic_with_error!(&env, Error::FinalAuditSnapshotNotFound));
+        if !audit_state.finalized
+            || audit_state.final_snapshot_hash != Some(expected_snapshot_hash.clone())
+            || snapshot.snapshot_hash != expected_snapshot_hash
+            || snapshot.audit_version != session.audit_version
+            || snapshot.settlement_count != session.settlement_count
+            || snapshot.total_spend_commitment != audit_state.total_spend_commitment
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+
+        session.lifecycle = SessionLifecycle::Closed;
+        let session_key = DataKey::Session(session_id.clone());
+        env.storage().persistent().set(&session_key, &session);
+        extend_persistent_ttl(&env, &session_key, session.expires_at_ledger);
+        extend_instance_ttl(&env, session.expires_at_ledger);
+
+        SessionClosed {
+            session_id,
+            final_audit_snapshot_hash: snapshot.snapshot_hash,
+            closed_at_ledger: env.ledger().sequence(),
+        }
+        .publish(&env);
+    }
+
     pub fn get_session(env: Env, session_id: BytesN<32>) -> Option<Session> {
         let key = DataKey::Session(session_id);
         let session: Option<Session> = env.storage().persistent().get(&key);
@@ -1339,6 +1476,85 @@ impl TreasuryController {
         state
     }
 
+    pub fn get_final_audit_snapshot(
+        env: Env,
+        session_id: BytesN<32>,
+    ) -> Option<FinalAuditSnapshot> {
+        let session = load_session_or_fail(&env, &session_id);
+        let key = DataKey::FinalAuditSnapshot(session_id);
+        let snapshot = env.storage().persistent().get(&key);
+        if snapshot.is_some() {
+            extend_persistent_ttl(&env, &key, session.expires_at_ledger);
+        }
+        snapshot
+    }
+
+    pub fn get_total_spend_leq_inputs(
+        env: Env,
+        session_id: BytesN<32>,
+        threshold_atomic: u64,
+    ) -> soroban_sdk::Vec<U256> {
+        let session = load_session_or_fail(&env, &session_id);
+        if (session.lifecycle != SessionLifecycle::Draining
+            && session.lifecycle != SessionLifecycle::Closed)
+            || !session.audit_finalized
+        {
+            panic_with_error!(&env, Error::AuditNotFinalized);
+        }
+        let audit_state: SessionAuditState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::SessionAudit(session_id.clone()))
+            .unwrap_or_else(|| panic_with_error!(&env, Error::AuditStateNotFound));
+        let snapshot: FinalAuditSnapshot = env
+            .storage()
+            .persistent()
+            .get(&DataKey::FinalAuditSnapshot(session_id))
+            .unwrap_or_else(|| panic_with_error!(&env, Error::FinalAuditSnapshotNotFound));
+        if !audit_state.finalized
+            || audit_state.final_snapshot_hash != Some(snapshot.snapshot_hash.clone())
+            || session.final_audit_snapshot_hash != Some(snapshot.snapshot_hash.clone())
+            || snapshot.total_spend_commitment != audit_state.total_spend_commitment
+            || snapshot.audit_version != audit_state.audit_version
+            || snapshot.settlement_count != audit_state.settlement_count
+            || snapshot.policy_hash != audit_state.policy_hash
+        {
+            panic_with_error!(&env, Error::AuditStateMismatch);
+        }
+
+        let audit_context_hash = audit::context_hash_v1(
+            &env,
+            &env.ledger().network_id(),
+            &env.current_contract_address(),
+            &session.id,
+            &session.asset,
+            &session.settlement_mode,
+            &session.policy_hash,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAddressEncoding));
+        let statement_hash = audit::final_query_statement_hash_v1(
+            &env,
+            &audit_context_hash,
+            &snapshot.snapshot_hash,
+            &snapshot.total_spend_commitment,
+            snapshot.audit_version,
+        )
+        .unwrap_or_else(|| panic_with_error!(&env, Error::NonCanonicalField));
+        let mut snapshot_limbs = soroban_sdk::Vec::new(&env);
+        encoding::push_bytes32_limbs(&env, &mut snapshot_limbs, &snapshot.snapshot_hash);
+
+        soroban_sdk::vec![
+            &env,
+            audit_context_hash,
+            snapshot_limbs.get_unchecked(0),
+            snapshot_limbs.get_unchecked(1),
+            snapshot.total_spend_commitment,
+            U256::from_u128(&env, threshold_atomic as u128),
+            U256::from_u32(&env, snapshot.audit_version),
+            statement_hash,
+        ]
+    }
+
     pub fn get_agent_account_wasm_hash(env: Env) -> BytesN<32> {
         get_config(&env).agent_account_wasm_hash
     }
@@ -1438,6 +1654,48 @@ fn derive_private_settlement_ref(
     env.crypto().sha256(&preimage).to_bytes()
 }
 
+fn derive_final_audit_snapshot_hash(
+    env: &Env,
+    session: &Session,
+    audit_state: &SessionAuditState,
+    finalized_at_ledger: u32,
+) -> BytesN<32> {
+    let domain = Bytes::from_slice(env, b"PHLOEM_FINAL_AUDIT_SNAPSHOT_V1");
+    let preimage = (
+        domain,
+        PROTOCOL_VERSION,
+        env.ledger().network_id(),
+        env.current_contract_address(),
+        session.id.clone(),
+        session.settlement_mode.clone(),
+        audit_state.total_spend_commitment.clone(),
+        audit_state.settlement_count,
+        session.policy_hash.clone(),
+        audit_state.audit_version,
+        finalized_at_ledger,
+    )
+        .to_xdr(env);
+    env.crypto().sha256(&preimage).to_bytes()
+}
+
+fn transition_to_draining(env: &Env, session: &mut Session, permissionless: bool) {
+    if session.lifecycle != SessionLifecycle::Active {
+        panic_with_error!(env, Error::InvalidLifecycle);
+    }
+    session.lifecycle = SessionLifecycle::Draining;
+    let session_key = DataKey::Session(session.id.clone());
+    env.storage().persistent().set(&session_key, session);
+    extend_persistent_ttl(env, &session_key, session.expires_at_ledger);
+    extend_instance_ttl(env, session.expires_at_ledger);
+
+    SessionDraining {
+        session_id: session.id.clone(),
+        advanced_at_ledger: env.ledger().sequence(),
+        permissionless,
+    }
+    .publish(env);
+}
+
 fn validate_policy(
     env: &Env,
     asset: &Address,
@@ -1476,16 +1734,20 @@ fn validate_policy(
 fn validate_field(env: &Env, value: &U256) {
     // BN254 scalar modulus:
     // 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
-    let modulus = U256::from_parts(
+    let modulus = bn254_scalar_modulus(env);
+    if value >= &modulus {
+        panic_with_error!(env, Error::NonCanonicalField);
+    }
+}
+
+fn bn254_scalar_modulus(env: &Env) -> U256 {
+    U256::from_parts(
         env,
         0x3064_4e72_e131_a029,
         0xb850_45b6_8181_585d,
         0x2833_e848_79b9_7091,
         0x43e1_f593_f000_0001,
-    );
-    if value >= &modulus {
-        panic_with_error!(env, Error::NonCanonicalField);
-    }
+    )
 }
 
 fn load_session_or_fail(env: &Env, session_id: &BytesN<32>) -> Session {

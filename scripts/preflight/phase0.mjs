@@ -12,6 +12,7 @@ const generatedFiles = [
   "circuits/budget-transition-v1/input-reservation.v1.json",
   "circuits/audit-accumulator-v1/input-init.v1.json",
   "circuits/audit-accumulator-v1/input-update.v1.json",
+  "circuits/audit-total-spend-leq-v1/input.v1.json",
   "circuits/private-settlement-binding-v1/input.v1.json",
   "circuits/private-root-backing-v1/input.v1.json",
 ];
@@ -51,6 +52,7 @@ run("rustup", ["run", "1.95.0", "cargo", "test", "--workspace"]);
 run(process.execPath, ["scripts/preflight/check-circom-vector.mjs"]);
 run(process.execPath, ["scripts/preflight/check-budget-transition.mjs"]);
 run(process.execPath, ["scripts/preflight/check-audit-accumulator.mjs"]);
+run(process.execPath, ["scripts/preflight/check-audit-total-spend-leq.mjs"]);
 run(process.execPath, ["scripts/preflight/check-private-settlement-binding.mjs"]);
 run(process.execPath, ["scripts/preflight/check-private-root-backing.mjs"]);
 run("git", ["check-ignore", "-q", "PHLOEM_MASTER_SPEC.md"], { quiet: true });
