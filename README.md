@@ -1,5 +1,7 @@
 # Phloem
 
+[**English**](README.md) | [Türkçe](README.tr.md)
+
 > **Capital flows. Authority stays bounded.**
 
 **A private financial authority protocol for multi-agent organizations on Stellar.**
@@ -41,7 +43,6 @@ The current release is a working Stellar Testnet MVP built for the **Stellar Pro
 - [Run locally](#run-locally)
 - [Known limitations and open submission work](#known-limitations-and-open-submission-work)
 - [Roadmap](#roadmap)
-- [Türkçe özet](#türkçe-özet)
 
 ## Why “Phloem”?
 
@@ -735,25 +736,6 @@ Primary upstream references:
 - [OpenZeppelin Stellar Contracts](https://github.com/OpenZeppelin/stellar-contracts)
 - [Stellar Wallets Kit](https://github.com/Creit-Tech/Stellar-Wallets-Kit)
 - [Stellar Private Payments](https://github.com/NethermindEth/stellar-private-payments)
-
-## Türkçe özet
-
-<details>
-<summary>Türkçe proje özeti</summary>
-
-Phloem, şirketlerin treasury custody'sini yapay zeka agentlarına devretmeden onlara sınırlandırılmış ekonomik yetki vermesini sağlayan Stellar tabanlı bir finansal yetki protokolüdür.
-
-Şirket, Freighter cüzdanı üzerinden bir PRIVATE session oluşturur ve Root BudgetNote üzerinde kontrolü korur. Supervisor'a yalnızca belirlenmiş bir miktar, süre ve işlem kapsamı devreder. Supervisor da Research ve Builder için birbirinden bağımsız, daha dar yetkili Agent Account'lar kullanır. Model yalnızca typed action önerir; ExecutionGateway, Agent Account ve TreasuryController bu önerinin session, branch, provider, category, tutar ve süre kurallarına uyup uymadığını denetler.
-
-Research Agent, kontrollü Research Data Service'ten imzalı ServiceOffer alır, gerçek HTTP isteği yapar ve imzalı UsageEvidence üretir. PRIVATE reservation'a özel PaymentCommitmentKey ile voucher hazırlanır. Gerçek SPP settlement, provider çıktısı, refund BudgetNote ve gizli audit accumulator güncellemesi tek Soroban işlem ağacında gerçekleşir. Agent hiçbir aşamada şirket cüzdan anahtarını veya TreasuryPrivacyKey'i almaz.
-
-Tamamlanan Testnet akışında 1 USDC ile session aktive edilmiş, Supervisor üzerinden Research ve Builder branch'leri oluşturulmuş, 0.01 USDC değerindeki provider ödemesi private settlement ile tamamlanmış, provider SPP çıktısını public Testnet USDC hesabına çıkarmış ve session audit snapshot sonrasında `Closed` durumuna getirilmiştir. Builder'ın Research branch verisine erişme denemesi transaction oluşturulmadan reddedilmiştir.
-
-İki açık durum dürüstçe belgelenmiştir. Resmî TR Mock Anchor SEP-6 işlemi terminal duruma ulaşmadığı için Anchor tamamlanmış gibi gösterilmemiştir. Final `TOTAL_SPEND_LEQ` proof'u canlı statement üzerinde yerelde doğrulanmıştır, ancak deploy edilen Testnet verifier `false` döndürdüğü için on-chain AuditQL başarısı iddia edilmemektedir.
-
-V1 hedefi mevcut agent sistemlerine SDK/API ile bağlanmak, MCP adaptörü sunmak, kalıcı şifreli private-state altyapısı kurmak, policy araçlarını geliştirmek, uygun C-address authorization desteği doğrulandığında MPP adaptörünü eklemek ve production release gate'lerini kapatmaktır. Phloem bir AI framework veya provider marketplace olmayı hedeflemez; ürün sınırı bounded financial authority, private settlement binding ve selective audit'tir.
-
-</details>
 
 ## Team
 
