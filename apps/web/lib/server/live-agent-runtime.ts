@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 
-import { NvidiaNimProvider } from "@phloem/agent-runtime";
+import { NvidiaNimProvider, type AgentContext, type AgentRole } from "@phloem/agent-runtime";
 import {
   ExecutionGateway,
   GeneratedTreasuryControllerAdapter,
@@ -94,6 +94,10 @@ export interface LiveAgentRuntime {
     RESEARCH: PublicAgentIdentity;
     BUILDER: PublicAgentIdentity;
   }>;
+  contextFor(role: AgentRole, input: {
+    readonly task: string;
+    readonly policySummary: string;
+  }): Promise<AgentContext>;
   close(): void;
 }
 
@@ -268,6 +272,29 @@ export async function createP0LiveAgentRuntime(
       runner,
       gateway,
       identities: Object.freeze({ SUPERVISOR: supervisor, RESEARCH: research, BUILDER: builder }),
+      contextFor: async (role: AgentRole, input: {
+        readonly task: string;
+        readonly policySummary: string;
+      }): Promise<AgentContext> => {
+        const identity = { SUPERVISOR: supervisor, RESEARCH: research, BUILDER: builder }[role];
+        const contractId = deployedContractId(identity);
+        const source = await sources.resolve(sessionId, contractId);
+        return {
+          sessionId,
+          agent: role,
+          agentId: contractId,
+          task: input.task,
+          policySummary: input.policySummary,
+          protocolState: {
+            ledgerSequence: source.latestLedger,
+            lifecycle: "ACTIVE",
+            nodeId: source.opening.nodeId,
+            remainingBudgetAtomic: source.opening.amountAtomic,
+            branchFrozen: source.node.branch_frozen,
+            settlementMode: "PRIVATE",
+          },
+        };
+      },
       close: () => store.close(),
     });
   } catch (error: unknown) {

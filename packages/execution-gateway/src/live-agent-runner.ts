@@ -32,6 +32,36 @@ export interface AgentExecutionTrace {
   readonly gateway: GatewayResult;
 }
 
+export interface ExpectedSupervisorDelegation {
+  readonly amountAtomic: string;
+  readonly categoryMask: string;
+  readonly allowedActionsMask: string;
+  readonly expiresAtLedger: number;
+  readonly remainingDelegationDepth: 0;
+}
+
+export interface ExpectedSupervisorPlan {
+  readonly RESEARCH: ExpectedSupervisorDelegation;
+  readonly BUILDER: ExpectedSupervisorDelegation;
+}
+
+function assertExpectedDelegation(
+  generated: GeneratedAction,
+  expectedRole: "RESEARCH" | "BUILDER",
+  expected: ExpectedSupervisorDelegation,
+): void {
+  const action = generated.action;
+  if (action.type !== "delegate_authority"
+    || action.childAgent !== expectedRole
+    || action.amountAtomic !== expected.amountAtomic
+    || action.categoryMask !== expected.categoryMask
+    || action.allowedActionsMask !== expected.allowedActionsMask
+    || action.expiresAtLedger !== expected.expiresAtLedger
+    || action.remainingDelegationDepth !== expected.remainingDelegationDepth) {
+    throw new Error(`${expectedRole} model delegation differs from the deterministic bounded plan`);
+  }
+}
+
 function requestId(generated: GeneratedAction, role: AgentRole): string {
   return createHash("sha256")
     .update("PHLOEM_LIVE_AGENT_GATEWAY_REQUEST_V1", "utf8")
@@ -88,12 +118,17 @@ export class P0LiveAgentRunner {
     this.#identities = input.identities;
   }
 
-  async runSupervisorDelegations(supervisorContext: AgentContext): Promise<Readonly<{
+  async runSupervisorDelegations(
+    supervisorContext: AgentContext,
+    expected: ExpectedSupervisorPlan,
+  ): Promise<Readonly<{
     research: AgentExecutionTrace;
     builder: AgentExecutionTrace;
     confirmations: readonly [ConfirmedDelegation, ConfirmedDelegation];
   }>> {
     const generated = await planChildDelegations(this.#model, supervisorContext);
+    assertExpectedDelegation(generated[0], "RESEARCH", expected.RESEARCH);
+    assertExpectedDelegation(generated[1], "BUILDER", expected.BUILDER);
     const traces: AgentExecutionTrace[] = [];
     const confirmations: ConfirmedDelegation[] = [];
     for (const action of generated) {
