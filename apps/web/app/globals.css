@@ -138,6 +138,8 @@ h1 span { color: var(--accent); }
 .flow-step p { min-height: 56px; margin-bottom: 20px; color: var(--muted); font-size: 0.78rem; line-height: 1.55; }
 .flow-step > button { width: 100%; margin-top: auto; }
 .flow-step > small { margin-top: 12px; color: var(--ready); }
+.offramp-flow { grid-template-columns: repeat(5, 1fr); margin-top: 28px; }
+.offramp-flow .flow-step { min-height: 250px; padding: 20px; }
 .form-field { display: grid; gap: 8px; margin-bottom: 16px; }
 .form-field > span:first-child { color: var(--muted); font-size: 0.72rem; }
 .amount-input { display: flex; min-height: 46px; align-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--card); }
@@ -234,7 +236,7 @@ footer { min-height: 88px; border-top: 1px solid var(--border); color: var(--mut
   .hero { min-height: auto; gap: 48px; padding: 64px 0; }
   .authority-flow { grid-template-columns: repeat(2, 1fr); }
   .authority-flow li:nth-child(2)::after { display: none; }
-  .funding-flow, .instruction-grid { grid-template-columns: 1fr; }
+  .funding-flow, .instruction-grid, .offramp-flow { grid-template-columns: 1fr; }
   .degraded-rail-callout { grid-template-columns: 1fr; align-items: start; }
   .flow-step { min-height: auto; }
 }
