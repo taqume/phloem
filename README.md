@@ -538,6 +538,29 @@ All committed proving fixtures use a disclosed single-contributor development se
 
 The private master specification and local protocol working documents are intentionally excluded from Git. Public claims in this README are backed by committed code, manifests, tests, and evidence files.
 
+## Public website and Vercel deployment
+
+The public website is deliberately separated from the live financial runner:
+
+| Route | Purpose |
+|---|---|
+| `/` | English product narrative, architecture, capital loop, SDK direction, and Testnet evidence |
+| `/demo` | English browser-local walkthrough of the bounded PRIVATE authority path and its rejection boundary |
+| `/tr` | Turkish version of the product narrative |
+| `/tr/demo` | Turkish version of the guided demo |
+
+The four public routes need no environment variables, wallet, API key, or asset movement. The guided demo is an explicit deterministic simulation linked to recorded Testnet transactions; it does not represent simulated activity as a new on-chain settlement.
+
+To deploy with Vercel:
+
+1. Import the repository and set **Root Directory** to `apps/web`.
+2. Keep **Include source files outside of the Root Directory** enabled so Vercel can resolve the pnpm workspace packages.
+3. Select Next.js and Node.js 24.x. The checked-in `apps/web/vercel.json` runs `pnpm build`; no output directory override is required.
+4. Leave `PHLOEM_ENABLE_LIVE_OPS` unset or set it to `false`. No other environment variable is required for the public website.
+5. Deploy. The English and Turkish pages are statically generated during the build.
+
+On Vercel, `/ops/*` and the operational API routes return `404` by default. They depend on encrypted authoritative private state, wallet interaction, native proof tooling, and server processes that are intentionally not moved onto a stateless filesystem. Do not enable `PHLOEM_ENABLE_LIVE_OPS` until a durable encrypted state backend and production-compatible proving boundary replace those local dependencies.
+
 ## Run locally
 
 ### Prerequisites
@@ -600,10 +623,9 @@ pnpm phase1:check
 pnpm --filter @phloem/web dev
 ```
 
-Open `http://localhost:3000`. The operation consoles are available at:
+Open `http://localhost:3000`. The public website is available at `/`, `/demo`, `/tr`, and `/tr/demo`. The local operation consoles are available at:
 
 ```text
-/                                  wallet, Anchor discovery, and funding
 /ops/private-session               create the company-authorized PRIVATE session
 /ops/private-agents                deploy and verify the three Agent Accounts
 /ops/private-activation            fund the SPP-backed Root BudgetNote

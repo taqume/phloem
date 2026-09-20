@@ -134,6 +134,21 @@
 }
 
 .headerActions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+.languageSwitch {
+  display: inline-grid;
+  min-width: 42px;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid var(--m-line-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--m-purple-dark) !important;
+  font: 700 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+.languageSwitch:hover { border-color: var(--m-purple); background: var(--m-surface-purple); }
 .networkBadge {
   display: inline-flex;
   min-height: 38px;
@@ -697,6 +712,7 @@
   .heroCopy,
   .authorityVisual { animation: none; }
   .headerCta,
+  .languageSwitch,
   .primaryCta,
   .secondaryCta,
   .layerCard,

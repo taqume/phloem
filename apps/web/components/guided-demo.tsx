@@ -2,46 +2,8 @@
 
 import { useState } from "react";
 
+import type { MarketingMessages } from "../lib/marketing-i18n";
 import styles from "../app/marketing.module.css";
-
-type DemoStep = Readonly<{
-  label: string;
-  title: string;
-  description: string;
-  action: string;
-  event: string;
-}>;
-
-const demoSteps: readonly DemoStep[] = [
-  {
-    label: "SESSION",
-    title: "Create a private root",
-    description: "Company policy fixes USDC, PRIVATE settlement, approved service, expiry and delegation depth.",
-    action: "Create PRIVATE session",
-    event: "SESSION_CREATED · company require_auth accepted",
-  },
-  {
-    label: "DELEGATION",
-    title: "Narrow the authority",
-    description: "Supervisor receives 0.70 USDC. Research receives 0.60 USDC and one approved provider. Builder stays isolated.",
-    action: "Delegate bounded authority",
-    event: "BUDGET_SPLIT · conservation proof verified",
-  },
-  {
-    label: "COMMERCE",
-    title: "Bind the service evidence",
-    description: "Research accepts a signed 0.01 USDC offer and binds the HTTP result to UsageEvidence and a reservation-specific voucher.",
-    action: "Request research service",
-    event: "USAGE_BOUND · offer + response + voucher committed",
-  },
-  {
-    label: "SETTLEMENT",
-    title: "Settle and account atomically",
-    description: "SPP pays the provider, creates the refund and advances the hidden audit total in one Soroban call tree.",
-    action: "Settle 0.01 USDC privately",
-    event: "SETTLED · public_amount 0 · audit updated",
-  },
-] as const;
 
 const typedActions = [
   `{
@@ -66,9 +28,10 @@ const typedActions = [
 }`,
 ] as const;
 
-export function GuidedDemo() {
+export function GuidedDemo({ copy }: Readonly<{ copy: MarketingMessages["demo"]["lab"] }>) {
   const [completed, setCompleted] = useState(0);
   const [rejectionTested, setRejectionTested] = useState(false);
+  const demoSteps = copy.steps;
 
   const isComplete = completed === demoSteps.length;
   const currentIndex = Math.min(completed, demoSteps.length - 1);
@@ -89,10 +52,10 @@ export function GuidedDemo() {
       <div className={styles.shell}>
         <div className={styles.demoWorkspaceHeader}>
           <div>
-            <p className={styles.kicker}>P0 policy lab</p>
-            <h2 id="demo-workspace-title">Run the authority path</h2>
+            <p className={styles.kicker}>{copy.kicker}</p>
+            <h2 id="demo-workspace-title">{copy.title}</h2>
           </div>
-          <div className={styles.demoProgress} aria-label={`${completed} of ${demoSteps.length} primary steps complete`}>
+          <div className={styles.demoProgress} aria-label={`${completed} / ${demoSteps.length} ${copy.completeAria}`}>
             <span>{String(completed).padStart(2, "0")}</span>
             <i><b style={{ width: `${(completed / demoSteps.length) * 100}%` }} /></i>
             <span>{String(demoSteps.length).padStart(2, "0")}</span>
@@ -127,16 +90,16 @@ export function GuidedDemo() {
 
             <div className={styles.consoleBody}>
               <div className={styles.policySummary}>
-                <div><span>Company custody</span><strong>Retained</strong></div>
-                <div><span>Settlement</span><strong>PRIVATE</strong></div>
-                <div><span>Approved provider</span><strong>Research Data</strong></div>
-                <div><span>Root backing</span><strong>{completed > 0 ? "1.00 USDC" : "Pending"}</strong></div>
+                <div><span>{copy.custodyLabel}</span><strong>{copy.custodyValue}</strong></div>
+                <div><span>{copy.settlementLabel}</span><strong>PRIVATE</strong></div>
+                <div><span>{copy.providerLabel}</span><strong>{copy.providerValue}</strong></div>
+                <div><span>{copy.backingLabel}</span><strong>{completed > 0 ? "1.00 USDC" : copy.pending}</strong></div>
               </div>
 
               <div className={styles.actionPreview}>
                 <div>
-                  <span>{isComplete ? "FINAL PROTOCOL STATE" : "NEXT TYPED ACTION"}</span>
-                  <b>{isComplete ? "Closed-loop authority" : currentStep.title}</b>
+                  <span>{isComplete ? copy.finalState : copy.nextAction}</span>
+                  <b>{isComplete ? copy.closedLoop : currentStep.title}</b>
                 </div>
                 <pre><code>{isComplete ? `{
   "providerPaid": true,
@@ -147,13 +110,13 @@ export function GuidedDemo() {
               </div>
 
               <div className={styles.eventLog} aria-live="polite">
-                <span>PROTOCOL EVENTS</span>
+                <span>{copy.events}</span>
                 <ol>
-                  {completed === 0 ? <li className={styles.logMuted}>Waiting for company authorization…</li> : null}
+                  {completed === 0 ? <li className={styles.logMuted}>{copy.waiting}</li> : null}
                   {demoSteps.slice(0, completed).map((step) => (
                     <li key={step.label}><i aria-hidden="true" />{step.event}</li>
                   ))}
-                  {rejectionTested ? <li className={styles.logRejected}><i aria-hidden="true" />REJECTED · Builder cannot read Research budget</li> : null}
+                  {rejectionTested ? <li className={styles.logRejected}><i aria-hidden="true" />{copy.rejectionEvent}</li> : null}
                 </ol>
               </div>
 
@@ -171,9 +134,9 @@ export function GuidedDemo() {
                     onClick={() => setRejectionTested(true)}
                     disabled={rejectionTested}
                   >
-                    {rejectionTested ? "Unauthorized action rejected" : "Test cross-branch rejection"}
+                    {rejectionTested ? copy.rejected : copy.rejectionAction}
                   </button>
-                  <button className={styles.resetAction} type="button" onClick={reset}>Reset demo</button>
+                  <button className={styles.resetAction} type="button" onClick={reset}>{copy.reset}</button>
                 </div>
               )}
             </div>
@@ -181,9 +144,12 @@ export function GuidedDemo() {
         </div>
 
         <div className={styles.demoGuarantees}>
-          <div><span>01</span><p><b>Model output is a proposal.</b> Typed schemas and live context checks run before transaction construction.</p></div>
-          <div><span>02</span><p><b>Authority lives on Stellar.</b> Agent Account rules and TreasuryController state enforce the branch boundary.</p></div>
-          <div><span>03</span><p><b>Payment and accounting stay atomic.</b> A failed nested call rolls back the complete private transition.</p></div>
+          {copy.guarantees.map((guarantee, index) => (
+            <div key={guarantee.title}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p><b>{guarantee.title}</b> {guarantee.text}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
