@@ -8,6 +8,7 @@ import {
   encodeUsageEvidence,
   networkId,
   sha256,
+  toHex,
   utf8,
   type ServiceOfferPayload,
   type UsageEvidencePayload,
@@ -19,6 +20,7 @@ import {
   ProviderRequestError,
   executeResearch,
   signedOffer,
+  signedOfferAtReference,
   type ProviderConfig,
 } from "./research-provider";
 
@@ -63,6 +65,9 @@ test("controlled provider returns a canonical signed ServiceOffer", () => {
     config.signingKey.verify(encodeServiceOffer(payload), hex(offer.providerSignature)),
     true,
   );
+  const referenceHash = toHex(sha256(encodeServiceOffer(payload)));
+  assert.deepEqual(signedOfferAtReference(config, referenceHash, 5_000_010), offer);
+  assert.equal(signedOfferAtReference(config, "ff".repeat(32), 5_000_010), undefined);
 });
 
 test("research response is deterministic and carries signed UsageEvidence", () => {

@@ -1,7 +1,12 @@
-import { bytes32HexSchema, fieldDecimalSchema, u64DecimalSchema } from "@phloem/protocol-types";
+import {
+  bytes32HexSchema,
+  fieldDecimalSchema,
+  u64DecimalSchema,
+  usageEvidenceSchema,
+} from "@phloem/protocol-types";
 import { z } from "zod";
 
-export const PRIVACY_STATE_SCHEMA_VERSION = 6 as const;
+export const PRIVACY_STATE_SCHEMA_VERSION = 7 as const;
 
 const unixMillisecondsSchema = z.number().int().nonnegative();
 const contractAddressSchema = z.string().regex(/^C[A-Z2-7]{55}$/u);
@@ -235,6 +240,13 @@ export const agentIdentitySchema = z.object({
   }
 });
 
+export const acceptedUsageEvidenceSchema = z.object({
+  evidenceHash: bytes32HexSchema,
+  usageRoot: fieldDecimalSchema,
+  acceptedAtUnixMs: unixMillisecondsSchema,
+  evidence: usageEvidenceSchema,
+}).strict();
+
 export const privacyStateSchema = z.object({
   schemaVersion: z.literal(PRIVACY_STATE_SCHEMA_VERSION),
   revision: z.number().int().nonnegative(),
@@ -247,6 +259,7 @@ export const privacyStateSchema = z.object({
   privateSessionActivations: z.array(privateSessionActivationSchema),
   agentIdentities: z.array(agentIdentitySchema),
   privateBudgetDelegations: z.array(preparedPrivateBudgetDelegationSchema),
+  usageEvidence: z.array(acceptedUsageEvidenceSchema),
 }).strict().superRefine((value, context) => {
   for (const [label, values] of [
     ["budget note", value.budgetNotes.map((item) => item.noteId)],
@@ -263,6 +276,10 @@ export const privacyStateSchema = z.object({
     ["agent public key", value.agentIdentities.map((item) => item.publicKeyHex)],
     ["agent contract", value.agentIdentities.flatMap((item) => item.contractId ? [item.contractId] : [])],
     ["private budget delegation", value.privateBudgetDelegations.map((item) => item.operationId)],
+    ["usage evidence", value.usageEvidence.map((item) => item.evidenceHash)],
+    ["usage evidence sequence", value.usageEvidence.map((item) => (
+      `${item.evidence.reservationId}:${item.evidence.providerSequence}`
+    ))],
   ] as const) {
     if (new Set(values).size !== values.length) {
       context.addIssue({ code: "custom", message: `duplicate ${label} in privacy state` });
@@ -277,6 +294,15 @@ export const privacyStateSchema = z.object({
         code: "custom",
         message: "prepared private delegation must hold its source budget opening",
       });
+    }
+  }
+
+  for (const accepted of value.usageEvidence) {
+    if (!value.reservations.some((reservation) => (
+      reservation.reservationId === accepted.evidence.reservationId
+      && reservation.sessionId === accepted.evidence.sessionId
+    ))) {
+      context.addIssue({ code: "custom", message: "usage evidence must belong to a stored reservation" });
     }
   }
 });
@@ -294,6 +320,7 @@ export type SppSpendOperation = z.infer<typeof sppSpendOperationSchema>;
 export type PrivateSessionActivation = z.infer<typeof privateSessionActivationSchema>;
 export type AgentIdentityState = z.infer<typeof agentIdentitySchema>;
 export type PreparedPrivateBudgetDelegation = z.infer<typeof preparedPrivateBudgetDelegationSchema>;
+export type AcceptedUsageEvidence = z.infer<typeof acceptedUsageEvidenceSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 
 export function emptyPrivacyState(): PrivacyState {
@@ -309,5 +336,6 @@ export function emptyPrivacyState(): PrivacyState {
     privateSessionActivations: [],
     agentIdentities: [],
     privateBudgetDelegations: [],
+    usageEvidence: [],
   };
 }

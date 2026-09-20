@@ -111,3 +111,80 @@ test("exact model delegations reach the gateway in Research then Builder order",
   assert.equal(result.builder.generated.action.type, "delegate_authority");
   assert.deepEqual(result.confirmations.map((item) => item.childAgent), ["RESEARCH", "BUILDER"]);
 });
+
+test("delegated model intent is checked before it reaches the gateway", async () => {
+  let gatewayCalls = 0;
+  const model: ModelProvider = {
+    generateAction: async () => ({
+      action: {
+        type: "request_payment",
+        sessionId: SESSION_ID,
+        agent: "RESEARCH",
+        serviceId: "research-data-service",
+        offerReferenceHash: "77".repeat(32),
+        amountAtomic: "200000",
+        rationale: "Request a widened payment.",
+      },
+      model: "live-test-model",
+      provider: "test",
+      toolCallId: "payment-call",
+    }),
+  };
+  const runner = new P0LiveAgentRunner({
+    model,
+    gateway: { execute: async () => { gatewayCalls += 1; throw new Error("unreachable"); } },
+    identities: IDENTITIES,
+  });
+  await assert.rejects(
+    runner.runExpectedAgentStep("RESEARCH", { ...CONTEXT, agent: "RESEARCH", agentId: IDENTITIES.RESEARCH }, {
+      type: "request_payment",
+      sessionId: SESSION_ID,
+      agent: "RESEARCH",
+      serviceId: "research-data-service",
+      offerReferenceHash: "77".repeat(32),
+      amountAtomic: "100000",
+    }, { submitFinancial: true }),
+    /differs from the deterministic live plan/u,
+  );
+  assert.equal(gatewayCalls, 0);
+});
+
+test("exact delegated model intent crosses the gateway under its Smart Account identity", async () => {
+  let gatewayInput: unknown;
+  let offeredTools: readonly string[] = [];
+  const expected = {
+    type: "get_budget" as const,
+    sessionId: SESSION_ID,
+    nodeId: "22".repeat(32),
+  };
+  const model: ModelProvider = {
+    generateAction: async (request) => {
+      offeredTools = request.tools.map((tool) => tool.function.name);
+      return {
+        action: { ...expected, rationale: "Read only the assigned branch." },
+        model: "live-test-model",
+        provider: "test",
+        toolCallId: "read-call",
+      };
+    },
+  };
+  const runner = new P0LiveAgentRunner({
+    model,
+    gateway: {
+      execute: async (input) => {
+        gatewayInput = input;
+        return { kind: "READ", requestId: "88".repeat(32), result: { ledgerSequence: 1_001, value: {} } };
+      },
+    },
+    identities: IDENTITIES,
+  });
+  const trace = await runner.runExpectedAgentStep(
+    "BUILDER",
+    { ...CONTEXT, agent: "BUILDER", agentId: IDENTITIES.BUILDER },
+    expected,
+    { submitFinancial: false },
+  );
+  assert.equal(trace.gateway.kind, "READ");
+  assert.deepEqual(offeredTools, ["get_budget"]);
+  assert.deepEqual((gatewayInput as { actor: unknown }).actor, { role: "BUILDER", identity: IDENTITIES.BUILDER });
+});

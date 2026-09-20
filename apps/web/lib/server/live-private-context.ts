@@ -55,6 +55,7 @@ export interface ControlledOfferSnapshot {
 
 export interface ControlledOfferResolver {
   current(): Promise<ControlledOfferSnapshot>;
+  atReference(referenceHash: string, validUntilLedger?: number): Promise<ControlledOfferSnapshot>;
 }
 
 interface VerifiedPrivateSource {
@@ -149,7 +150,27 @@ export class HttpControlledOfferResolver implements ControlledOfferResolver {
   }
 
   async current(): Promise<ControlledOfferSnapshot> {
-    const response = await this.#fetch(this.#endpoint, {
+    return this.#fetchOffer(this.#endpoint);
+  }
+
+  async atReference(referenceHash: string, validUntilLedger?: number): Promise<ControlledOfferSnapshot> {
+    if (!/^[0-9a-f]{64}$/u.test(referenceHash)) throw new Error("offer reference must be canonical bytes32");
+    if (validUntilLedger !== undefined && (!Number.isSafeInteger(validUntilLedger) || validUntilLedger <= 0)) {
+      throw new Error("offer validity must be a positive ledger");
+    }
+    const endpoint = new URL(this.#endpoint);
+    if (validUntilLedger === undefined) endpoint.searchParams.set("referenceHash", referenceHash);
+    else endpoint.searchParams.set("validUntilLedger", validUntilLedger.toString());
+    const snapshot = await this.#fetchOffer(endpoint.toString());
+    if (snapshot.referenceHash !== referenceHash
+      || (validUntilLedger !== undefined && snapshot.offer.validUntilLedger !== validUntilLedger)) {
+      throw new Error("controlled provider did not return the reservation-bound signed offer");
+    }
+    return snapshot;
+  }
+
+  async #fetchOffer(endpoint: string): Promise<ControlledOfferSnapshot> {
+    const response = await this.#fetch(endpoint, {
       method: "GET",
       headers: { accept: "application/json" },
       cache: "no-store",
@@ -323,7 +344,7 @@ export class LivePrivateReservationContextResolver implements PrivateReservation
   async resolve(action: PaymentAction, actor: AgentActor): Promise<ResolvedPrivateReservationContext> {
     const [source, offerSnapshot] = await Promise.all([
       this.#sources.resolve(action.sessionId, actor.identity),
-      this.#offers.current(),
+      this.#offers.atReference(action.offerReferenceHash),
     ]);
     const { offer, referenceHash } = offerSnapshot;
     const providerRoot = providerPolicyLeaf({
@@ -335,15 +356,22 @@ export class LivePrivateReservationContextResolver implements PrivateReservation
       allowedSettlementModes: PRIVATE_SETTLEMENT_MODE_MASK,
     });
     const categoryBit = 1n << BigInt(offer.categoryId);
-    if (referenceHash !== action.offerReferenceHash
-      || offer.fixedPriceAtomic !== action.amountAtomic
-      || offer.asset !== source.session.asset
-      || offer.validUntilLedger <= source.latestLedger
-      || providerRoot !== source.session.approved_provider_root
-      || (source.node.node_policy.allowed_actions_mask & ACTION_OPEN_PRIVATE_RESERVATION) === 0n
-      || (source.node.node_policy.category_mask & categoryBit) === 0n
-      || BigInt(action.amountAtomic) > BigInt(source.opening.amountAtomic)) {
-      throw new Error("payment intent differs from the live signed offer or bounded authority");
+    const failedChecks = [
+      referenceHash === action.offerReferenceHash ? undefined : "offer-reference",
+      offer.fixedPriceAtomic === action.amountAtomic ? undefined : "fixed-price",
+      offer.asset === source.session.asset ? undefined : "asset",
+      offer.validUntilLedger > source.latestLedger ? undefined : "offer-expiry",
+      providerRoot === source.session.approved_provider_root ? undefined : "provider-root",
+      (source.node.node_policy.allowed_actions_mask & ACTION_OPEN_PRIVATE_RESERVATION) !== 0n
+        ? undefined
+        : "action-mask",
+      (source.node.node_policy.category_mask & categoryBit) !== 0n ? undefined : "category-mask",
+      BigInt(action.amountAtomic) <= BigInt(source.opening.amountAtomic) ? undefined : "budget",
+    ].filter((value): value is string => value !== undefined);
+    if (failedChecks.length > 0) {
+      throw new Error(
+        `payment intent differs from the live signed offer or bounded authority (${failedChecks.join(",")})`,
+      );
     }
     return Object.freeze({
       sessionId: Buffer.from(action.sessionId, "hex"),
@@ -394,7 +422,7 @@ export class LiveResearchRequestContextResolver implements ReservedResearchConte
     const reservation = reservations[0]!;
     const [chainRead, offerSnapshot, issuedAtLedger] = await Promise.all([
       this.#client.get_private_reservation({ reservation_id: Buffer.from(reservation.reservationId, "hex") }),
-      this.#offers.current(),
+      this.#offers.atReference(reservation.offerReferenceHash),
       this.#latestLedger(),
     ]);
     const chain: PrivatePaymentReservation | undefined = chainRead.result;

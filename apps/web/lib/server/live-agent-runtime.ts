@@ -38,6 +38,7 @@ import {
   LivePrivateSourceReader,
   LiveResearchRequestContextResolver,
   LiveTestnetProtocolReader,
+  type ControlledOfferSnapshot,
 } from "./live-private-context";
 import { loadControlledProviderPrivatePublicConfig } from "./private-session";
 
@@ -104,6 +105,14 @@ export interface LiveAgentRuntime {
     readonly task: string;
     readonly policySummary: string;
   }): Promise<AgentContext>;
+  currentOffer(): Promise<ControlledOfferSnapshot>;
+  acceptProviderEvidence(signedUsageEvidence: string): Promise<Readonly<{
+    evidenceHash: string;
+    usageRoot: string;
+    voucherSequence: string;
+    cumulativeAmountCommitment: string;
+    expiryLedger: number;
+  }>>;
   close(): void;
 }
 
@@ -314,6 +323,26 @@ export async function createP0LiveAgentRuntime(
             settlementMode: "PRIVATE",
           },
         };
+      },
+      currentOffer: () => offers.current(),
+      acceptProviderEvidence: async (signedUsageEvidence: string) => {
+        const accepted = await issuer.acceptP0UsageEvidence({
+          signedUsageEvidence: JSON.parse(signedUsageEvidence) as unknown,
+          policy: {
+            providerIdentity: provider.providerIdentity,
+            serviceIdHash: provider.serviceIdHash,
+            categoryId: provider.categoryId,
+          },
+          currentLedger: await latestLedger(),
+          acceptedAtUnixMs: Date.now(),
+        });
+        return Object.freeze({
+          evidenceHash: toHex(accepted.evidenceHash),
+          usageRoot: accepted.usageRoot.toString(),
+          voucherSequence: accepted.voucher.sequence.toString(),
+          cumulativeAmountCommitment: accepted.voucher.cumulativeAmountCommitment.toString(),
+          expiryLedger: accepted.voucher.expiryLedger,
+        });
       },
       close: () => store.close(),
     });

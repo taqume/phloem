@@ -69,6 +69,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       privateSessionActivations: [],
       agentIdentities: [],
       privateBudgetDelegations: [],
+      usageEvidence: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 2) {
@@ -79,6 +80,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       privateSessionActivations: [],
       agentIdentities: [],
       privateBudgetDelegations: [],
+      usageEvidence: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 3) {
@@ -88,6 +90,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       privateSessionActivations: [],
       agentIdentities: [],
       privateBudgetDelegations: [],
+      usageEvidence: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 4) {
@@ -96,6 +99,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
       agentIdentities: [],
       privateBudgetDelegations: [],
+      usageEvidence: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 5) {
@@ -103,6 +107,14 @@ function decodePrivacyState(value: unknown): PrivacyState {
       ...value,
       schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
       privateBudgetDelegations: [],
+      usageEvidence: [],
+    });
+  }
+  if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 6) {
+    return privacyStateSchema.parse({
+      ...value,
+      schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
+      usageEvidence: [],
     });
   }
   return privacyStateSchema.parse(value);

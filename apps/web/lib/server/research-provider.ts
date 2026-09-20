@@ -141,10 +141,21 @@ export async function latestLedger(): Promise<number> {
 }
 
 export function signedOffer(config: ProviderConfig, currentLedger: number) {
-  const validUntilLedger = currentLedger + OFFER_LIFETIME_LEDGERS;
+  return signedOfferUntil(config, currentLedger + OFFER_LIFETIME_LEDGERS);
+}
+
+export function signedOfferUntil(config: ProviderConfig, validUntilLedger: number) {
+  return signedOfferSnapshot(config, validUntilLedger).offer;
+}
+
+function signedOfferSnapshot(config: ProviderConfig, validUntilLedger: number) {
+  if (!Number.isSafeInteger(validUntilLedger) || validUntilLedger <= OFFER_LIFETIME_LEDGERS) {
+    throw new RangeError("offer validity must identify a positive issuance ledger");
+  }
+  const issuedAtLedger = validUntilLedger - OFFER_LIFETIME_LEDGERS;
   const offerNonce = deriveId(
     "PHLOEM_OFFER_NONCE_V1",
-    utf8(`${config.signingKey.publicKey()}:${currentLedger}:${config.fixedPriceAtomic}`),
+    utf8(`${config.signingKey.publicKey()}:${issuedAtLedger}:${config.fixedPriceAtomic}`),
   );
   const payload: ServiceOfferPayload = {
     protocolVersion: 1,
@@ -162,7 +173,7 @@ export function signedOffer(config: ProviderConfig, currentLedger: number) {
     offerNonce,
   };
   const signingBytes = encodeServiceOffer(payload);
-  return {
+  const offer = {
     protocolVersion: 1,
     offerVersion: 1,
     networkId: toHex(config.networkId),
@@ -178,6 +189,21 @@ export function signedOffer(config: ProviderConfig, currentLedger: number) {
     offerNonce: toHex(offerNonce),
     providerSignature: toHex(config.signingKey.sign(signingBytes)),
   };
+  return { offer, referenceHash: toHex(sha256(signingBytes)) };
+}
+
+export function signedOfferAtReference(
+  config: ProviderConfig,
+  referenceHash: string,
+  currentLedger: number,
+) {
+  if (!/^[0-9a-f]{64}$/u.test(referenceHash)) throw new TypeError("offer reference must be canonical bytes32");
+  for (let issuedAtLedger = currentLedger; issuedAtLedger > currentLedger - OFFER_LIFETIME_LEDGERS; issuedAtLedger -= 1) {
+    if (issuedAtLedger <= 0) break;
+    const candidate = signedOfferSnapshot(config, issuedAtLedger + OFFER_LIFETIME_LEDGERS);
+    if (candidate.referenceHash === referenceHash) return candidate.offer;
+  }
+  return undefined;
 }
 
 function canonicalResearchRequest(input: ResearchRequest): Uint8Array {

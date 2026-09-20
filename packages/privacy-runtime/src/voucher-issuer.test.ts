@@ -5,21 +5,32 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { encodePrivateVoucher, toHex } from "@phloem/protocol-types";
+import {
+  addressFromStrKey,
+  encodePrivateVoucher,
+  encodeUsageEvidence,
+  toHex,
+  type UsageEvidence,
+  type UsageEvidencePayload,
+} from "@phloem/protocol-types";
 import { Keypair } from "@stellar/stellar-sdk";
 
 import { EncryptedPrivacyStateStore } from "./privacy-state-store.js";
 import {
+  p0UsageEvidenceRoot,
   PrivateReservationStateError,
   PrivateVoucherIssuer,
   type PrepareReservationOpeningInput,
   type PrivateRandomSource,
 } from "./voucher-issuer.js";
+import type { ReservationOpening } from "./state.js";
 
 const NON_PRODUCTION_TEST_KEY = Buffer.alloc(32, 0x51);
 const CONTROLLER = "CB23C2OYMIDYC7OG2PK6NJFIVCYONYV43ABREOGVTW2LT4C2G53G2CWU";
 const SOURCE_OWNER = "CB2P6OWRQTMIDLN2XSD4PYSRP2P2U5TTR4VNCLEDKMXAQWN7CHWLHI27";
 const ASSET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const PROVIDER = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 0x31));
+const SERVICE_ID_HASH = Buffer.alloc(32, 7);
 
 class DeterministicNonProductionRandom implements PrivateRandomSource {
   #counter = 0;
@@ -83,6 +94,52 @@ async function fixture(random: PrivateRandomSource = new DeterministicNonProduct
   return { directory, path, store, issuer: new PrivateVoucherIssuer(store, random) };
 }
 
+function signedEvidence(opening: ReservationOpening, overrides: Partial<UsageEvidence> = {}): UsageEvidence {
+  const evidence: UsageEvidence = {
+    protocolVersion: 1,
+    evidenceVersion: 1,
+    networkId: opening.networkIdHex,
+    treasuryController: opening.treasuryController,
+    sessionId: opening.sessionId,
+    reservationId: opening.reservationId,
+    providerIdentity: PROVIDER.publicKey(),
+    serviceIdHash: toHex(SERVICE_ID_HASH),
+    categoryId: opening.categoryId,
+    requestId: "21".repeat(32),
+    requestHash: "22".repeat(32),
+    responseHash: "23".repeat(32),
+    usageUnits: "1",
+    offerCommitment: opening.offerCommitment,
+    providerSequence: "1",
+    issuedAtLedger: 100,
+    validUntilLedger: 200,
+    evidenceNonce: "24".repeat(32),
+    providerSignature: "00".repeat(64),
+    ...overrides,
+  };
+  const payload: UsageEvidencePayload = {
+    protocolVersion: evidence.protocolVersion,
+    evidenceVersion: evidence.evidenceVersion,
+    networkId: Buffer.from(evidence.networkId, "hex"),
+    treasuryController: addressFromStrKey(evidence.treasuryController),
+    sessionId: Buffer.from(evidence.sessionId, "hex"),
+    reservationId: Buffer.from(evidence.reservationId, "hex"),
+    providerIdentity: addressFromStrKey(evidence.providerIdentity),
+    serviceIdHash: Buffer.from(evidence.serviceIdHash, "hex"),
+    categoryId: evidence.categoryId,
+    requestId: Buffer.from(evidence.requestId, "hex"),
+    requestHash: Buffer.from(evidence.requestHash, "hex"),
+    responseHash: Buffer.from(evidence.responseHash, "hex"),
+    usageUnits: BigInt(evidence.usageUnits),
+    offerCommitment: BigInt(evidence.offerCommitment),
+    providerSequence: BigInt(evidence.providerSequence),
+    issuedAtLedger: evidence.issuedAtLedger,
+    validUntilLedger: evidence.validUntilLedger,
+    evidenceNonce: Buffer.from(evidence.evidenceNonce, "hex"),
+  };
+  return { ...evidence, providerSignature: toHex(PROVIDER.sign(encodeUsageEvidence(payload))) };
+}
+
 test("reservation preparation persists one encrypted ephemeral payment key and returns only public artifacts", async (context) => {
   const { directory, path, store, issuer } = await fixture();
   context.after(async () => {
@@ -139,6 +196,83 @@ test("an open reservation issues a canonical signed cumulative voucher without e
   const stored = (await store.readSnapshot()).reservations[0]!.latestVoucher!;
   assert.equal(stored.cumulativeAmountAtomic, "100000");
   assert.equal(stored.cumulativeAmountCommitment, issued.voucher.cumulativeAmountCommitment.toString());
+});
+
+test("one signed P0 UsageEvidence leaf is persisted and vouched atomically", async (context) => {
+  const { directory, path, store, issuer } = await fixture();
+  context.after(async () => {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+  const artifacts = await issuer.prepareReservation(preparation());
+  await issuer.confirmReservationOpen({
+    reservationId: artifacts.reservationId,
+    transactionHash: Buffer.alloc(32, 15),
+    ledgerSequence: 99,
+  });
+  const opening = (await store.readSnapshot()).reservations[0]!;
+  const evidence = signedEvidence(opening);
+  const accepted = await issuer.acceptP0UsageEvidence({
+    signedUsageEvidence: evidence,
+    policy: {
+      providerIdentity: PROVIDER.publicKey(),
+      serviceIdHash: SERVICE_ID_HASH,
+      categoryId: opening.categoryId,
+    },
+    currentLedger: 110,
+    acceptedAtUnixMs: 1_700_000_000_100,
+  });
+  const expected = p0UsageEvidenceRoot(evidence);
+  assert.equal(toHex(accepted.evidenceHash), toHex(expected.evidenceHash));
+  assert.equal(accepted.usageRoot, expected.usageRoot);
+  assert.equal(accepted.voucher.sequence, 1n);
+
+  const state = await store.readSnapshot();
+  assert.equal(state.usageEvidence.length, 1);
+  assert.equal(state.usageEvidence[0]!.usageRoot, expected.usageRoot.toString());
+  assert.equal(state.reservations[0]!.latestVoucher!.cumulativeAmountAtomic, "500000");
+  const rawEnvelope = await readFile(path, "utf8");
+  assert.doesNotMatch(rawEnvelope, new RegExp(evidence.responseHash, "u"));
+});
+
+test("invalid or replayed UsageEvidence cannot mint another voucher", async (context) => {
+  const { directory, store, issuer } = await fixture();
+  context.after(async () => {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+  const artifacts = await issuer.prepareReservation(preparation());
+  await issuer.confirmReservationOpen({
+    reservationId: artifacts.reservationId,
+    transactionHash: Buffer.alloc(32, 16),
+    ledgerSequence: 99,
+  });
+  const opening = (await store.readSnapshot()).reservations[0]!;
+  const evidence = signedEvidence(opening);
+  const policy = {
+    providerIdentity: PROVIDER.publicKey(),
+    serviceIdHash: SERVICE_ID_HASH,
+    categoryId: opening.categoryId,
+  };
+  await assert.rejects(issuer.acceptP0UsageEvidence({
+    signedUsageEvidence: { ...evidence, responseHash: "ff".repeat(32) },
+    policy,
+    currentLedger: 110,
+    acceptedAtUnixMs: 1_700_000_000_100,
+  }), /signature is invalid/u);
+  await issuer.acceptP0UsageEvidence({
+    signedUsageEvidence: evidence,
+    policy,
+    currentLedger: 110,
+    acceptedAtUnixMs: 1_700_000_000_100,
+  });
+  await assert.rejects(issuer.acceptP0UsageEvidence({
+    signedUsageEvidence: evidence,
+    policy,
+    currentLedger: 111,
+    acceptedAtUnixMs: 1_700_000_000_200,
+  }), /replay is not allowed/u);
+  assert.equal((await store.readSnapshot()).usageEvidence.length, 1);
 });
 
 test("voucher authority is bounded, monotonic, and reservation-specific", async (context) => {

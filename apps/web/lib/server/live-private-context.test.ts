@@ -203,7 +203,10 @@ async function fixture() {
     get_budget_note_context_hash: async () => transactionResult(13n),
     get_private_reservation: async () => transactionResult(reservation),
   };
-  const offers: ControlledOfferResolver = { current: async () => provider.snapshot };
+  const offers: ControlledOfferResolver = {
+    current: async () => provider.snapshot,
+    atReference: async () => provider.snapshot,
+  };
   const sources = new LivePrivateSourceReader({ store, client, latestLedger: async () => 1_000 });
   return { directory, store, provider, session, note, node, reservation, client, offers, sources };
 }

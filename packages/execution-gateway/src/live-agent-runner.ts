@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   planChildDelegations,
   runDelegatedAgents,
+  toolsForRole,
+  type AgentAction,
   type AgentContext,
   type AgentRole,
   type ConfirmedDelegation,
@@ -31,6 +34,12 @@ export interface AgentExecutionTrace {
   readonly generated: GeneratedAction;
   readonly gateway: GatewayResult;
 }
+
+export type ExpectedAgentIntent = AgentAction extends infer Action
+  ? Action extends { readonly rationale: string }
+    ? Omit<Action, "rationale">
+    : never
+  : never;
 
 export interface ExpectedSupervisorDelegation {
   readonly amountAtomic: string;
@@ -70,6 +79,13 @@ function requestId(generated: GeneratedAction, role: AgentRole): string {
     .update(generated.toolCallId, "utf8")
     .update(JSON.stringify(generated.action), "utf8")
     .digest("hex");
+}
+
+function assertExpectedIntent(generated: GeneratedAction, expected: ExpectedAgentIntent): void {
+  const { rationale: _rationale, ...actual } = generated.action;
+  if (!isDeepStrictEqual(actual, expected)) {
+    throw new Error(`${generated.action.type} model intent differs from the deterministic live plan`);
+  }
 }
 
 function gatewayRequest(
@@ -169,5 +185,29 @@ export class P0LiveAgentRunner {
       research: { generated: generated.research, gateway: researchGateway },
       builder: { generated: generated.builder, gateway: builderGateway },
     });
+  }
+
+  async runExpectedAgentStep(
+    role: "RESEARCH" | "BUILDER",
+    context: AgentContext,
+    expected: ExpectedAgentIntent,
+    options: { readonly submitFinancial: boolean },
+  ): Promise<AgentExecutionTrace> {
+    if (context.agent !== role) throw new Error("delegated agent context role mismatch");
+    const tools = toolsForRole(role).filter((tool) => tool.function.name === expected.type);
+    if (tools.length !== 1) throw new Error(`${expected.type} is not available to ${role}`);
+    const generated = await this.#model.generateAction({
+      role,
+      context,
+      tools,
+    });
+    assertExpectedIntent(generated, expected);
+    const gateway = await this.#gateway.execute(gatewayRequest(
+      generated,
+      role,
+      this.#identities[role],
+      options.submitFinancial,
+    ));
+    return Object.freeze({ generated, gateway });
   }
 }
