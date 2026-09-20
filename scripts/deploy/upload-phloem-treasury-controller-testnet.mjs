@@ -18,11 +18,11 @@ const RPC_URL = "https://soroban-testnet.stellar.org";
 const IDENTITY_ALIAS = "phloem-testnet-wasm-uploader";
 const UPLOADER_ADDRESS = "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI";
 const WASM_PATH = resolve(REPO_ROOT, "target", "wasm32v1-none", "release", "phloem_treasury_controller.wasm");
-const EXPECTED_WASM_BYTES = 73_920;
-const EXPECTED_WASM_SHA256 = "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f";
-const MAX_TOTAL_FEE_STROOPS = 112_709_770n;
-const SOURCE_REVISION = "27ea0e36ea42a975b824eec568522fe70d316806";
-const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-treasury-controller-27ea0e3-upload.json");
+const EXPECTED_WASM_BYTES = 74_096;
+const EXPECTED_WASM_SHA256 = "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44";
+const MAX_TOTAL_FEE_STROOPS = 117_119_196n;
+const SOURCE_REVISION = "164d0ed224b2cacedcc9afb9252dff0705fa4ec2";
+const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-treasury-controller-164d0ed-upload.json");
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-09-19T23:28:18.861Z",
+  "checkedAt": "2026-09-20T00:42:24.576Z",
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "deployer": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
-  "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
+  "sourceRevision": "164d0ed224b2cacedcc9afb9252dff0705fa4ec2",
   "build": {
     "command": "pnpm contracts:build",
     "rustToolchain": "1.95.0",
@@ -98,21 +98,33 @@
     },
     {
       "artifactId": "treasuryController",
-      "artifactBytes": 73920,
+      "artifactBytes": 74096,
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 74272,
+        "footprintReadOnlyEntries": 0,
+        "footprintReadWriteEntries": 1,
+        "inclusionFeeStroops": "100",
+        "instructions": 63397260,
+        "latestLedger": 4768271,
+        "minResourceFeeStroops": "115959500",
+        "totalFeeStroops": "115959600",
+        "writeBytes": 74196
+      },
       "safety": {
         "assetMovement": false,
-        "hostFunction": "none",
-        "reason": "WASM already present on Testnet"
+        "hostFunction": "uploadContractWasm",
+        "operationCount": 1
       },
-      "status": "reuse-existing-testnet-code",
-      "wasmSha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f"
+      "status": "simulation-only",
+      "wasmSha256": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44"
     }
   ],
   "resources": {
-    "pendingUploadCount": 0,
-    "totalFeeStroops": "0",
-    "totalFeeXlm": "0.0000000",
-    "totalInstructions": 0,
-    "totalWriteBytes": 0
+    "pendingUploadCount": 1,
+    "totalFeeStroops": "115959600",
+    "totalFeeXlm": "11.5959600",
+    "totalInstructions": 63397260,
+    "totalWriteBytes": 74196
   }
 }

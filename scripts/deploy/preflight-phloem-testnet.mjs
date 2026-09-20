@@ -17,7 +17,7 @@ const DEPLOYMENT_PATH = resolve(REPO_ROOT, "deployments", "testnet.json");
 const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-deployment-preflight.json");
 const RPC_URL = "https://soroban-testnet.stellar.org";
 const BUILD_COMMAND = "pnpm contracts:build";
-const CONTRACT_SOURCE_REVISION = "27ea0e36ea42a975b824eec568522fe70d316806";
+const CONTRACT_SOURCE_REVISION = "164d0ed224b2cacedcc9afb9252dff0705fa4ec2";
 
 const ARTIFACTS = [
   {
@@ -60,7 +60,7 @@ const ARTIFACTS = [
   {
     id: "treasuryController",
     path: "target/wasm32v1-none/release/phloem_treasury_controller.wasm",
-    sha256: "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+    sha256: "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44",
   },
 ];
 

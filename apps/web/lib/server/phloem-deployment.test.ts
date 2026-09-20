@@ -15,7 +15,7 @@ test("approved upload plan contains exactly the six preflight artifacts", () => 
   const feeTotal = Object.values(PHLOEM_ARTIFACTS)
     .reduce((total, artifact) => total + BigInt(artifact.maxFeeStroops), 0n);
   assert.equal(feeTotal.toString(), PHLOEM_UPLOAD_FEE_LIMIT_STROOPS);
-  assert.equal(feeGuardrailStroops(PHLOEM_UPLOAD_FEE_LIMIT_STROOPS), "195681826");
+  assert.equal(feeGuardrailStroops(PHLOEM_UPLOAD_FEE_LIMIT_STROOPS), "200091253");
   for (const artifact of Object.values(PHLOEM_ARTIFACTS)) {
     assert.match(artifact.sha256, /^[0-9a-f]{64}$/);
     assert.ok(artifact.size > 0);

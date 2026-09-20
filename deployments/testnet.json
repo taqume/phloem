@@ -139,13 +139,13 @@
   },
   "phloem": {
     "status": "base-instances-deployed",
-    "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
+    "sourceRevision": "164d0ed224b2cacedcc9afb9252dff0705fa4ec2",
     "contracts": {
       "ed25519Verifier": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
       "budgetTransitionVerifierV1": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
       "privateRootBackingVerifierV1": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
       "privateSettlementBindingVerifierV1": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
-      "treasuryController": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH"
+      "treasuryController": "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67"
     },
     "uploaders": {
       "primary": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
@@ -182,10 +182,10 @@
         "provisioning": "uploaded-by-primary-deployer"
       },
       "treasuryController": {
-        "sha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
-        "bytes": 73920,
+        "sha256": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44",
+        "bytes": 74096,
         "provisioning": "uploaded-by-dedicated-testnet-uploader",
-        "supersedes": "6d27f7cc117764a40fe0047c7d6c8b975c008d560dd96d4279258a7e7bc29b62"
+        "supersedes": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f"
       }
     },
     "transactions": [
@@ -232,22 +232,29 @@
         "feeChargedStroops": "96394155"
       },
       {
-        "step": "upload-treasury-controller",
+        "step": "upload-treasury-controller-superseded-27ea0e3",
         "hash": "7578f2f8efe43fd9b52fa7cab874df2ef6bf813f9b73a65577e869e50e0191a5",
         "ledger": 4767380,
         "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
         "feeChargedStroops": "97328357"
+      },
+      {
+        "step": "upload-treasury-controller",
+        "hash": "5f07c4769b1302e2ff761983d1f348825905f7d1dc1836323793ff0fe96a84d7",
+        "ledger": 4768282,
+        "uploader": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+        "feeChargedStroops": "100855978"
       }
     ],
     "resources": {
-      "transactionCount": 7,
+      "transactionCount": 8,
       "currentArtifactCount": 6,
-      "maximumFeeStroops": "304882109",
-      "maximumFeeXlm": "30.4882109",
-      "feeChargedStroops": "265145075",
-      "feeChargedXlm": "26.5145075",
-      "totalInstructions": 176915174,
-      "totalWriteBytes": 201940
+      "maximumFeeStroops": "420841709",
+      "maximumFeeXlm": "42.0841709",
+      "feeChargedStroops": "366001053",
+      "feeChargedXlm": "36.6001053",
+      "totalInstructions": 240312434,
+      "totalWriteBytes": 276136
     },
     "instanceTransactions": [
       {
@@ -279,29 +286,36 @@
         "feeChargedStroops": "440709"
       },
       {
-        "step": "create-treasury-controller",
+        "step": "create-treasury-controller-superseded-27ea0e3",
         "hash": "3fef41e3d9598369bb8744dbcccbb34a1686c7d79b6f7e045d98d71a67371996",
         "ledger": 4767711,
         "contractId": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
         "feeChargedStroops": "143549"
+      },
+      {
+        "step": "create-treasury-controller",
+        "hash": "34bb1ad859e970594190b0099ffee31003da7efab79ed0d78638873796280e03",
+        "ledger": 4768302,
+        "contractId": "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67",
+        "feeChargedStroops": "146304"
       }
     ],
     "instanceResources": {
-      "transactionCount": 5,
-      "maximumFeeStroops": "1445403",
-      "maximumFeeXlm": "0.1445403",
-      "feeChargedStroops": "1224857",
-      "feeChargedXlm": "0.1224857",
-      "totalInstructions": 5158929,
-      "totalWriteBytes": 5328
+      "transactionCount": 6,
+      "maximumFeeStroops": "1621805",
+      "maximumFeeXlm": "0.1621805",
+      "feeChargedStroops": "1371161",
+      "feeChargedXlm": "0.1371161",
+      "totalInstructions": 6540215,
+      "totalWriteBytes": 5944
     },
     "verification": {
-      "verifiedAt": "2026-09-20T00:00:10.145Z",
+      "verifiedAt": "2026-09-20T00:44:58.910Z",
       "rpcStatus": "healthy",
       "transactionStatus": "SUCCESS",
       "assetMovement": false,
       "contractInstancesCreated": true,
-      "contractWasmHashes": "verified; prior TreasuryController hash retained as superseded evidence",
+      "contractWasmHashes": "verified; prior TreasuryController hashes and instance retained as superseded evidence",
       "constructorConfig": "verified",
       "verifierProofChecks": "passed",
       "pendingWasmUploads": 0

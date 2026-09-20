@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "164d0ed224b2cacedcc9afb9252dff0705fa4ec2",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "deployer": {
+    "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+    "authority": "none after creation; constructor pins dependencies and exposes no deployer/admin authority"
+  },
+  "artifact": {
+    "bytes": 74096,
+    "sha256": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44"
+  },
+  "contractId": "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67",
+  "constructor": {
+    "standardAsset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "agentAccountWasmHash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+    "budgetTransitionVerifier": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+    "privateRootBackingVerifier": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+    "privateBindingVerifier": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+    "sppPool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+  },
+  "saltSha256": "735a1af85bd3a544b3970305165f76d374a3a194765dc69edf934a56b3c0b4e6",
+  "safety": {
+    "assetMovement": false,
+    "contractInvocation": false,
+    "hostFunction": "createContractV2",
+    "operationCount": 1
+  },
+  "resource": {
+    "diskReadBytes": 0,
+    "envelopeBytes": 944,
+    "footprintReadOnlyEntries": 1,
+    "footprintReadWriteEntries": 1,
+    "instructions": 1381286,
+    "latestLedger": 4768301,
+    "minResourceFeeStroops": "176302",
+    "maximumFeeStroops": "176402",
+    "approvedFeeCeilingStroops": "250000",
+    "writeBytes": 616
+  },
+  "recordedAt": "2026-09-20T00:44:58.910Z",
+  "transaction": {
+    "hash": "34bb1ad859e970594190b0099ffee31003da7efab79ed0d78638873796280e03",
+    "ledger": 4768302,
+    "feeChargedStroops": "146304",
+    "maximumFeeStroops": "176402",
+    "status": "SUCCESS"
+  },
+  "verification": {
+    "config": {
+      "protocol_version": 1,
+      "storage_schema_version": 1,
+      "get_standard_asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "get_agent_account_wasm_hash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+      "get_budget_transition_verifier": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "get_root_backing_verifier": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "get_private_binding_verifier": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "get_spp_pool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+    },
+    "networkWasmBytes": 74096,
+    "networkWasmHash": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44",
+    "transactionStatus": "SUCCESS"
+  }
+}
