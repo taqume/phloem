@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "network": "Stellar Testnet",
+  "sessionId": "844c32d8ad1dd57d7ee9cc2d297389ac81b9a4b32e365ed6c37434fd57ddedf2",
+  "contracts": {
+    "treasuryController": "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+    "auditTotalSpendLeqVerifier": "CAM5OBYNHYPTZKLUE2NGI7ORPBLBU456KFFXYWZZ5V6EUJWMVXZP57DE",
+    "sppPool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+  },
+  "session": {
+    "create": {
+      "transactionHash": "dd363134a19b87ac122abb1c9d5cdbd29c52b30ab3932305384a1af2f4bd7795",
+      "ledger": 4772632
+    },
+    "activation": {
+      "transactionHash": "28222513a8a73246fbf54cb35d752c827bcb5939ad6680b985ae90cff3d6687d",
+      "ledger": 4772675,
+      "amountAtomic": "10000000",
+      "asset": "Circle Testnet USDC"
+    },
+    "privateRootDelegation": {
+      "transactionHash": "053381f3fbcc6379d50903143c1d90bfb321e56cabcb7b83d156c9a08056e927",
+      "ledger": 4772690
+    }
+  },
+  "agentAccounts": {
+    "SUPERVISOR": {
+      "contractId": "CBHC4OV6WX2E4XAXCPBT552YEYV2BXHKVPTCM3FQFARSIADE7HI3Y7FF",
+      "deploymentTransactionHash": "0bd716d6603088ba52090fbc88a20d3e5b2888d20502825ec1f29c54483f25c7"
+    },
+    "RESEARCH": {
+      "contractId": "CAZVV2VAQYZOMWZLHQR5H7NZSTYZYTWZSHLGQ2ZW4BKDXYBZBPQKTEUE",
+      "deploymentTransactionHash": "f3a49fa84c3086d4187653e5c88c495593c7791b7339606a496a89398ae2f8ae"
+    },
+    "BUILDER": {
+      "contractId": "CCL2CCGDQKM3PSJCGXYCAR6MD6M3HCIW35UFOVDH34XVH4SSVNYUXUHC",
+      "deploymentTransactionHash": "6802cc19003bc1329e1f308ec09b13683a30261943ecd1146557e713bc50e3d7"
+    }
+  },
+  "liveModel": {
+    "provider": "google-gemini-live",
+    "model": "gemini-3.8-live",
+    "supervisorDelegations": {
+      "RESEARCH": {
+        "amountAtomic": "6000000",
+        "transactionHash": "94cd4560ea04b4a14db2f222b899264f5bb2456a36718e537d669c1215a7c153"
+      },
+      "BUILDER": {
+        "amountAtomic": "1000000",
+        "transactionHash": "d8789ce448e132e70ac83da15fc27801cfd8072f2aa991514b5f1f43fcb8e5c0"
+      }
+    }
+  },
+  "controlledProvider": {
+    "serviceId": "research-data-service",
+    "reservationId": "20ec3651a1a06d6a64b93eb8500da32c31087f12b3a154bd3e0c6cf6d4a9bb19",
+    "reservationTransactionHash": "9f1f5b300fbf106da4042ee9c41a6dcd7bacc90f4d49a77ddd10bd2636f7b6c7",
+    "requestId": "bd79dfbb884cb90116e21412d54280d001571f66e87d24f8dc2ce54209a13ef3",
+    "responseHash": "d223b9a76dffbf1be17020a0e0e337b0ea921a50352cce62a2bbde0aac789a18",
+    "usageEvidenceHash": "cba7c12e1ebd79dde7c0748ab20c546d2e766e3f1948f0febf2cc8d0559d1ef9",
+    "voucherSequence": "1"
+  },
+  "privateSettlement": {
+    "rebalanceTransactionHash": "ef8e94f3ca92439f84b73292409f9f6438ac4039d0643a4949230ff26a67cf5b",
+    "settlementTransactionHash": "4cbf34ba492b98d682a272c65209c3ab1e2993ecd450e089f2a02be916a7699c",
+    "settlementLedger": 4772732,
+    "publicAmountAtomic": "0",
+    "externalAmountAtomic": "0",
+    "auditUpdateAtomic": true,
+    "providerExit": {
+      "transactionHash": "65fe702bcc972818a0dae6d99f28fe8735ff90439cb8d26bc842da314ae94dd3",
+      "ledger": 4772741,
+      "amountAtomic": "100000",
+      "providerSettlementAccount": "GA4QDUDY4RS3LUQO2LY2PB52Y7QS7X5VKOQH5XMT6BNAPJ3IPQEMWDQ5",
+      "horizonBalanceBeforeAtomic": "100000",
+      "horizonBalanceAfterAtomic": "200000",
+      "balanceDeltaReconciled": true
+    }
+  },
+  "negativeCase": {
+    "requestId": "ce38d15aad4b3238858499ffe4f3348d04bba7ef0d3bf68accc4fd7416b27215",
+    "rejectionCode": "CROSS_BRANCH_BUDGET_READ",
+    "actor": "BUILDER",
+    "requestedBranch": "RESEARCH",
+    "enforcement": "ExecutionGateway+LiveTestnetProtocolReader",
+    "transactionConstructed": false,
+    "submitted": false,
+    "assetMovement": "NONE"
+  },
+  "finalization": {
+    "beginDraining": {
+      "transactionHash": "3f96591b568e312c57c02ce95dd0a5cc4438819968fadb45454f9d7981ca5ca1",
+      "ledger": 4772788,
+      "feeChargedStroops": "9267"
+    },
+    "finalizeAudit": {
+      "transactionHash": "1a7ac6bb754155f207405fd66f83ee6f10271539dd4b9dbee1663c9a6131b0b1",
+      "ledger": 4772791,
+      "feeChargedStroops": "166394"
+    },
+    "auditQl": {
+      "template": "TOTAL_SPEND_LEQ",
+      "thresholdAtomic": "10000000",
+      "auditVersion": 2,
+      "snapshotHash": "866e1b45fdd03e437bc5e4b75e6b9c8dbd6f8f777001e7893d67c54a67ca262b",
+      "proofSha256": "332bee2e411a0575480e0e708b187ede4b08c671edfbecc6f2dbc0faad205216",
+      "localGroth16Verified": true,
+      "boundToLiveTestnetControllerStatement": true,
+      "testnetVerifierAccepted": false,
+      "status": "DEGRADED_VERIFIER_EVIDENCE"
+    },
+    "close": {
+      "transactionHash": "dcdaadcea2506f9ffc2190d14bed859a09c7b2d18105c7f32e5305802c25aa0f",
+      "ledger": 4772867,
+      "feeChargedStroops": "10694"
+    },
+    "canonicalState": {
+      "lifecycle": "Closed",
+      "auditFinalized": true,
+      "settlementCount": "1",
+      "unresolvedReservationCount": "0",
+      "snapshotReconciled": true
+    }
+  },
+  "anchor": {
+    "status": "EXTERNAL_BLOCKER",
+    "realSettlementRelabeled": false,
+    "unadvertisedCapabilitySimulated": false,
+    "detail": "TR Mock Anchor SEP-6 polling did not reach a terminal settlement state; the core Testnet payment path remains real and independently evidenced."
+  }
+}
