@@ -321,9 +321,51 @@
       "pendingWasmUploads": 0
     }
   },
+  "p0RuntimeEvidence": {
+    "status": "provider-spp-exit-confirmed",
+    "verifiedAt": "2026-09-20T05:27:38Z",
+    "sessionId": "80411fc9dfd3b9b1ed585d7cc9c9c3551c3b536e273d5668dc0e2a99a5ee3874",
+    "reservationId": "4ac7c99eb29b7c274ce6036518fffd4fb091e15bebab66d1b701e06b0ddd6134",
+    "privateSettlement": {
+      "hash": "257e129c1f7015c5f7270afe702f12b91642c108a70a2252e93dee7ee82c3241",
+      "ledger": 4770684,
+      "providerOutputCommitment": "14360555266565752498063916220903901946690670803526237854374039141474755650907"
+    },
+    "providerSppExit": {
+      "hash": "94cd3058342d5666380779e76acd34339e08d821785c72255a97a760f744f0df",
+      "ledger": 4771686,
+      "createdAt": "2026-09-20T05:26:57Z",
+      "feePayer": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+      "providerSettlementAccount": "GA4QDUDY4RS3LUQO2LY2PB52Y7QS7X5VKOQH5XMT6BNAPJ3IPQEMWDQ5",
+      "asset": {
+        "code": "USDC",
+        "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        "amountAtomic": "100000",
+        "amount": "0.0100000"
+      },
+      "maximumFeeStroops": "273703",
+      "feeChargedStroops": "247088",
+      "instructions": 68510494,
+      "diskReadBytes": 116,
+      "writeBytes": 3232,
+      "footprintReadOnlyEntries": 33,
+      "footprintReadWriteEntries": 24
+    },
+    "verification": {
+      "rpcStatus": "SUCCESS",
+      "horizonSuccessful": true,
+      "operationCount": 1,
+      "providerUsdcBalanceBefore": "0.0000000",
+      "providerUsdcBalanceAfter": "0.0100000",
+      "providerUsdcDeltaAtomic": "100000",
+      "fullPublicExit": true,
+      "privateRemainderAmountAtomic": "0",
+      "upstreamSqliteUsed": false
+    }
+  },
   "smartAccount": {
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "The SPP USDC dependency deployment, all six current Phloem WASM artifacts, and the five base Phloem contract instances are live. AgentAccount session instances and all USDC-moving flows remain undeployed and unexecuted."
+  "note": "The SPP USDC dependency deployment, all six current Phloem WASM artifacts, and the five base Phloem contract instances are live. The controlled PRIVATE agent payment and provider SPP public exit are confirmed on Testnet; Anchor withdrawal remains pending."
 }
