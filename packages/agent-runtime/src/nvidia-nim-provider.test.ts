@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { toolsForRole } from "./actions.js";
-import { MissingNvidiaApiKeyError, NVIDIA_NIM_ENDPOINT, NVIDIA_PRIMARY_MODEL, NvidiaNimProvider } from "./nvidia-nim-provider.js";
+import {
+  MissingNvidiaApiKeyError,
+  NVIDIA_NIM_ENDPOINT,
+  NVIDIA_PRIMARY_MODEL,
+  NVIDIA_SUPERVISOR_FALLBACK_MODEL,
+  NvidiaNimProvider,
+} from "./nvidia-nim-provider.js";
 
 const context = {
   sessionId: "01".repeat(32),
@@ -65,4 +71,39 @@ test("NIM request stays server-side and accepts exactly one typed tool call", as
   assert.equal(body.model, NVIDIA_PRIMARY_MODEL);
   assert.equal(body.tool_choice, "required");
   assert.equal(result.action.type, "get_budget");
+});
+
+test("Supervisor retries the verified fallback model when the primary model is unavailable", async () => {
+  const requestedModels: string[] = [];
+  const supervisorContext = { ...context, agent: "SUPERVISOR" as const, agentId: "supervisor-1" };
+  const provider = new NvidiaNimProvider({
+    apiKey: "test-only-placeholder",
+    fetch: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { model: string };
+      requestedModels.push(body.model);
+      if (body.model === NVIDIA_PRIMARY_MODEL) return new Response(null, { status: 404 });
+      return Response.json({
+        choices: [{ message: { tool_calls: [{
+          id: "call-fallback",
+          type: "function",
+          function: {
+            name: "get_budget",
+            arguments: JSON.stringify({
+              sessionId: supervisorContext.sessionId,
+              nodeId: supervisorContext.protocolState.nodeId,
+              rationale: "Read current authority.",
+            }),
+          },
+        }] } }],
+      });
+    },
+  });
+
+  const result = await provider.generateAction({
+    role: "SUPERVISOR",
+    context: supervisorContext,
+    tools: toolsForRole("SUPERVISOR"),
+  });
+  assert.deepEqual(requestedModels, [NVIDIA_PRIMARY_MODEL, NVIDIA_SUPERVISOR_FALLBACK_MODEL]);
+  assert.equal(result.model, NVIDIA_SUPERVISOR_FALLBACK_MODEL);
 });

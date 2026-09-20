@@ -10,8 +10,8 @@ import {
 } from "./model-provider.js";
 
 export const NVIDIA_NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-export const NVIDIA_PRIMARY_MODEL = "z-ai/glm-5-3-flash";
-export const NVIDIA_SUPERVISOR_FALLBACK_MODEL = "z-ai/glm-5-3";
+export const NVIDIA_PRIMARY_MODEL = "z-ai/glm-5.3-flash";
+export const NVIDIA_SUPERVISOR_FALLBACK_MODEL = "z-ai/glm-5.3";
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -76,7 +76,12 @@ export class NvidiaNimProvider implements ModelProvider {
       } catch (error) {
         lastError = error;
         if (error instanceof MissingNvidiaApiKeyError) throw error;
-        if (error instanceof NvidiaNimHttpError && error.status < 500 && error.status !== 429) throw error;
+        if (
+          error instanceof NvidiaNimHttpError
+          && error.status < 500
+          && error.status !== 404
+          && error.status !== 429
+        ) throw error;
       }
     }
     throw lastError;

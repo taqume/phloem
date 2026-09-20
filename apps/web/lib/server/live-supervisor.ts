@@ -60,7 +60,9 @@ async function assertFreshChildAuthority(sessionId: string): Promise<void> {
 }
 
 export async function runLiveSupervisorDelegations(sessionIdInput: unknown) {
-  if (!process.env.NVIDIA_API_KEY) throw new Error("NVIDIA_API_KEY is required for the live Supervisor run");
+  if (!process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY && !process.env.NVIDIA_API_KEY) {
+    throw new Error("GOOGLE_API_KEY, GEMINI_API_KEY, or NVIDIA_API_KEY is required for the live Supervisor run");
+  }
   const sessionIdBytes = canonicalSessionId(sessionIdInput);
   const sessionId = sessionIdBytes.toString("hex");
   await assertFreshChildAuthority(sessionId);

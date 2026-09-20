@@ -10,6 +10,7 @@ import {
 } from "@stellar/stellar-sdk";
 
 import type { StellarSubmitter, SubmissionReceipt, TransactionSourceSigner } from "./ports.js";
+import type { TransactionResourceAssembler } from "./ports.js";
 
 export interface CommandRunner {
   run(command: string, args: readonly string[], input?: string): Promise<string>;
@@ -53,6 +54,73 @@ function parseControllerTransaction(
     throw new Error("gateway transaction still contains unsigned non-source authorization");
   }
   return parsed;
+}
+
+function invokeOperation(transaction: Transaction): Extract<Transaction["operations"][number], { type: "invokeHostFunction" }> {
+  const operation = transaction.operations[0];
+  if (!operation || operation.type !== "invokeHostFunction") {
+    throw new Error("gateway transaction is missing its canonical invokeContract operation");
+  }
+  return operation;
+}
+
+export interface ResourceSimulationRpc {
+  simulateTransaction(transaction: Transaction): Promise<Awaited<ReturnType<rpc.Server["simulateTransaction"]>>>;
+}
+
+export interface RpcTransactionResourceAssemblerOptions {
+  readonly server: ResourceSimulationRpc;
+  readonly networkPassphrase: string;
+  readonly sourcePublicKey: string;
+  readonly treasuryControllerId: string;
+}
+
+/** Re-simulates signed custom-account auth so its storage reads enter the canonical footprint. */
+export class RpcTransactionResourceAssembler implements TransactionResourceAssembler {
+  readonly #options: RpcTransactionResourceAssemblerOptions;
+
+  constructor(options: RpcTransactionResourceAssemblerOptions) {
+    this.#options = options;
+  }
+
+  async assemble(authorizedTransactionXdr: string): Promise<string> {
+    const authorized = parseControllerTransaction(
+      authorizedTransactionXdr,
+      this.#options.networkPassphrase,
+      this.#options.sourcePublicKey,
+      this.#options.treasuryControllerId,
+    );
+    if (authorized.signatures.length !== 0) {
+      throw new Error("resource assembler received an envelope that was already source-signed");
+    }
+    const beforeOperation = invokeOperation(authorized);
+    const beforeAuth = beforeOperation.auth ?? [];
+    if (beforeAuth.length === 0) throw new Error("resource assembly requires signed custom-account authorization");
+
+    const simulation = await this.#options.server.simulateTransaction(authorized);
+    if (rpc.Api.isSimulationError(simulation)) {
+      throw new Error("authorized gateway transaction failed resource simulation");
+    }
+    if (rpc.Api.isSimulationRestore(simulation)) {
+      throw new Error("authorized gateway transaction requires explicit footprint restoration");
+    }
+    const assembled = rpc.assembleTransaction(authorized, simulation).build();
+    const verified = parseControllerTransaction(
+      assembled.toXDR(),
+      this.#options.networkPassphrase,
+      this.#options.sourcePublicKey,
+      this.#options.treasuryControllerId,
+    );
+    if (verified.signatures.length !== 0) throw new Error("resource assembly unexpectedly added an envelope signature");
+    const afterOperation = invokeOperation(verified);
+    const afterAuth = afterOperation.auth ?? [];
+    if (afterOperation.func.toXDR("base64") !== beforeOperation.func.toXDR("base64")
+      || afterAuth.length !== beforeAuth.length
+      || afterAuth.some((entry, index) => entry.toXDR("base64") !== beforeAuth[index]!.toXDR("base64"))) {
+      throw new Error("resource assembly changed the authorized contract invocation");
+    }
+    return verified.toXDR();
+  }
 }
 
 export interface StellarCliSourceSignerOptions {
@@ -137,7 +205,10 @@ export class RpcStellarSubmitter implements StellarSubmitter {
       throw new Error("submitted transaction carries an invalid fee-payer signature");
     }
     const submitted = await this.#options.server.sendTransaction(transaction);
-    if (submitted.status === "ERROR") throw new Error("Stellar RPC rejected the gateway transaction");
+    if (submitted.status === "ERROR") {
+      const resultCode = submitted.errorResult?.result.type ?? "unknown";
+      throw new Error(`Stellar RPC rejected the gateway transaction (${resultCode})`);
+    }
     if (submitted.status === "TRY_AGAIN_LATER") throw new Error("Stellar RPC asked the gateway to retry later");
     const final = await this.#options.server.pollTransaction(submitted.hash, {
       attempts: this.#options.pollAttempts ?? 60,

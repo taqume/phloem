@@ -36,6 +36,7 @@ function ports(overrides: Partial<ExecutionGatewayPorts> = {}): ExecutionGateway
       abort: async () => undefined,
     },
     agentAuthorizer: { authorize: async () => "authorized-unsigned-xdr" },
+    transactionResourceAssembler: { assemble: async () => "resource-assembled-xdr" },
     transactionSourceSigner: { sign: async () => "signed-xdr" },
     submitter: { submit: async () => ({ transactionHash: "05".repeat(32), ledgerSequence: 11, status: "SUCCESS" }) },
     ...overrides,
@@ -105,12 +106,13 @@ test("accepted financial action preserves simulate-sign-submit ordering", async 
       abort: async (invocation) => base.treasuryController.abort(invocation),
     },
     agentAuthorizer: { authorize: async () => { calls.push("authorize"); return "authorized-unsigned-xdr"; } },
+    transactionResourceAssembler: { assemble: async () => { calls.push("resource-assemble"); return "resource-assembled-xdr"; } },
     transactionSourceSigner: { sign: async () => { calls.push("source-sign"); return "signed-xdr"; } },
     submitter: { submit: async () => { calls.push("submit"); return { transactionHash: "05".repeat(32), ledgerSequence: 11, status: "SUCCESS" }; } },
   }));
   const result = await gateway.execute({ requestId, actor, action: payment(), submit: true });
   assert.equal(result.kind, "SUBMITTED");
-  assert.deepEqual(calls, ["simulate", "authorize", "source-sign", "submit", "confirm"]);
+  assert.deepEqual(calls, ["simulate", "authorize", "resource-assemble", "source-sign", "submit", "confirm"]);
 });
 
 test("agent authorization is bound to the simulated Smart Account identity", async () => {

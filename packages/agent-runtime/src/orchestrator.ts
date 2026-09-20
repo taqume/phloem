@@ -23,19 +23,21 @@ export async function planChildDelegations(
   if (supervisorContext.agent !== "SUPERVISOR") throw new Error("supervisor context required");
   const tools = toolsForRole("SUPERVISOR");
 
-  const research = await provider.generateAction({
-    role: "SUPERVISOR",
-    context: withTask(supervisorContext, "Propose bounded authority for the Research child. remainingDelegationDepth must be 0."),
-    tools,
-  });
+  const [research, builder] = await Promise.all([
+    provider.generateAction({
+      role: "SUPERVISOR",
+      context: withTask(supervisorContext, "Propose bounded authority for the Research child. remainingDelegationDepth must be 0."),
+      tools,
+    }),
+    provider.generateAction({
+      role: "SUPERVISOR",
+      context: withTask(supervisorContext, "Propose narrower bounded authority for the Builder child. remainingDelegationDepth must be 0."),
+      tools,
+    }),
+  ]);
   const researchDelegation = delegateAuthorityActionSchema.parse(research.action);
   if (researchDelegation.childAgent !== "RESEARCH") throw new Error("expected Research delegation");
 
-  const builder = await provider.generateAction({
-    role: "SUPERVISOR",
-    context: withTask(supervisorContext, "Propose narrower bounded authority for the Builder child. remainingDelegationDepth must be 0."),
-    tools,
-  });
   const builderDelegation = delegateAuthorityActionSchema.parse(builder.action);
   if (builderDelegation.childAgent !== "BUILDER") throw new Error("expected Builder delegation");
 

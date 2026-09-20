@@ -14,6 +14,7 @@ import type {
   TreasuryController,
   ProtocolReader,
   TransactionSourceSigner,
+  TransactionResourceAssembler,
 } from "./ports.js";
 
 const gatewayRequestSchema = z.object({
@@ -40,6 +41,7 @@ export interface ExecutionGatewayPorts {
   readonly provider: ControlledProvider;
   readonly treasuryController: TreasuryController;
   readonly agentAuthorizer: AgentAuthorizer;
+  readonly transactionResourceAssembler: TransactionResourceAssembler;
   readonly transactionSourceSigner: TransactionSourceSigner;
   readonly submitter: StellarSubmitter;
 }
@@ -99,7 +101,10 @@ export class ExecutionGateway {
         simulation.assembledTransactionJson,
         simulation.requiredAuthorizer,
       );
-      const signed = await this.#ports.transactionSourceSigner.sign(authorizedTransactionXdr);
+      const resourceAssembledTransactionXdr = await this.#ports.transactionResourceAssembler.assemble(
+        authorizedTransactionXdr,
+      );
+      const signed = await this.#ports.transactionSourceSigner.sign(resourceAssembledTransactionXdr);
       const receipt = await this.#ports.submitter.submit(signed);
       submitted = true;
       await this.#ports.treasuryController.confirm(simulation, receipt);

@@ -7,6 +7,7 @@ import {
   Keypair,
   Networks,
   Operation,
+  SorobanDataBuilder,
   StrKey,
   Transaction,
   TransactionBuilder,
@@ -73,8 +74,14 @@ test("authorizer binds rule zero, exact AgentAccount, controller call, and sessi
       args: [],
       auth: [unsignedEntry],
     }))
+    .setSorobanData(new SorobanDataBuilder()
+      .setResources(12_345, 678, 90)
+      .setResourceFee("4321")
+      .build())
     .setTimeout(300)
     .build();
+  const originalExtension = transaction.toEnvelope().value.tx.ext;
+  assert.equal(originalExtension.type, "sorobanData");
   let capturedDigest: Buffer | undefined;
   const authorizer = new StellarAgentAccountAuthorizer({
     networkPassphrase: Networks.TESTNET,
@@ -105,6 +112,10 @@ test("authorizer binds rule zero, exact AgentAccount, controller call, and sessi
   });
   const signed = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
   assert.ok(signed instanceof Transaction);
+  const signedExtension = signed.toEnvelope().value.tx.ext;
+  assert.equal(signedExtension.type, "sorobanData");
+  assert.equal(signedExtension.value.toXdr("base64"), originalExtension.value.toXdr("base64"));
+  assert.equal(signed.fee, transaction.fee);
   const operation = signed.operations[0];
   assert.equal(operation?.type, "invokeHostFunction");
   if (!operation || operation.type !== "invokeHostFunction") throw new Error("missing invoke operation");

@@ -112,6 +112,18 @@ function assertCanonicalInvocation(
   return { operation, authIndexes };
 }
 
+function requireSorobanTransactionData(transaction: Transaction): xdr.SorobanTransactionData {
+  const envelope = transaction.toEnvelope();
+  if (envelope.type !== "envelopeTypeTx") {
+    throw new Error("agent authorization requires a classic transaction envelope");
+  }
+  const extension = envelope.value.tx.ext;
+  if (extension.type !== "sorobanData") {
+    throw new Error("agent transaction is missing its simulated Soroban resource data");
+  }
+  return extension.value;
+}
+
 export class StellarAgentAccountAuthorizer implements AgentAuthorizer {
   readonly #options: AgentAccountAuthorizerOptions;
 
@@ -170,9 +182,14 @@ export class StellarAgentAccountAuthorizer implements AgentAuthorizer {
       func: operation.func,
       auth,
     });
+    // TransactionBuilder.cloneFrom intentionally omits the Soroban extension.
+    // Preserve the RPC simulation's footprint, limits, and resource fee while
+    // replacing only the contract auth entry.
+    const sorobanData = requireSorobanTransactionData(parsed);
     const rebuilt = TransactionBuilder.cloneFrom(parsed)
       .clearOperations()
       .addOperation(replacement)
+      .setSorobanData(sorobanData)
       .build();
     return rebuilt.toEnvelope().toXDR("base64");
   }

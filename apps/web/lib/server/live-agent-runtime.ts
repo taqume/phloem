@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 
-import { NvidiaNimProvider, type AgentContext, type AgentRole } from "@phloem/agent-runtime";
+import {
+  GoogleGeminiProvider,
+  NvidiaNimProvider,
+  type AgentContext,
+  type AgentRole,
+} from "@phloem/agent-runtime";
 import {
   ExecutionGateway,
   GeneratedTreasuryControllerAdapter,
@@ -10,6 +15,7 @@ import {
   PrivateFinancialInvocationBuilder,
   PrivacyRuntimePrivateOperationPlanner,
   RpcStellarSubmitter,
+  RpcTransactionResourceAssembler,
   StellarAgentAccountAuthorizer,
   StellarCliSourceSigner,
   type AgentIdentityResolver,
@@ -245,6 +251,12 @@ export async function createP0LiveAgentRuntime(
         latestLedger,
         authority: vault,
       }),
+      transactionResourceAssembler: new RpcTransactionResourceAssembler({
+        server,
+        networkPassphrase: PHLOEM_NETWORK.networkPassphrase,
+        sourcePublicKey: PHLOEM_NETWORK.executionFeePayerPublicKey,
+        treasuryControllerId: PHLOEM_NETWORK.treasuryControllerId,
+      }),
       transactionSourceSigner: new StellarCliSourceSigner({
         identityAlias: FEE_PAYER_IDENTITY_ALIAS,
         networkName: "testnet",
@@ -259,8 +271,16 @@ export async function createP0LiveAgentRuntime(
         treasuryControllerId: PHLOEM_NETWORK.treasuryControllerId,
       }),
     });
+    const googleApiKey = process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
     const runner = new P0LiveAgentRunner({
-      model: new NvidiaNimProvider(process.env.NVIDIA_API_KEY ? { apiKey: process.env.NVIDIA_API_KEY } : {}),
+      model: googleApiKey
+        ? new GoogleGeminiProvider({
+          apiKey: googleApiKey,
+          requestTimeoutMs: 30_000,
+        })
+        : new NvidiaNimProvider(process.env.NVIDIA_API_KEY
+          ? { apiKey: process.env.NVIDIA_API_KEY, requestTimeoutMs: 120_000 }
+          : {}),
       gateway,
       identities: {
         SUPERVISOR: supervisorContractId,

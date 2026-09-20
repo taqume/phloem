@@ -67,6 +67,10 @@ export interface AgentAuthorizer {
   ): Promise<string>;
 }
 
+export interface TransactionResourceAssembler {
+  assemble(authorizedTransactionXdr: string): Promise<string>;
+}
+
 export interface TransactionSourceSigner {
   sign(unsignedTransactionXdr: string): Promise<string>;
 }
