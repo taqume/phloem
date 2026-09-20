@@ -1,10 +1,11 @@
 import { bytes32HexSchema, fieldDecimalSchema, u64DecimalSchema } from "@phloem/protocol-types";
 import { z } from "zod";
 
-export const PRIVACY_STATE_SCHEMA_VERSION = 3 as const;
+export const PRIVACY_STATE_SCHEMA_VERSION = 4 as const;
 
 const unixMillisecondsSchema = z.number().int().nonnegative();
 const contractAddressSchema = z.string().regex(/^C[A-Z2-7]{55}$/u);
+const stellarAddressSchema = z.string().regex(/^[CG][A-Z2-7]{55}$/u);
 const positiveFieldDecimalSchema = fieldDecimalSchema.refine((value) => value !== "0", "field must be non-zero");
 const positiveU64DecimalSchema = u64DecimalSchema.refine((value) => value !== "0", "value must be non-zero");
 
@@ -12,7 +13,7 @@ export const budgetNoteOpeningSchema = z.object({
   noteId: bytes32HexSchema,
   sessionId: bytes32HexSchema,
   nodeId: bytes32HexSchema,
-  owner: contractAddressSchema,
+  owner: stellarAddressSchema,
   asset: contractAddressSchema,
   policyHash: fieldDecimalSchema,
   contextHash: fieldDecimalSchema,
@@ -171,6 +172,24 @@ export const sppSpendOperationSchema = z.object({
   }
 });
 
+export const privateSessionActivationSchema = z.object({
+  operationId: bytes32HexSchema,
+  sessionId: bytes32HexSchema,
+  rootBudgetNote: budgetNoteOpeningSchema,
+  auditAccumulator: auditAccumulatorOpeningSchema,
+  sppTreasuryNote: sppTreasuryNoteOpeningSchema,
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict().superRefine((value, context) => {
+  if (value.rootBudgetNote.sessionId !== value.sessionId
+    || value.auditAccumulator.sessionId !== value.sessionId
+    || value.sppTreasuryNote.sessionId !== value.sessionId) {
+    context.addIssue({ code: "custom", message: "prepared activation openings must share one session" });
+  }
+  if (value.rootBudgetNote.status !== "ACTIVE" || value.sppTreasuryNote.status !== "PREPARED") {
+    context.addIssue({ code: "custom", message: "prepared activation contains an invalid opening status" });
+  }
+});
+
 export const privacyStateSchema = z.object({
   schemaVersion: z.literal(PRIVACY_STATE_SCHEMA_VERSION),
   revision: z.number().int().nonnegative(),
@@ -180,6 +199,7 @@ export const privacyStateSchema = z.object({
   treasuryPrivacyKeys: z.array(treasuryPrivacyKeySchema),
   sppTreasuryNotes: z.array(sppTreasuryNoteOpeningSchema),
   sppSpendOperations: z.array(sppSpendOperationSchema),
+  privateSessionActivations: z.array(privateSessionActivationSchema),
 }).strict().superRefine((value, context) => {
   for (const [label, values] of [
     ["budget note", value.budgetNotes.map((item) => item.noteId)],
@@ -190,6 +210,8 @@ export const privacyStateSchema = z.object({
     ["SPP treasury note", value.sppTreasuryNotes.map((item) => item.noteId)],
     ["SPP treasury commitment", value.sppTreasuryNotes.map((item) => item.commitment)],
     ["SPP spend operation", value.sppSpendOperations.map((item) => item.operationId)],
+    ["prepared private activation", value.privateSessionActivations.map((item) => item.sessionId)],
+    ["prepared private activation operation", value.privateSessionActivations.map((item) => item.operationId)],
   ] as const) {
     if (new Set(values).size !== values.length) {
       context.addIssue({ code: "custom", message: `duplicate ${label} in privacy state` });
@@ -207,6 +229,7 @@ export type AuditAccumulatorOpening = z.infer<typeof auditAccumulatorOpeningSche
 export type TreasuryPrivacyKeyState = z.infer<typeof treasuryPrivacyKeySchema>;
 export type SppTreasuryNoteOpening = z.infer<typeof sppTreasuryNoteOpeningSchema>;
 export type SppSpendOperation = z.infer<typeof sppSpendOperationSchema>;
+export type PrivateSessionActivation = z.infer<typeof privateSessionActivationSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 
 export function emptyPrivacyState(): PrivacyState {
@@ -219,5 +242,6 @@ export function emptyPrivacyState(): PrivacyState {
     treasuryPrivacyKeys: [],
     sppTreasuryNotes: [],
     sppSpendOperations: [],
+    privateSessionActivations: [],
   };
 }

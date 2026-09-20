@@ -181,6 +181,35 @@ export class TreasuryPrivacyKeyManager {
     }
   }
 
+  async ensureForSession(input: {
+    readonly sessionId: Uint8Array;
+    readonly auditContextHash: bigint;
+    readonly createdAtUnixMs: number;
+  }): Promise<TreasuryPrivacyPublicArtifacts> {
+    const sessionId = bytes32(input.sessionId, "session id");
+    const id = toHex(sessionId);
+    const existing = (await this.#store.readSnapshot()).treasuryPrivacyKeys.some((item) => item.sessionId === id);
+    if (!existing) {
+      try {
+        return await this.createForSession(input);
+      } catch (error: unknown) {
+        if (!(error instanceof TreasuryPrivacyKeyStateError)
+          || !error.message.includes("already exists")) throw error;
+      }
+    }
+    const opening = await this.getCommitmentOpening(sessionId, input.auditContextHash);
+    let encryptionPublicKey = Buffer.alloc(0);
+    await this.withSppNoteOwnership(sessionId, (ownership) => {
+      encryptionPublicKey = Buffer.from(ownership.encryptionPublicKey);
+    });
+    return {
+      sessionId,
+      notePublicKey: opening.publicKey,
+      encryptionPublicKey,
+      commitment: opening.commitment,
+    };
+  }
+
   async getCommitmentOpening(sessionIdInput: Uint8Array, auditContextHash: bigint): Promise<TreasurySppKeyCommitmentOpening> {
     const sessionId = toHex(bytes32(sessionIdInput, "session id"));
     const state = await this.#store.readSnapshot();
