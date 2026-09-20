@@ -18,7 +18,7 @@ use stellar_private_payments::{
     transact::TransactRequest,
     types::{
         CircuitStem, ContractConfig, ContractsEventData, EncryptionKeyPair, EncryptionPrivateKey,
-        EncryptionPublicKey, Field, GvkMode, NoteAmount, NoteKeyPair, NoteOwnerAddress,
+        EncryptionPublicKey, ExtAmount, Field, GvkMode, NoteAmount, NoteKeyPair, NoteOwnerAddress,
         NotePrivateKey, NotePublicKey, OperationalFeedItem, PolicyFlags, PortfolioBalance,
         PortfolioPoolEntry, RecipientLookup, SignedTransaction, SignerAddress, SyncMetadata,
         TransferRecipient, UserNoteSummary,
@@ -28,6 +28,7 @@ use stellar_private_payments::{
         encryption::generate_random_blinding,
         flows::{TransactInputNote, TransactOutput, TransactParams},
         merkle::MerklePrefixTree,
+        notes::try_decrypt_and_derive_user_note,
     },
 };
 use stellar_xdr::{Limits, ReadXdr, ScVal, TransactionEnvelope, TransactionExt};
@@ -63,17 +64,22 @@ struct TransferRequest {
     reservation_id_hex: String,
     session_id_hex: String,
     funding_source: String,
-    claim_amount_atomic: String,
-    refund_amount_atomic: String,
+    claim_amount_atomic: Option<String>,
+    refund_amount_atomic: Option<String>,
     pool_contract_id: String,
-    provider_note_public_key_le_hex: String,
-    provider_encryption_public_key_hex: String,
+    provider_note_public_key_le_hex: Option<String>,
+    provider_encryption_public_key_hex: Option<String>,
     note_private_key_le_hex: String,
     note_public_key_le_hex: String,
     encryption_private_key_hex: String,
     encryption_public_key_hex: String,
     membership_blinding_le_hex: String,
+    #[serde(default)]
     available_notes: Vec<SpendNoteRequest>,
+    settlement_transaction_hash_hex: Option<String>,
+    settlement_ledger: Option<u32>,
+    expected_provider_output_commitment: Option<String>,
+    withdrawal_recipient: Option<String>,
 }
 
 impl Drop for TransferRequest {
@@ -91,6 +97,21 @@ struct SpendNote {
     amount: NoteAmount,
     blinding: Field,
     leaf_index: u32,
+}
+
+#[derive(Clone)]
+enum MovementMode {
+    PrivateTransfer,
+    PublicWithdraw {
+        recipient: String,
+        amount: NoteAmount,
+    },
+}
+
+struct ParsedCommitmentEvent {
+    index: u32,
+    commitment: Field,
+    encrypted_output: Vec<u8>,
 }
 
 fn hex32(value: &str, label: &str) -> Result<[u8; 32]> {
@@ -119,7 +140,7 @@ fn u256_field(value: &ScVal) -> Result<Field> {
     Field::try_from_be_bytes(bytes)
 }
 
-fn parse_commitment_event(topics: &[String], value: &str) -> Result<Option<(u32, Field)>> {
+fn parse_commitment_event(topics: &[String], value: &str) -> Result<Option<ParsedCommitmentEvent>> {
     let Some(first) = topics.first() else {
         return Ok(None);
     };
@@ -139,6 +160,7 @@ fn parse_commitment_event(topics: &[String], value: &str) -> Result<Option<(u32,
         bail!("commitment event data is not a map");
     };
     let mut index = None;
+    let mut encrypted_output = None;
     for entry in entries.iter() {
         if let ScVal::Symbol(symbol) = &entry.key
             && symbol.to_utf8_string()? == "index"
@@ -147,12 +169,21 @@ fn parse_commitment_event(topics: &[String], value: &str) -> Result<Option<(u32,
                 bail!("commitment event index is not u32");
             };
             index = Some(value);
+        } else if let ScVal::Symbol(symbol) = &entry.key
+            && symbol.to_utf8_string()? == "encrypted_output"
+        {
+            let ScVal::Bytes(value) = &entry.val else {
+                bail!("commitment event encrypted output is not bytes");
+            };
+            encrypted_output = Some(value.0.to_vec());
         }
     }
-    Ok(Some((
-        index.ok_or_else(|| anyhow::anyhow!("commitment event is missing its index"))?,
+    Ok(Some(ParsedCommitmentEvent {
+        index: index.ok_or_else(|| anyhow::anyhow!("commitment event is missing its index"))?,
         commitment,
-    )))
+        encrypted_output: encrypted_output
+            .ok_or_else(|| anyhow::anyhow!("commitment event is missing its encrypted output"))?,
+    }))
 }
 
 async fn fetch_pool_leaves(rpc: &RpcClient, expected_next_index: u32) -> Result<Vec<Field>> {
@@ -165,8 +196,8 @@ async fn fetch_pool_leaves(rpc: &RpcClient, expected_next_index: u32) -> Result<
             .get_contract_events(&contracts, POOL_DEPLOYMENT_LEDGER, 1_000, cursor)
             .await?;
         for event in events {
-            if let Some((index, commitment)) = parse_commitment_event(&event.topic, &event.value)?
-                && leaves.insert(index, commitment).is_some()
+            if let Some(parsed) = parse_commitment_event(&event.topic, &event.value)?
+                && leaves.insert(parsed.index, parsed.commitment).is_some()
             {
                 bail!("pool event stream contains a duplicate commitment index");
             }
@@ -188,6 +219,63 @@ async fn fetch_pool_leaves(rpc: &RpcClient, expected_next_index: u32) -> Result<
         .collect()
 }
 
+async fn recover_provider_note(
+    rpc: &RpcClient,
+    settlement_ledger: u32,
+    settlement_transaction_hash: &str,
+    expected_commitment: Field,
+    note_keypair: &NoteKeyPair,
+    encryption_private_key: &EncryptionPrivateKey,
+) -> Result<SpendNote> {
+    let contracts = vec![PINNED_POOL.to_string()];
+    let (_, events, _) = rpc
+        .get_contract_events(&contracts, settlement_ledger, 1_000, None)
+        .await?;
+    let mut recovered = None;
+    for event in events {
+        if event.ledger != settlement_ledger
+            || event.tx_hash.as_deref() != Some(settlement_transaction_hash)
+        {
+            continue;
+        }
+        let Some(parsed) = parse_commitment_event(&event.topic, &event.value)? else {
+            continue;
+        };
+        if parsed.commitment != expected_commitment {
+            continue;
+        }
+        if recovered.is_some() {
+            bail!("settlement contains duplicate provider output commitments");
+        }
+        let derived = try_decrypt_and_derive_user_note(
+            note_keypair,
+            encryption_private_key,
+            &parsed.commitment,
+            parsed.index,
+            &parsed.encrypted_output,
+        )?
+        .ok_or_else(|| {
+            anyhow::anyhow!("provider output cannot be decrypted by the configured key")
+        })?;
+        let note_id = Sha256::digest(
+            [
+                settlement_transaction_hash.as_bytes(),
+                parsed.commitment.to_le_bytes().as_slice(),
+            ]
+            .concat(),
+        )
+        .into();
+        recovered = Some(SpendNote {
+            note_id,
+            commitment: parsed.commitment,
+            amount: derived.amount,
+            blinding: derived.blinding,
+            leaf_index: parsed.index,
+        });
+    }
+    recovered.ok_or_else(|| anyhow::anyhow!("settlement provider output event was not found"))
+}
+
 #[derive(Clone)]
 struct EphemeralTransferStorage {
     owner: String,
@@ -196,6 +284,7 @@ struct EphemeralTransferStorage {
     rpc: RpcClient,
     output_blindings: Arc<Mutex<Vec<Field>>>,
     selected_note_ids: Arc<Mutex<Vec<[u8; 32]>>>,
+    movement_mode: MovementMode,
 }
 
 impl EphemeralTransferStorage {
@@ -303,15 +392,43 @@ impl Storage for EphemeralTransferStorage {
                 "transfer bridge requires the pinned blocklist policy",
             ));
         }
-        if request.pool_address != PINNED_POOL || request.ext_recipient != PINNED_POOL {
+        if request.pool_address != PINNED_POOL {
             return Err(Error::other(
                 "transfer bridge pool differs from the pinned deployment",
             ));
         }
-        if !request.ext_amount.is_zero() {
-            return Err(Error::other(
-                "transfer bridge refuses public asset movement",
-            ));
+        match &self.movement_mode {
+            MovementMode::PrivateTransfer => {
+                if request.ext_recipient != PINNED_POOL || !request.ext_amount.is_zero() {
+                    return Err(Error::other(
+                        "private transfer bridge refuses public asset movement",
+                    ));
+                }
+            }
+            MovementMode::PublicWithdraw { recipient, amount } => {
+                let expected = ExtAmount::try_from(*amount)
+                    .map_err(|_| Error::other("provider withdrawal amount exceeds ext_amount"))?
+                    .checked_neg()
+                    .ok_or_else(|| Error::other("provider withdrawal amount cannot be negated"))?;
+                if request.ext_recipient != *recipient || request.ext_amount != expected {
+                    return Err(Error::other(
+                        "provider withdrawal differs from its exact public recipient or amount",
+                    ));
+                }
+                if request
+                    .out_recipient_note_pubkeys
+                    .iter()
+                    .any(Option::is_some)
+                    || request
+                        .out_recipient_encryption_pubkeys
+                        .iter()
+                        .any(Option::is_some)
+                {
+                    return Err(Error::other(
+                        "full provider withdrawal must not create a private change output",
+                    ));
+                }
+            }
         }
         let pool_root = request
             .pool_root
@@ -515,7 +632,9 @@ async fn main() -> Result<()> {
     let request: TransferRequest =
         serde_json::from_str(&serialized).context("decode transfer bridge request")?;
     serialized.zeroize();
-    if request.schema_version != 1 || request.command != "prepare_transfer" {
+    if request.schema_version != 1
+        || (request.command != "prepare_transfer" && request.command != "prepare_provider_withdraw")
+    {
         bail!("unsupported transfer bridge request");
     }
     if request.pool_contract_id != PINNED_POOL {
@@ -530,14 +649,6 @@ async fn main() -> Result<()> {
         "encryption private key",
     )?;
     let encryption_public = hex32(&request.encryption_public_key_hex, "encryption public key")?;
-    let provider_note_public = hex32(
-        &request.provider_note_public_key_le_hex,
-        "provider note public key",
-    )?;
-    let provider_encryption_public = hex32(
-        &request.provider_encryption_public_key_hex,
-        "provider encryption public key",
-    )?;
     let membership_blinding = Field::try_from_le_bytes(hex32(
         &request.membership_blinding_le_hex,
         "membership blinding",
@@ -548,31 +659,138 @@ async fn main() -> Result<()> {
     if derived_note_public != note_public {
         bail!("note private/public key mismatch");
     }
-    let claim_amount = parse_amount(&request.claim_amount_atomic, "claim amount")?;
-    let refund_amount = parse_amount(&request.refund_amount_atomic, "refund amount")?;
-    if claim_amount.is_zero() {
-        bail!("claim amount must be positive");
-    }
-    let expected_input = claim_amount
-        .checked_add(refund_amount)
-        .ok_or_else(|| anyhow::anyhow!("reservation amount overflow"))?;
-    let notes = request
-        .available_notes
-        .iter()
-        .map(|note| {
-            Ok(SpendNote {
-                note_id: hex32(&note.note_id_hex, "note id")?,
-                commitment: Field::try_from_le_bytes(hex32(
-                    &note.commitment_le_hex,
-                    "note commitment",
-                )?)?,
-                amount: parse_amount(&note.amount_atomic, "note amount")?,
-                blinding: Field::try_from_le_bytes(hex32(&note.blinding_le_hex, "note blinding")?)?,
-                leaf_index: note.leaf_index,
+    let note_keypair = NoteKeyPair {
+        private: NotePrivateKey(note_private),
+        public: NotePublicKey(note_public),
+    };
+    let encryption_keypair = EncryptionKeyPair {
+        private: EncryptionPrivateKey(encryption_private),
+        public: EncryptionPublicKey(encryption_public),
+    };
+    let mut private_transfer_recipient = None;
+    let (notes, movement_mode) = if request.command == "prepare_transfer" {
+        if request.settlement_transaction_hash_hex.is_some()
+            || request.settlement_ledger.is_some()
+            || request.expected_provider_output_commitment.is_some()
+            || request.withdrawal_recipient.is_some()
+        {
+            bail!("private transfer request contains provider withdrawal fields");
+        }
+        let claim_amount = parse_amount(
+            request
+                .claim_amount_atomic
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("private transfer is missing claim amount"))?,
+            "claim amount",
+        )?;
+        let refund_amount = parse_amount(
+            request
+                .refund_amount_atomic
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("private transfer is missing refund amount"))?,
+            "refund amount",
+        )?;
+        if claim_amount.is_zero() {
+            bail!("claim amount must be positive");
+        }
+        let expected_input = claim_amount
+            .checked_add(refund_amount)
+            .ok_or_else(|| anyhow::anyhow!("reservation amount overflow"))?;
+        let provider_note_public = hex32(
+            request
+                .provider_note_public_key_le_hex
+                .as_deref()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("private transfer is missing provider note public key")
+                })?,
+            "provider note public key",
+        )?;
+        let provider_encryption_public = hex32(
+            request
+                .provider_encryption_public_key_hex
+                .as_deref()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("private transfer is missing provider encryption public key")
+                })?,
+            "provider encryption public key",
+        )?;
+        private_transfer_recipient = Some((
+            TransferRecipient::keys(
+                NotePublicKey(provider_note_public),
+                EncryptionPublicKey(provider_encryption_public),
+            ),
+            claim_amount,
+        ));
+        let notes = request
+            .available_notes
+            .iter()
+            .map(|note| {
+                Ok(SpendNote {
+                    note_id: hex32(&note.note_id_hex, "note id")?,
+                    commitment: Field::try_from_le_bytes(hex32(
+                        &note.commitment_le_hex,
+                        "note commitment",
+                    )?)?,
+                    amount: parse_amount(&note.amount_atomic, "note amount")?,
+                    blinding: Field::try_from_le_bytes(hex32(
+                        &note.blinding_le_hex,
+                        "note blinding",
+                    )?)?,
+                    leaf_index: note.leaf_index,
+                })
             })
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let notes = exact_notes(notes, expected_input)?;
+            .collect::<Result<Vec<_>>>()?;
+        (
+            exact_notes(notes, expected_input)?,
+            MovementMode::PrivateTransfer,
+        )
+    } else {
+        if request.claim_amount_atomic.is_some()
+            || request.refund_amount_atomic.is_some()
+            || request.provider_note_public_key_le_hex.is_some()
+            || request.provider_encryption_public_key_hex.is_some()
+            || !request.available_notes.is_empty()
+        {
+            bail!("provider withdrawal request contains caller-supplied note opening data");
+        }
+        let settlement_transaction_hash = request
+            .settlement_transaction_hash_hex
+            .as_deref()
+            .ok_or_else(|| {
+                anyhow::anyhow!("provider withdrawal is missing settlement transaction hash")
+            })?;
+        hex32(settlement_transaction_hash, "settlement transaction hash")?;
+        let settlement_ledger = request
+            .settlement_ledger
+            .filter(|value| *value > 0)
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing settlement ledger"))?;
+        let expected_commitment = request
+            .expected_provider_output_commitment
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing output commitment"))?
+            .parse::<Field>()
+            .context("parse expected provider output commitment")?;
+        let recipient = request
+            .withdrawal_recipient
+            .clone()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing public recipient"))?;
+        let rpc = RpcClient::new(RPC_URL)?;
+        let note = recover_provider_note(
+            &rpc,
+            settlement_ledger,
+            settlement_transaction_hash,
+            expected_commitment,
+            &note_keypair,
+            &encryption_keypair.private,
+        )
+        .await?;
+        let amount = note.amount;
+        (
+            vec![note],
+            MovementMode::PublicWithdraw { recipient, amount },
+        )
+    };
 
     let deployment: ContractConfig = serde_json::from_str(include_str!(
         "../../../../deployments/spp-usdc-testnet.sdk.json"
@@ -598,20 +816,15 @@ async fn main() -> Result<()> {
     let storage = EphemeralTransferStorage {
         owner: request.funding_source.clone(),
         keys: StoredUserKeys {
-            note_keypair: NoteKeyPair {
-                private: NotePrivateKey(note_private),
-                public: NotePublicKey(note_public),
-            },
-            encryption_keypair: EncryptionKeyPair {
-                private: EncryptionPrivateKey(encryption_private),
-                public: EncryptionPublicKey(encryption_public),
-            },
+            note_keypair,
+            encryption_keypair,
             membership_blinding,
         },
         notes: notes.clone(),
         rpc,
         output_blindings: output_blindings.clone(),
         selected_note_ids: selected_note_ids.clone(),
+        movement_mode: movement_mode.clone(),
     };
     let mut client = Client::init(RPC_URL, storage, prover, deployment, None)?;
     let _background_mode = client.background_sync()?;
@@ -628,13 +841,19 @@ async fn main() -> Result<()> {
             amount: note.amount,
         })
         .collect::<Vec<_>>();
-    let recipient = TransferRecipient::keys(
-        NotePublicKey(provider_note_public),
-        EncryptionPublicKey(provider_encryption_public),
-    );
-    let mut plan = pool
-        .prepare_transfer(&wallet, recipient, claim_amount)
-        .await?;
+    let (mut plan, asset_movement) = match &movement_mode {
+        MovementMode::PrivateTransfer => {
+            let (recipient, amount) = private_transfer_recipient
+                .ok_or_else(|| anyhow::anyhow!("private transfer recipient was not prepared"))?;
+            (
+                pool.prepare_transfer(&wallet, recipient, amount).await?,
+                false,
+            )
+        }
+        MovementMode::PublicWithdraw { recipient, amount } => {
+            (pool.prepare_withdraw(&wallet, *amount, recipient)?, true)
+        }
+    };
     if plan.tx_count() != 1 {
         bail!("transfer bridge refuses a multi-transaction SPP plan");
     }
@@ -683,7 +902,7 @@ async fn main() -> Result<()> {
             "network": "testnet",
             "operationIdHex": operation_id,
             "inputNoteIdsHex": selected.iter().map(hex::encode).collect::<Vec<_>>(),
-            "assetMovement": false,
+            "assetMovement": asset_movement,
             "signed": false,
             "submitted": false,
             "unsignedTransactionXdr": prepared.soroban_tx.tx_xdr,
