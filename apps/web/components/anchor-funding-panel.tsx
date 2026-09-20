@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import type { AnchorDeposit, AnchorQuote, AnchorTransaction } from "../lib/anchor-types";
+import type { AnchorDeposit, AnchorQuote, AnchorTransaction, DegradedRailReceipt } from "../lib/anchor-types";
 import { normalizeTryAmount } from "../lib/anchor-types";
 import { PHLOEM_NETWORK } from "../lib/network";
 import type { WalletConnection } from "./wallet-panel";
@@ -12,7 +12,8 @@ interface AnchorFundingPanelProps {
   wallet: WalletConnection | null;
 }
 
-type BusyAction = "auth" | "deposit" | "quote" | "simulate" | "status" | null;
+type BusyAction = "auth" | "degraded" | "deposit" | "quote" | "simulate" | "status" | null;
+type ContinuityState = "live" | "stalled" | "degraded";
 
 async function responseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -33,20 +34,24 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
   const [authenticated, setAuthenticated] = useState(false);
   const [busy, setBusy] = useState<BusyAction>(null);
   const [deposit, setDeposit] = useState<AnchorDeposit | null>(null);
+  const [degradedReceipt, setDegradedReceipt] = useState<DegradedRailReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<string | null>(null);
   const [quote, setQuote] = useState<AnchorQuote | null>(null);
   const [settlementAuthorized, setSettlementAuthorized] = useState(false);
   const [transaction, setTransaction] = useState<AnchorTransaction | null>(null);
+  const [continuity, setContinuity] = useState<ContinuityState>("live");
 
   useEffect(() => {
     setAuthenticated(false);
     setDeposit(null);
+    setDegradedReceipt(null);
     setError(null);
     setKycStatus(null);
     setQuote(null);
     setSettlementAuthorized(false);
     setTransaction(null);
+    setContinuity("live");
   }, [wallet?.address]);
 
   async function authenticate() {
@@ -83,7 +88,9 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
     setBusy("quote");
     setError(null);
     setDeposit(null);
+    setDegradedReceipt(null);
     setTransaction(null);
+    setContinuity("live");
     try {
       const normalized = normalizeTryAmount(amount);
       const response = await fetch("/api/anchor/quote", {
@@ -113,7 +120,9 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
       });
       const payload = await responseJson<{ deposit: AnchorDeposit }>(response);
       setDeposit(payload.deposit);
+      setDegradedReceipt(null);
       setSettlementAuthorized(false);
+      setContinuity("live");
       await refreshStatus(payload.deposit.id);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "SEP-6 deposit creation failed.");
@@ -130,7 +139,11 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
       const response = await fetch(`/api/anchor/status?id=${encodeURIComponent(id)}`, { cache: "no-store" });
       const payload = await responseJson<{ transaction: AnchorTransaction }>(response);
       setTransaction(payload.transaction);
-      if (payload.transaction.status === "completed") onSettlementCompleted();
+      if (payload.transaction.status === "completed") {
+        setContinuity("live");
+        setDegradedReceipt(null);
+        onSettlementCompleted();
+      }
       return payload.transaction;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Anchor status check failed.");
@@ -152,10 +165,17 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
       });
       await responseJson<{ accepted: true }>(response);
       setSettlementAuthorized(false);
+      let latest: AnchorTransaction | null = null;
       for (let attempt = 0; attempt < 10; attempt += 1) {
-        const current = await refreshStatus(deposit.id);
-        if (!current || current.status === "completed" || current.status === "error") break;
+        latest = await refreshStatus(deposit.id);
+        if (!latest || latest.status === "completed" || latest.status === "error") break;
         await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+      if (!latest || latest.status !== "completed") {
+        setContinuity("stalled");
+        setError(latest
+          ? "The official Anchor accepted the sandbox request but did not reach completed status. You may keep retrying the official status or record an explicitly degraded fiat-rail fallback."
+          : "The official Anchor accepted the sandbox request but its status endpoint could not be read. You may retry the official status or record an explicitly degraded fiat-rail fallback.");
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Sandbox transfer simulation failed.");
@@ -164,8 +184,37 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
     }
   }
 
+  async function recordDegradedFallback() {
+    if (!wallet || !deposit) return;
+    setBusy("degraded");
+    setError(null);
+    try {
+      const response = await fetch("/api/anchor/degraded", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ account: wallet.address, id: deposit.id }),
+      });
+      const payload = await responseJson<{ receipt: DegradedRailReceipt }>(response);
+      setDegradedReceipt(payload.receipt);
+      setContinuity("degraded");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Degraded rail evidence could not be recorded.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const ready = walletIsReady(wallet);
   const complete = transaction?.status === "completed";
+  const statusLabel = complete
+    ? "USDC received"
+    : continuity === "degraded"
+      ? "Degraded demo"
+      : continuity === "stalled"
+        ? "Anchor stalled"
+        : authenticated
+          ? "Anchor authenticated"
+          : "Signature pending";
 
   return (
     <section className="panel anchor-panel" aria-labelledby="anchor-funding-title">
@@ -174,9 +223,9 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
           <p className="eyebrow">Real local-payment ingress</p>
           <h2 id="anchor-funding-title">TRY → Anchor → Stellar USDC</h2>
         </div>
-        <span className={`status-chip ${complete ? "is-ready" : "is-pending"}`}>
+        <span className={`status-chip ${complete ? "is-ready" : continuity === "live" ? "is-pending" : "is-degraded"}`}>
           <span aria-hidden="true" className="status-dot" />
-          {complete ? "USDC received" : authenticated ? "Anchor authenticated" : "Signature pending"}
+          {statusLabel}
         </span>
       </div>
 
@@ -204,7 +253,9 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
               setAmount(event.target.value);
               setQuote(null);
               setDeposit(null);
+              setDegradedReceipt(null);
               setTransaction(null);
+              setContinuity("live");
             }} value={amount} /><b>TRY</b></span>
           </label>
           <button className="secondary-button" disabled={!authenticated || busy !== null} onClick={() => void requestQuote()} type="button">
@@ -254,6 +305,33 @@ export function AnchorFundingPanel({ onSettlementCompleted, wallet }: AnchorFund
             <button className="text-button" disabled={busy !== null} onClick={() => void refreshStatus()} type="button">Refresh status</button>
             {deposit.more_info_url ? <a className="text-button" href={deposit.more_info_url} rel="noreferrer" target="_blank">Anchor details ↗</a> : null}
           </div>
+          {continuity === "stalled" && !degradedReceipt ? (
+            <div className="degraded-rail-callout">
+              <div>
+                <p className="eyebrow">External rail unavailable</p>
+                <h3>Continue without claiming Anchor success</h3>
+                <p>
+                  This records the official transaction as stalled and isolates the demo fallback to the fiat boundary. It does not create USDC, mutate protocol state, or mark the Anchor transaction completed.
+                </p>
+              </div>
+              <button className="secondary-button" disabled={busy !== null} onClick={() => void recordDegradedFallback()} type="button">
+                {busy === "degraded" ? "Recording evidence…" : "Use degraded fiat-rail demo"}
+              </button>
+            </div>
+          ) : null}
+          {degradedReceipt ? (
+            <div className="degraded-rail-evidence" role="status">
+              <strong>DEGRADED DEMO — not Anchor-attested</strong>
+              <p>
+                Only the local-fiat leg is simulated. No Stellar asset movement or Phloem state mutation was produced by this fallback; continue only with independently funded Testnet USDC.
+              </p>
+              <dl>
+                <div><dt>Official status</dt><dd>{degradedReceipt.anchorObservation.status ?? "unreachable"}</dd></div>
+                <div><dt>Receipt</dt><dd>{degradedReceipt.receiptId}</dd></div>
+                <div><dt>Evidence digest</dt><dd>{degradedReceipt.evidenceDigest}</dd></div>
+              </dl>
+            </div>
+          ) : null}
           {transaction?.pending_reason ? <p className="helper-text">Pending: {transaction.pending_reason}</p> : null}
           {transaction?.stellar_transaction_id ? <p className="transaction-proof"><span>Testnet transaction</span><strong>{transaction.stellar_transaction_id}</strong></p> : null}
         </div>

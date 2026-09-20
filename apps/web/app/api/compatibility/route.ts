@@ -32,7 +32,12 @@ async function checkAnchor(): Promise<CheckResult> {
 async function checkSep6(): Promise<CheckResult> {
   const body = await readText(`${PHLOEM_NETWORK.anchorBaseUrl}/sep6/info`);
   const ok = body.includes(PHLOEM_NETWORK.assetCode) && body.includes("bank_account");
-  return { id: "sep6", label: "Funding rail", ok, detail: ok ? "USDC via bank_account" : "SEP-6 capability unavailable" };
+  return {
+    id: "sep6",
+    label: "SEP-6 advertised",
+    ok,
+    detail: ok ? "Capability only; settlement is verified per transaction" : "SEP-6 capability unavailable",
+  };
 }
 
 async function checkSep38(): Promise<CheckResult> {
@@ -69,7 +74,7 @@ export async function GET() {
   const fallbacks: Array<Pick<CheckResult, "id" | "label">> = [
     { id: "rpc", label: "Soroban RPC" },
     { id: "anchor", label: "Anchor discovery" },
-    { id: "sep6", label: "Funding rail" },
+    { id: "sep6", label: "SEP-6 advertised" },
     { id: "sep38", label: "Quote assets" },
   ];
   const results = checks.map((check, index) =>

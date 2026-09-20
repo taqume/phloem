@@ -45,6 +45,29 @@ export interface AnchorTransaction {
   status: string;
 }
 
+export interface DegradedRailReceipt {
+  anchorObservation: {
+    domain: string;
+    error?: string;
+    observedAt: string;
+    reachable: boolean;
+    status: string | null;
+    transactionId: string;
+  };
+  evidenceDigest: string;
+  mode: "DEGRADED_DEMO";
+  reason: "OFFICIAL_ANCHOR_SETTLEMENT_STALLED";
+  receiptId: string;
+  schema: "phloem.degraded-fiat-rail/v1";
+  scope: {
+    anchorAttested: false;
+    fiatLeg: "SIMULATED_ONLY";
+    protocolStateMutation: "NONE";
+    stellarAssetMovement: "NONE";
+  };
+  walletAccount: string;
+}
+
 export function normalizeTryAmount(value: string): string {
   const trimmed = value.trim();
   if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmed)) {
