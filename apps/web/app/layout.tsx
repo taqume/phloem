@@ -11,8 +11,13 @@ const ibmPlexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Phloem | Bounded economic authority",
-  description: "Verifiable, policy-bounded spending authority for autonomous agents on Stellar.",
+  title: "Phloem | Private financial authority for autonomous agents",
+  description: "Delegate policy-bounded spending authority to autonomous agents without handing over treasury custody.",
+  openGraph: {
+    title: "Phloem | Capital flows. Authority stays bounded.",
+    description: "Private, policy-bounded agent payments on Stellar.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
