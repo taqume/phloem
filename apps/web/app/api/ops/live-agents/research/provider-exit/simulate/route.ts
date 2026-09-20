@@ -4,7 +4,7 @@ import { assertSameOrigin } from "../../../../../../../lib/server/api-response";
 import { simulateLiveProviderSppExit } from "../../../../../../../lib/server/live-provider-exit";
 
 export const runtime = "nodejs";
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {

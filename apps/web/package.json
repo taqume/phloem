@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build --webpack",
+    "build": "next build --webpack && node scripts/check-vercel-function-config.mjs",
     "dev": "next dev --webpack",
     "start": "next start",
     "test": "tsx --test \"lib/**/*.test.ts\"",
