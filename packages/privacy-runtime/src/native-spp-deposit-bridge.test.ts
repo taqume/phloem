@@ -117,7 +117,7 @@ test("native deposit confirmation binds the expected commitment to the exact tra
       topics: ["new_commitment_event", COMMITMENT + 1n],
       data: { index: 17 },
     }], PINNED_SPP_POOL, COMMITMENT),
-    /expected funding commitment event/u,
+    /expected commitment event/u,
   );
 });
 

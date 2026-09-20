@@ -111,16 +111,18 @@ test("adapter borrows encrypted ownership, stages exact inputs/refund, and confi
     bridge,
     now: () => 1_700_000_000_002,
   });
-  await adapter.prepare({
+  const prepared = await adapter.prepare({
     reservationId: Buffer.alloc(32, 0x25),
     sessionId: f.sessionId,
     claimAmountAtomic: 100_000n,
     refundAmountAtomic: 400_000n,
     providerSppPublicKey: providerKey,
+    providerSppEncryptionPublicKey: Buffer.alloc(32, 0x27),
     treasurySppPublicKey: f.artifacts.notePublicKey,
     sppPool: POOL,
   });
   assert.ok(borrowed);
+  assert.ok(borrowed.providerSppEncryptionPublicKey.equals(Buffer.alloc(32, 0x27)));
   for (const secret of [
     borrowed.notePrivateKeyLe,
     borrowed.encryptionPrivateKey,
@@ -132,7 +134,14 @@ test("adapter borrows encrypted ownership, stages exact inputs/refund, and confi
   assert.equal(pending.sppTreasuryNotes.find((note) => note.noteId === f.inputNoteId.toString("hex"))?.status, "SPEND_PENDING");
   assert.equal(pending.sppTreasuryNotes.find((note) => note.status === "PREPARED")?.amountAtomic, "400000");
 
-  await adapter.confirm(operationId, Buffer.alloc(32, 0x26), 101);
+  await adapter.confirm(
+    operationId,
+    Buffer.alloc(32, 0x26),
+    101,
+    prepared.proof.output_commitment0,
+    prepared.proof.output_commitment1,
+    true,
+  );
   const completed = await f.store.readSnapshot();
   assert.equal(confirmed, true);
   assert.equal(completed.sppSpendOperations[0]?.status, "CONFIRMED");
@@ -177,6 +186,7 @@ test("adapter abort restores inputs and removes an unconfirmed refund note", asy
     claimAmountAtomic: 100_000n,
     refundAmountAtomic: 400_000n,
     providerSppPublicKey: 607n,
+    providerSppEncryptionPublicKey: Buffer.alloc(32, 0x33),
     treasurySppPublicKey: f.artifacts.notePublicKey,
     sppPool: POOL,
   });

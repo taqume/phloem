@@ -199,6 +199,7 @@ test("settlement planner binds voucher, SPP outputs, refund, and hidden audit up
     provider: {
       providerIdentity: PROVIDER,
       providerSppPublicKey: f.providerSppPublicKey,
+      providerSppEncryptionPublicKey: Buffer.alloc(32, 0x31),
       serviceIdHash: f.serviceIdHash,
       categoryId: 7,
       allowedSettlementModes: 2,
@@ -230,6 +231,7 @@ test("SPP output substitution aborts the private SPP operation and leaves reserv
     provider: {
       providerIdentity: PROVIDER,
       providerSppPublicKey: f.providerSppPublicKey,
+      providerSppEncryptionPublicKey: Buffer.alloc(32, 0x32),
       serviceIdHash: f.serviceIdHash,
       categoryId: 7,
       allowedSettlementModes: 2,
@@ -247,6 +249,7 @@ test("explicit abort returns a staged settlement to OPEN without advancing audit
     provider: {
       providerIdentity: PROVIDER,
       providerSppPublicKey: f.providerSppPublicKey,
+      providerSppEncryptionPublicKey: Buffer.alloc(32, 0x33),
       serviceIdHash: f.serviceIdHash,
       categoryId: 7,
       allowedSettlementModes: 2,

@@ -27,6 +27,8 @@ import { PrivateReservationStateError, type PrivateRandomSource } from "./vouche
 export interface ControlledProviderPrivatePolicy {
   readonly providerIdentity: string;
   readonly providerSppPublicKey: bigint;
+  /** Trusted P0 delivery key; the note commitment remains bound to providerSppPublicKey. */
+  readonly providerSppEncryptionPublicKey: Uint8Array;
   readonly serviceIdHash: Uint8Array;
   readonly categoryId: number;
   readonly allowedSettlementModes: 2;
@@ -49,11 +51,19 @@ export interface SppPrivateTransferPlanner {
     readonly claimAmountAtomic: bigint;
     readonly refundAmountAtomic: bigint;
     readonly providerSppPublicKey: bigint;
+    readonly providerSppEncryptionPublicKey: Buffer;
     readonly treasurySppPublicKey: bigint;
     readonly sppPool: string;
   }): Promise<PreparedSppPrivateTransfer>;
   abort(operationId: Buffer): Promise<void>;
-  confirm(operationId: Buffer, transactionHash: Buffer, ledgerSequence: number): Promise<void>;
+  confirm(
+    operationId: Buffer,
+    transactionHash: Buffer,
+    ledgerSequence: number,
+    expectedProviderOutputCommitment: bigint,
+    expectedSecondOutputCommitment: bigint,
+    hasTreasuryRefund: boolean,
+  ): Promise<void>;
 }
 
 export interface PreparePrivateSettlementRequest {
@@ -154,6 +164,10 @@ export class PrivateSettlementPlanner {
       || request.provider.providerSppPublicKey.toString() !== reservation.providerSppPublicKey) {
       throw new PrivateReservationStateError("controlled provider does not match the reservation opening");
     }
+    const providerSppEncryptionPublicKey = bytes32(
+      request.provider.providerSppEncryptionPublicKey,
+      "provider SPP encryption public key",
+    );
     const providerFields = [
       1n,
       ...addressFields(addressFromStrKey(request.provider.providerIdentity)),
@@ -185,6 +199,7 @@ export class PrivateSettlementPlanner {
       claimAmountAtomic: claimAmount,
       refundAmountAtomic: refundAmount,
       providerSppPublicKey: request.provider.providerSppPublicKey,
+      providerSppEncryptionPublicKey,
       treasurySppPublicKey: treasurySppKey.publicKey,
       sppPool: this.#sppDeployment.poolContractId,
     });
@@ -364,9 +379,23 @@ export class PrivateSettlementPlanner {
     if (!Number.isSafeInteger(input.ledgerSequence) || input.ledgerSequence <= 0) {
       throw new RangeError("confirmation ledger must be a positive integer");
     }
+    const snapshot = await this.#store.readSnapshot();
+    const pending = snapshot.reservations.find(
+      (item) => item.status === "SETTLEMENT_PENDING" && item.preparedSettlement?.operationId === toHex(operationId),
+    );
+    if (!pending?.preparedSettlement) {
+      throw new PrivateReservationStateError("pending settlement operation was not found");
+    }
     // The SPP adapter must make confirmation idempotent: a process crash after
     // this call is reconciled by calling confirm again from the chain receipt.
-    await this.#spp.confirm(operationId, transactionHash, input.ledgerSequence);
+    await this.#spp.confirm(
+      operationId,
+      transactionHash,
+      input.ledgerSequence,
+      BigInt(pending.preparedSettlement.providerSppOutputCommitment),
+      BigInt(pending.preparedSettlement.sppRefundOutputCommitment),
+      pending.preparedSettlement.refundBudgetNote !== undefined,
+    );
     await this.#store.transaction((state) => {
       const reservation = state.reservations.find(
         (item) => item.status === "SETTLEMENT_PENDING" && item.preparedSettlement?.operationId === toHex(operationId),

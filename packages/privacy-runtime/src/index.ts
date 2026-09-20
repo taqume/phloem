@@ -1,5 +1,6 @@
 export * from "./local-proof-worker.js";
 export * from "./native-spp-deposit-bridge.js";
+export * from "./native-spp-transfer-bridge.js";
 export * from "./private-settlement-planner.js";
 export * from "./private-session-activation.js";
 export * from "./privacy-state-store.js";

@@ -220,7 +220,7 @@ function parseBridgeResponse(output: Buffer): PreparedSppPrivateDeposit {
   };
 }
 
-export function findSppFundingLeafIndex(
+export function findSppCommitmentLeafIndex(
   events: readonly ConfirmedSppContractEvent[],
   poolContractId: string,
   expectedCommitment: bigint,
@@ -233,7 +233,7 @@ export function findSppFundingLeafIndex(
       && commitment === expectedCommitment;
   });
   if (matches.length !== 1) {
-    throw new Error("confirmed SPP transaction does not contain exactly one expected funding commitment event");
+    throw new Error("confirmed SPP transaction does not contain exactly one expected commitment event");
   }
   const data = record(matches[0]?.data, "SPP commitment event data");
   if (!Number.isSafeInteger(data.index) || (data.index as number) < 0 || (data.index as number) > 0xffff_ffff) {
@@ -241,6 +241,8 @@ export function findSppFundingLeafIndex(
   }
   return data.index as number;
 }
+
+export const findSppFundingLeafIndex = findSppCommitmentLeafIndex;
 
 export class NativeSppDepositRuntimeBridge implements SppDepositRuntimeBridge {
   readonly #process: SppDepositBridgeProcess;
@@ -317,7 +319,7 @@ export class NativeSppDepositRuntimeBridge implements SppDepositRuntimeBridge {
       throw new Error("SPP deposit transaction is not successful at the expected ledger");
     }
     return {
-      fundingLeafIndex: findSppFundingLeafIndex(
+      fundingLeafIndex: findSppCommitmentLeafIndex(
         transaction.events,
         PINNED_SPP_POOL,
         expectedFundingCommitment,

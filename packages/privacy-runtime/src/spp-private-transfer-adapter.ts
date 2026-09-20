@@ -14,6 +14,7 @@ export interface SppRuntimeBridgePrepareInput extends TreasurySppNoteOwnership {
   readonly claimAmountAtomic: bigint;
   readonly refundAmountAtomic: bigint;
   readonly providerSppPublicKey: bigint;
+  readonly providerSppEncryptionPublicKey: Buffer;
   readonly treasurySppPublicKey: bigint;
   readonly poolContractId: string;
   readonly availableNotes: readonly SppTreasuryNoteOpening[];
@@ -36,6 +37,9 @@ export interface SppRuntimeBridge {
     operationId: Buffer,
     transactionHash: Buffer,
     ledgerSequence: number,
+    expectedProviderOutputCommitment: bigint,
+    expectedSecondOutputCommitment: bigint,
+    hasTreasuryRefund: boolean,
   ): Promise<{ readonly refundLeafIndex?: number }>;
 }
 
@@ -60,6 +64,7 @@ export class EncryptedSppPrivateTransferPlanner implements SppPrivateTransferPla
     readonly claimAmountAtomic: bigint;
     readonly refundAmountAtomic: bigint;
     readonly providerSppPublicKey: bigint;
+    readonly providerSppEncryptionPublicKey: Buffer;
     readonly treasurySppPublicKey: bigint;
     readonly sppPool: string;
   }): Promise<PreparedSppPrivateTransfer> {
@@ -72,6 +77,7 @@ export class EncryptedSppPrivateTransferPlanner implements SppPrivateTransferPla
         claimAmountAtomic: input.claimAmountAtomic,
         refundAmountAtomic: input.refundAmountAtomic,
         providerSppPublicKey: input.providerSppPublicKey,
+        providerSppEncryptionPublicKey: input.providerSppEncryptionPublicKey,
         treasurySppPublicKey: input.treasurySppPublicKey,
         poolContractId: input.sppPool,
         availableNotes: context.notes,
@@ -116,8 +122,22 @@ export class EncryptedSppPrivateTransferPlanner implements SppPrivateTransferPla
     await this.#treasuryKeys.abortSpendOperation(operationId);
   }
 
-  async confirm(operationId: Buffer, transactionHash: Buffer, ledgerSequence: number): Promise<void> {
-    const result = await this.#bridge.confirm(operationId, transactionHash, ledgerSequence);
+  async confirm(
+    operationId: Buffer,
+    transactionHash: Buffer,
+    ledgerSequence: number,
+    expectedProviderOutputCommitment: bigint,
+    expectedSecondOutputCommitment: bigint,
+    hasTreasuryRefund: boolean,
+  ): Promise<void> {
+    const result = await this.#bridge.confirm(
+      operationId,
+      transactionHash,
+      ledgerSequence,
+      expectedProviderOutputCommitment,
+      expectedSecondOutputCommitment,
+      hasTreasuryRefund,
+    );
     await this.#treasuryKeys.confirmSpendOperation({
       operationId,
       transactionHash,
