@@ -6,6 +6,7 @@ import {
   deriveId,
   poseidon2Hash3,
   poseidon2HashFields,
+  providerPolicyLeaf,
   toHex,
 } from "@phloem/protocol-types";
 import type {
@@ -176,7 +177,14 @@ export class PrivateSettlementPlanner {
       BigInt(request.provider.categoryId),
       BigInt(request.provider.allowedSettlementModes),
     ];
-    const providerLeaf = poseidon2HashFields(providerFields, POSEIDON_DOMAINS.providerInit, POSEIDON_DOMAINS.providerFold);
+    const providerLeaf = providerPolicyLeaf({
+      version: 1,
+      providerIdentity: addressFromStrKey(request.provider.providerIdentity),
+      providerSppPublicKey: request.provider.providerSppPublicKey,
+      serviceIdHash: bytes32(request.provider.serviceIdHash, "service id hash"),
+      categoryId: request.provider.categoryId,
+      allowedSettlementModes: request.provider.allowedSettlementModes,
+    });
     if (providerLeaf.toString() !== reservation.approvedProviderRoot) {
       throw new PrivateReservationStateError("controlled provider leaf is not the approved P0 root");
     }

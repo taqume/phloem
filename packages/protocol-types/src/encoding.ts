@@ -15,6 +15,8 @@ export const SIGNING_DOMAINS = {
 export const POSEIDON_DOMAINS = {
   contextInit: 0x50484c4d43545831n,
   contextFold: 0x50484c4d43545832n,
+  sessionPolicyInit: 0x50484c4d504f4c31n,
+  sessionPolicyFold: 0x50484c4d504f4c32n,
   budgetNote: 0x50484c4d42554431n,
   providerInit: 0x50484c4d50525631n,
   providerFold: 0x50484c4d50525632n,
@@ -96,6 +98,28 @@ export interface AuditContextInput {
   readonly asset: CanonicalAddress;
   readonly settlementMode: 1 | 2;
   readonly policyHash: bigint;
+}
+
+export interface SessionPolicyHashInput {
+  readonly version: number;
+  readonly networkId: Bytes32;
+  readonly treasuryController: CanonicalAddress;
+  readonly asset: CanonicalAddress;
+  readonly settlementMode: 1 | 2;
+  readonly approvedProviderRoot: bigint;
+  readonly categorySchemaVersion: number;
+  readonly maxDelegationDepth: number;
+  readonly allowedActionsMask: bigint;
+  readonly sessionExpiry: number;
+}
+
+export interface ProviderPolicyLeafInput {
+  readonly version: number;
+  readonly providerIdentity: CanonicalAddress;
+  readonly providerSppPublicKey: bigint;
+  readonly serviceIdHash: Bytes32;
+  readonly categoryId: number;
+  readonly allowedSettlementModes: number;
 }
 
 function checkedUnsigned(value: number | bigint, bits: number, label: string): bigint {
@@ -253,6 +277,39 @@ export function auditContextHash(value: AuditContextInput): bigint {
     POSEIDON_DOMAINS.auditContextInit,
     POSEIDON_DOMAINS.auditContextFold,
   );
+}
+
+export function sessionPolicyHash(value: SessionPolicyHashInput): bigint {
+  assertBytes(value.networkId, 32, "networkId");
+  const fields = [
+    checkedUnsigned(value.version, 32, "policy version"),
+    ...bytes32ToLimbs(value.networkId),
+    ...addressFields(value.treasuryController),
+    ...addressFields(value.asset),
+    checkedUnsigned(value.settlementMode, 32, "settlement mode"),
+    value.approvedProviderRoot,
+    checkedUnsigned(value.categorySchemaVersion, 32, "category schema version"),
+    checkedUnsigned(value.maxDelegationDepth, 32, "max delegation depth"),
+    checkedUnsigned(value.allowedActionsMask, 64, "allowed actions mask"),
+    checkedUnsigned(value.sessionExpiry, 32, "session expiry"),
+  ];
+  return poseidon2HashFields(
+    fields,
+    POSEIDON_DOMAINS.sessionPolicyInit,
+    POSEIDON_DOMAINS.sessionPolicyFold,
+  );
+}
+
+export function providerPolicyLeaf(value: ProviderPolicyLeafInput): bigint {
+  assertBytes(value.serviceIdHash, 32, "serviceIdHash");
+  return poseidon2HashFields([
+    checkedUnsigned(value.version, 32, "provider leaf version"),
+    ...addressFields(value.providerIdentity),
+    value.providerSppPublicKey,
+    ...bytes32ToLimbs(value.serviceIdHash),
+    checkedUnsigned(value.categoryId, 32, "category id"),
+    checkedUnsigned(value.allowedSettlementModes, 32, "allowed settlement modes"),
+  ], POSEIDON_DOMAINS.providerInit, POSEIDON_DOMAINS.providerFold);
 }
 
 export function poseidon2Compress(left: bigint, right: bigint): bigint {

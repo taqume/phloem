@@ -8,6 +8,7 @@ mod event;
 pub mod poseidon2;
 mod provider;
 mod reservation;
+mod session_policy;
 mod spp;
 mod storage;
 mod types;
@@ -1460,6 +1461,16 @@ fn validate_policy(
     }
     validate_field(env, &policy.policy_hash);
     validate_field(env, &policy.approved_provider_root);
+    let expected_policy_hash = session_policy::hash_v1(
+        env,
+        &env.ledger().network_id(),
+        &env.current_contract_address(),
+        policy,
+    )
+    .unwrap_or_else(|| panic_with_error!(env, Error::InvalidPolicy));
+    if policy.policy_hash != expected_policy_hash {
+        panic_with_error!(env, Error::InvalidPolicy);
+    }
 }
 
 fn validate_field(env: &Env, value: &U256) {

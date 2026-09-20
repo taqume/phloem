@@ -244,18 +244,30 @@ fn setup_internal<'a>(accept_proof: Option<bool>, private_settlement: bool) -> H
     }
 }
 
-fn policy(env: &Env, asset: &Address, mode: SettlementMode, expiry: u32) -> SessionPolicy {
-    SessionPolicy {
+fn policy(h: &Harness<'_>, mode: SettlementMode, expiry: u32) -> SessionPolicy {
+    let mut policy = SessionPolicy {
         version: 1,
-        asset: asset.clone(),
+        asset: h.asset.clone(),
         settlement_mode: mode,
-        approved_provider_root: U256::from_u32(env, 17),
+        approved_provider_root: U256::from_u32(&h.env, 17),
         category_schema_version: 1,
         max_delegation_depth: 3,
         allowed_actions_mask: 0b111,
         session_expiry: expiry,
-        policy_hash: U256::from_u32(env, 23),
-    }
+        policy_hash: U256::from_u32(&h.env, 0),
+    };
+    refresh_policy_hash(h, &mut policy);
+    policy
+}
+
+fn refresh_policy_hash(h: &Harness<'_>, policy: &mut SessionPolicy) {
+    policy.policy_hash = crate::session_policy::hash_v1(
+        &h.env,
+        &h.env.ledger().network_id(),
+        &h.contract_id,
+        policy,
+    )
+    .unwrap();
 }
 
 fn id(env: &Env, byte: u8) -> BytesN<32> {
@@ -268,7 +280,7 @@ fn create_standard_session(h: &Harness<'_>, expiry: u32) -> BytesN<32> {
         &h.company,
         &h.asset,
         &SettlementMode::Standard,
-        &policy(&h.env, &h.asset, SettlementMode::Standard, expiry),
+        &policy(h, SettlementMode::Standard, expiry),
         &expiry,
     )
 }
@@ -371,8 +383,9 @@ fn standard_settlement_fixture(h: &Harness<'_>) -> (StandardSettlementInput, Add
         &category_id,
         &allowed_settlement_modes,
     );
-    let mut draft_policy = policy(&h.env, &h.asset, SettlementMode::Standard, expiry);
+    let mut draft_policy = policy(h, SettlementMode::Standard, expiry);
     draft_policy.approved_provider_root = approved_provider_root;
+    refresh_policy_hash(h, &mut draft_policy);
 
     h.env.mock_all_auths();
     let session_id = h.controller.create_session(
@@ -431,7 +444,7 @@ fn private_reservation_fixture(h: &Harness<'_>) -> PrivateFixture {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(h, SettlementMode::Private, expiry),
         &expiry,
     );
     let agent = agent_account(h);
@@ -633,7 +646,7 @@ fn create_session_requires_company_authorization() {
         &h.company,
         &h.asset,
         &SettlementMode::Standard,
-        &policy(&h.env, &h.asset, SettlementMode::Standard, expiry),
+        &policy(&h, SettlementMode::Standard, expiry),
         &expiry,
     );
 
@@ -670,7 +683,7 @@ fn constructor_pins_protocol_dependencies() {
 fn create_session_records_the_exact_company_authorization() {
     let h = setup();
     let expiry = 2_000;
-    let draft_policy = policy(&h.env, &h.asset, SettlementMode::Standard, expiry);
+    let draft_policy = policy(&h, SettlementMode::Standard, expiry);
 
     h.env.mock_all_auths();
     h.controller.create_session(
@@ -710,7 +723,7 @@ fn create_session_rejects_policy_mismatch_and_noncanonical_fields() {
     let expiry = 2_000;
     h.env.mock_all_auths();
 
-    let mut mismatched = policy(&h.env, &h.asset, SettlementMode::Standard, expiry);
+    let mut mismatched = policy(&h, SettlementMode::Standard, expiry);
     mismatched.session_expiry = expiry + 1;
     assert!(
         h.controller
@@ -724,7 +737,21 @@ fn create_session_rejects_policy_mismatch_and_noncanonical_fields() {
             .is_err()
     );
 
-    let mut noncanonical = policy(&h.env, &h.asset, SettlementMode::Standard, expiry);
+    let mut detached_hash = policy(&h, SettlementMode::Standard, expiry);
+    detached_hash.approved_provider_root = U256::from_u32(&h.env, 19);
+    assert!(
+        h.controller
+            .try_create_session(
+                &h.company,
+                &h.asset,
+                &SettlementMode::Standard,
+                &detached_hash,
+                &expiry,
+            )
+            .is_err()
+    );
+
+    let mut noncanonical = policy(&h, SettlementMode::Standard, expiry);
     noncanonical.policy_hash = U256::from_parts(
         &h.env,
         0x3064_4e72_e131_a029,
@@ -935,7 +962,7 @@ fn private_session_cannot_use_standard_activation() {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -961,7 +988,7 @@ fn private_activation_atomically_deposits_to_spp_and_materializes_hidden_root() 
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -1006,7 +1033,7 @@ fn private_activation_rejects_overmint_and_invalid_backing_proof_before_deposit(
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -1046,7 +1073,7 @@ fn failed_spp_private_activation_rolls_back_pool_and_controller_state() {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -1084,7 +1111,7 @@ fn private_root_can_only_be_backed_once() {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -1113,7 +1140,7 @@ fn private_root_and_agent_delegate_hidden_notes_without_plaintext_amounts() {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {
@@ -1214,7 +1241,7 @@ fn rejected_private_delegation_proof_preserves_the_source_note() {
         &h.company,
         &h.asset,
         &SettlementMode::Private,
-        &policy(&h.env, &h.asset, SettlementMode::Private, expiry),
+        &policy(&h, SettlementMode::Private, expiry),
         &expiry,
     );
     let root = RootBudgetNoteInput {

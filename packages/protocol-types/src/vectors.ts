@@ -17,6 +17,8 @@ import {
   networkId,
   poseidon2Hash3,
   poseidon2HashFields,
+  providerPolicyLeaf,
+  sessionPolicyHash,
   sha256,
   toHex,
   utf8,
@@ -146,7 +148,26 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
     7n,
     2n,
   ];
-  const providerLeaf = poseidon2HashFields(providerLeafFields, POSEIDON_DOMAINS.providerInit, POSEIDON_DOMAINS.providerFold);
+  const providerLeaf = providerPolicyLeaf({
+    version: 1,
+    providerIdentity: provider,
+    providerSppPublicKey,
+    serviceIdHash,
+    categoryId: 7,
+    allowedSettlementModes: 2,
+  });
+  const canonicalSessionPolicyHash = sessionPolicyHash({
+    version: 1,
+    networkId: network,
+    treasuryController: controller,
+    asset,
+    settlementMode: 2,
+    approvedProviderRoot: providerLeaf,
+    categorySchemaVersion: 1,
+    maxDelegationDepth: 3,
+    allowedActionsMask: 7n,
+    sessionExpiry: 5_000_000,
+  });
 
   const offer: ServiceOfferPayload = {
     protocolVersion: 1,
@@ -504,6 +525,7 @@ export function buildProtocolVectorV1(): ProtocolVectorV1 {
       transitionOutput2ContextHash: transitionOutput2ContextHash.toString(),
       transitionOutput2Commitment: transitionOutput2Commitment.toString(),
       providerLeaf: providerLeaf.toString(),
+      canonicalSessionPolicyHash: canonicalSessionPolicyHash.toString(),
       offerCommitment: offerCommitment.toString(),
       auditContextHash: auditContextHashValue.toString(),
       initialAuditTotalCommitment: initialAuditTotalCommitment.toString(),
