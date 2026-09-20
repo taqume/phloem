@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-20T06:28:48.763Z",
+  "sourceRevision": "2d7fc18ff7c48be3608ccdb8a33d2eaaeb21fc22",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "uploader": {
+    "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+    "authority": "none: code upload only; not a Phloem financial or contract-instance authority",
+    "identityAlias": "phloem-testnet-wasm-uploader",
+    "secretStorage": "macOS Keychain via Stellar CLI secure store"
+  },
+  "approval": {
+    "scope": "two uploadContractWasm operations only",
+    "approvedTotalPreflightStroops": "145875407",
+    "approvedTotalGuardrailStroops": "147334162"
+  },
+  "execution": "submitted",
+  "projectedFeeStroops": "146552677",
+  "results": [
+    {
+      "artifactId": "auditTotalSpendLeqVerifierV1",
+      "artifact": {
+        "bytes": 6238,
+        "path": "target/wasm32v1-none/release/phloem_audit_total_spend_leq_verifier.wasm",
+        "sha256": "415805bd7213128dc84cd21225888786781444655492462fb1544c2366d460e4"
+      },
+      "preflight": {
+        "approvedArtifactGuardrailStroops": "15754822",
+        "approvedArtifactPreflightStroops": "15598833",
+        "envelopeBytes": 6416,
+        "instructions": 6351615,
+        "latestLedger": 4772426,
+        "maximumFeeStroops": "15671278",
+        "transactionHash": "b40a6d4b5676b8834592592addc969e159d979c3659bc9c5bd0aab5210c1e4f9",
+        "writeBytes": 6340
+      },
+      "safety": {
+        "allowance": false,
+        "assetMovement": false,
+        "contractInitialization": false,
+        "contractInvocation": false,
+        "hostFunction": "uploadContractWasm",
+        "operationCount": 1
+      },
+      "status": "success",
+      "transaction": {
+        "feeChargedStroops": "13623104",
+        "hash": "b40a6d4b5676b8834592592addc969e159d979c3659bc9c5bd0aab5210c1e4f9",
+        "ledger": 4772427,
+        "maximumFeeStroops": "15671278"
+      },
+      "verification": {
+        "networkWasmBytes": 6238,
+        "networkWasmHash": "415805bd7213128dc84cd21225888786781444655492462fb1544c2366d460e4",
+        "transactionStatus": "SUCCESS"
+      }
+    },
+    {
+      "artifactId": "treasuryControllerV2",
+      "artifact": {
+        "bytes": 79627,
+        "path": "target/wasm32v1-none/release/phloem_treasury_controller.wasm",
+        "sha256": "a77bf56561530bf8fbc9894dcd80869b9e257d2fb296b61e10b7225b1bf32a70"
+      },
+      "preflight": {
+        "approvedArtifactGuardrailStroops": "131579340",
+        "approvedArtifactPreflightStroops": "130276574",
+        "envelopeBytes": 79804,
+        "instructions": 68047222,
+        "latestLedger": 4772427,
+        "maximumFeeStroops": "130881399",
+        "transactionHash": "50b27de7bb239aed056f5000b9198c2a8c9c823de2708d9bd57b59122521a7bc",
+        "writeBytes": 79728
+      },
+      "safety": {
+        "allowance": false,
+        "assetMovement": false,
+        "contractInitialization": false,
+        "contractInvocation": false,
+        "hostFunction": "uploadContractWasm",
+        "operationCount": 1
+      },
+      "status": "success",
+      "transaction": {
+        "feeChargedStroops": "113833543",
+        "hash": "50b27de7bb239aed056f5000b9198c2a8c9c823de2708d9bd57b59122521a7bc",
+        "ledger": 4772428,
+        "maximumFeeStroops": "130881399"
+      },
+      "verification": {
+        "networkWasmBytes": 79627,
+        "networkWasmHash": "a77bf56561530bf8fbc9894dcd80869b9e257d2fb296b61e10b7225b1bf32a70",
+        "transactionStatus": "SUCCESS"
+      }
+    }
+  ]
+}
