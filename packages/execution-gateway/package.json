@@ -16,6 +16,7 @@
     "@phloem/privacy-runtime": "workspace:*",
     "@phloem/protocol-types": "workspace:*",
     "@phloem/treasury-controller-client": "workspace:*",
+    "@stellar/stellar-sdk": "17.1.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

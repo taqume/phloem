@@ -67,6 +67,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       sppTreasuryNotes: [],
       sppSpendOperations: [],
       privateSessionActivations: [],
+      agentIdentities: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 2) {
@@ -75,6 +76,7 @@ function decodePrivacyState(value: unknown): PrivacyState {
       schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
       sppSpendOperations: [],
       privateSessionActivations: [],
+      agentIdentities: [],
     });
   }
   if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 3) {
@@ -82,6 +84,14 @@ function decodePrivacyState(value: unknown): PrivacyState {
       ...value,
       schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
       privateSessionActivations: [],
+      agentIdentities: [],
+    });
+  }
+  if (typeof value === "object" && value !== null && "schemaVersion" in value && value.schemaVersion === 4) {
+    return privacyStateSchema.parse({
+      ...value,
+      schemaVersion: PRIVACY_STATE_SCHEMA_VERSION,
+      agentIdentities: [],
     });
   }
   return privacyStateSchema.parse(value);

@@ -1,7 +1,7 @@
 import { bytes32HexSchema, fieldDecimalSchema, u64DecimalSchema } from "@phloem/protocol-types";
 import { z } from "zod";
 
-export const PRIVACY_STATE_SCHEMA_VERSION = 4 as const;
+export const PRIVACY_STATE_SCHEMA_VERSION = 5 as const;
 
 const unixMillisecondsSchema = z.number().int().nonnegative();
 const contractAddressSchema = z.string().regex(/^C[A-Z2-7]{55}$/u);
@@ -190,6 +190,26 @@ export const privateSessionActivationSchema = z.object({
   }
 });
 
+export const agentIdentitySchema = z.object({
+  sessionId: bytes32HexSchema,
+  role: z.enum(["SUPERVISOR", "RESEARCH", "BUILDER"]),
+  seedHex: bytes32HexSchema,
+  publicKeyHex: bytes32HexSchema,
+  validUntilLedger: z.number().int().positive(),
+  status: z.enum(["KEY_READY", "DEPLOYED"]),
+  contractId: contractAddressSchema.optional(),
+  deploymentConfirmation: chainConfirmationSchema.optional(),
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict().superRefine((value, context) => {
+  const deployed = value.status === "DEPLOYED";
+  if (deployed !== (value.contractId !== undefined && value.deploymentConfirmation !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "only a deployed agent identity may carry contract confirmation",
+    });
+  }
+});
+
 export const privacyStateSchema = z.object({
   schemaVersion: z.literal(PRIVACY_STATE_SCHEMA_VERSION),
   revision: z.number().int().nonnegative(),
@@ -200,6 +220,7 @@ export const privacyStateSchema = z.object({
   sppTreasuryNotes: z.array(sppTreasuryNoteOpeningSchema),
   sppSpendOperations: z.array(sppSpendOperationSchema),
   privateSessionActivations: z.array(privateSessionActivationSchema),
+  agentIdentities: z.array(agentIdentitySchema),
 }).strict().superRefine((value, context) => {
   for (const [label, values] of [
     ["budget note", value.budgetNotes.map((item) => item.noteId)],
@@ -212,6 +233,9 @@ export const privacyStateSchema = z.object({
     ["SPP spend operation", value.sppSpendOperations.map((item) => item.operationId)],
     ["prepared private activation", value.privateSessionActivations.map((item) => item.sessionId)],
     ["prepared private activation operation", value.privateSessionActivations.map((item) => item.operationId)],
+    ["agent identity", value.agentIdentities.map((item) => `${item.sessionId}:${item.role}`)],
+    ["agent public key", value.agentIdentities.map((item) => item.publicKeyHex)],
+    ["agent contract", value.agentIdentities.flatMap((item) => item.contractId ? [item.contractId] : [])],
   ] as const) {
     if (new Set(values).size !== values.length) {
       context.addIssue({ code: "custom", message: `duplicate ${label} in privacy state` });
@@ -230,6 +254,7 @@ export type TreasuryPrivacyKeyState = z.infer<typeof treasuryPrivacyKeySchema>;
 export type SppTreasuryNoteOpening = z.infer<typeof sppTreasuryNoteOpeningSchema>;
 export type SppSpendOperation = z.infer<typeof sppSpendOperationSchema>;
 export type PrivateSessionActivation = z.infer<typeof privateSessionActivationSchema>;
+export type AgentIdentityState = z.infer<typeof agentIdentitySchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 
 export function emptyPrivacyState(): PrivacyState {
@@ -243,5 +268,6 @@ export function emptyPrivacyState(): PrivacyState {
     sppTreasuryNotes: [],
     sppSpendOperations: [],
     privateSessionActivations: [],
+    agentIdentities: [],
   };
 }

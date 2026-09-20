@@ -100,6 +100,9 @@ importers:
       '@phloem/treasury-controller-client':
         specifier: workspace:*
         version: link:../treasury-controller-client
+      '@stellar/stellar-sdk':
+        specifier: 17.1.0
+        version: 17.1.0(debug@4.4.3)
       zod:
         specifier: 4.6.5
         version: 4.6.5
