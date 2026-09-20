@@ -51,7 +51,7 @@ export function LiveAgentConsole() {
     <div className="deploy-console">
       <section className="deploy-overview" aria-labelledby="live-agent-title">
         <div>
-          <p className="eyebrow">NVIDIA NIM · deterministic enforcement</p>
+          <p className="eyebrow">Live model · deterministic enforcement</p>
           <h1 id="live-agent-title">Run the live Supervisor</h1>
           <p>The model emits typed intents only. ExecutionGateway, AgentAccounts and TreasuryController independently authorize every Testnet transition.</p>
         </div>
@@ -65,7 +65,7 @@ export function LiveAgentConsole() {
 
       <section className="panel deploy-panel" aria-labelledby="live-agent-action-title">
         <div className="panel-heading">
-          <div><p className="eyebrow">Autonomous execution boundary</p><h2 id="live-agent-action-title">NIM → Gateway → Testnet</h2></div>
+          <div><p className="eyebrow">Autonomous execution boundary</p><h2 id="live-agent-action-title">Model → Gateway → Testnet</h2></div>
           <span className={`status-chip ${state === "complete" ? "is-ready" : "is-pending"}`}><span aria-hidden="true" className="status-dot" />{state === "complete" ? "confirmed" : state}</span>
         </div>
 
@@ -87,7 +87,7 @@ export function LiveAgentConsole() {
               placeholder="64 lowercase hex characters"
             />
             <button className="primary-button" disabled={state === "running"} onClick={runSupervisor} type="button">
-              {state === "running" ? "Calling NIM and confirming Testnet…" : "Run live Supervisor"}
+              {state === "running" ? "Calling the live model and confirming Testnet…" : "Run live Supervisor"}
             </button>
           </div>
         )}

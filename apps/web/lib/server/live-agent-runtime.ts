@@ -154,7 +154,7 @@ export async function preparePrivateSessionAgentIdentities(input: {
 }
 
 /**
- * Server-only P0 composition root. Constructing it performs no NIM request,
+ * Server-only P0 composition root. Constructing it performs no model request,
  * signature, submission, or asset movement; those occur only when runner
  * methods are explicitly invoked.
  */

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { ExpectedAgentIntent } from "@phloem/execution-gateway";
 import { rpc } from "@stellar/stellar-sdk";
@@ -205,6 +205,63 @@ export async function runLiveResearchService(sessionIdInput: unknown) {
         expiryLedger: voucher.expiryLedger,
       }),
     });
+  } finally {
+    runtime.close();
+  }
+}
+
+/**
+ * Exercises the live cross-branch privacy boundary without constructing,
+ * signing, or submitting a transaction.
+ */
+export async function runLiveUnauthorizedBudgetRead(sessionIdInput: unknown) {
+  const sessionId = canonicalSessionId(sessionIdInput);
+  const runtime = await createP0LiveAgentRuntime(sessionId);
+  try {
+    const researchContext = await runtime.contextFor("RESEARCH", {
+      task: "Resolve the live Research branch for an authorization-boundary check.",
+      policySummary: "No model call, signature, transaction construction, or submission is allowed.",
+    });
+    const builderIdentity = runtime.identities.BUILDER.contractId;
+    if (!builderIdentity) throw new Error("Builder AgentAccount is not deployed");
+    const requestId = createHash("sha256")
+      .update("PHLOEM_P0_CROSS_BRANCH_REJECTION_V1", "utf8")
+      .update(sessionId, "hex")
+      .update(builderIdentity, "utf8")
+      .update(researchContext.protocolState.nodeId, "hex")
+      .digest("hex");
+
+    try {
+      await runtime.gateway.execute({
+        requestId,
+        actor: { role: "BUILDER", identity: builderIdentity },
+        action: {
+          type: "get_budget",
+          sessionId,
+          rationale: "Attempt a cross-branch budget read for the P0 negative-path proof.",
+          nodeId: researchContext.protocolState.nodeId,
+        },
+        submit: false,
+      });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "unknown rejection";
+      if (message !== "budget read requested a node outside the authenticated agent branch") {
+        throw reason;
+      }
+      return Object.freeze({
+        sessionId,
+        requestId,
+        rejected: true as const,
+        rejectionCode: "CROSS_BRANCH_BUDGET_READ" as const,
+        enforcement: "ExecutionGateway+LiveTestnetProtocolReader" as const,
+        actor: "BUILDER" as const,
+        requestedBranch: "RESEARCH" as const,
+        transactionConstructed: false as const,
+        submitted: false as const,
+        assetMovement: "NONE" as const,
+      });
+    }
+    throw new Error("unauthorized cross-branch budget read unexpectedly succeeded");
   } finally {
     runtime.close();
   }
