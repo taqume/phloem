@@ -29,6 +29,7 @@
     "phloem:instances:preflight": "node scripts/deploy/preflight-phloem-instances-testnet.mjs",
     "phloem:instances:verify": "node scripts/deploy/verify-phloem-instances-testnet.mjs",
     "phloem:deployment:upload-treasury": "node scripts/deploy/upload-phloem-treasury-controller-testnet.mjs",
+    "phloem:finalization:preflight": "node scripts/deploy/preflight-p0-finalization-testnet.mjs",
     "spp:runtime:simulate": "scripts/spp/simulate-private-runtime.sh",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",
     "zk:setup:audit-total-spend-leq": "node scripts/zk/setup-audit-total-spend-leq.mjs",
