@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-20T00:00:10.145Z",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
+  "assetMovement": false,
+  "transactionChecks": [
+    {
+      "stepId": "create-ed25519-verifier",
+      "contractId": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
+      "transactionHash": "41072f124c47c84f1b420e0a9ba7e349d41cf8df1b69c641413c47ac6a4e5bcc",
+      "ledger": 4767680,
+      "wasmSha256": "aa15e1a91fd5d41a755b5321f97bb4290e0db4595dd4408e2e89f16d4d066600",
+      "status": "SUCCESS"
+    },
+    {
+      "stepId": "create-budget-transition-verifier-v1",
+      "contractId": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "transactionHash": "3e48cb0020cf50bf25253c84a750e79cf2872204dd975f2729239e4176b7beb1",
+      "ledger": 4767696,
+      "wasmSha256": "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
+      "status": "SUCCESS"
+    },
+    {
+      "stepId": "create-private-root-backing-verifier-v1",
+      "contractId": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "transactionHash": "467c4ffaae92af587d32513838d15690f69a192f729cfa4937f1ff30d7a6f46b",
+      "ledger": 4767697,
+      "wasmSha256": "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
+      "status": "SUCCESS"
+    },
+    {
+      "stepId": "create-private-settlement-binding-verifier-v1",
+      "contractId": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "transactionHash": "0cbd09e7be181d2b60f59402764297bb57187b5aa09ff500cdea4f9dd773d2a3",
+      "ledger": 4767698,
+      "wasmSha256": "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
+      "status": "SUCCESS"
+    },
+    {
+      "stepId": "create-treasury-controller",
+      "contractId": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
+      "transactionHash": "3fef41e3d9598369bb8744dbcccbb34a1686c7d79b6f7e045d98d71a67371996",
+      "ledger": 4767711,
+      "wasmSha256": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
+      "status": "SUCCESS"
+    }
+  ],
+  "controller": {
+    "contractId": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
+    "config": {
+      "protocol_version": 1,
+      "storage_schema_version": 1,
+      "get_standard_asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "get_agent_account_wasm_hash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+      "get_budget_transition_verifier": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "get_root_backing_verifier": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "get_private_binding_verifier": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "get_spp_pool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+    }
+  },
+  "verifierProofChecks": [
+    {
+      "artifact": "budgetTransitionVerifierV1",
+      "contractId": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "verificationKeySha256": "52d999f482d0309fe332ff042250385419568d2d4d07e97e775439938955d772",
+      "accepted": true,
+      "submitted": false,
+      "resource": {
+        "envelopeBytes": 900,
+        "instructions": 35904767,
+        "diskReadBytes": 0,
+        "writeBytes": 0,
+        "readOnlyEntries": 2,
+        "readWriteEntries": 0,
+        "simulatedFeeStroops": "40319"
+      }
+    },
+    {
+      "artifact": "privateRootBackingVerifierV1",
+      "contractId": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "verificationKeySha256": "36cd9762d1ffcdd5d32c35f11d31e707a03fc1738a6432439a576923e590fb8c",
+      "accepted": true,
+      "submitted": false,
+      "resource": {
+        "envelopeBytes": 864,
+        "instructions": 34659542,
+        "diskReadBytes": 0,
+        "writeBytes": 0,
+        "readOnlyEntries": 2,
+        "readWriteEntries": 0,
+        "simulatedFeeStroops": "39289"
+      }
+    },
+    {
+      "artifact": "privateSettlementBindingVerifierV1",
+      "contractId": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "verificationKeySha256": "c727f8b2656231bd50cb0139bde6e998e4f922766f2d351d76ddb88e322c485d",
+      "accepted": true,
+      "submitted": false,
+      "resource": {
+        "envelopeBytes": 1188,
+        "instructions": 45887644,
+        "diskReadBytes": 0,
+        "writeBytes": 0,
+        "readOnlyEntries": 2,
+        "readWriteEntries": 0,
+        "simulatedFeeStroops": "48562"
+      }
+    }
+  ]
+}

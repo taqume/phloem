@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
   Address,
   BASE_FEE,
+  Keypair,
   Networks,
   Operation,
   Transaction,
@@ -17,24 +19,31 @@ import {
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
 const RPC_URL = "https://soroban-testnet.stellar.org";
 const DEPLOYER = "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI";
+const IDENTITY_ALIAS = "phloem-testnet-wasm-uploader";
 const SOURCE_REVISION = "27ea0e36ea42a975b824eec568522fe70d316806";
 const EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-instance-preflight.json");
+const DEPLOYMENT_EVIDENCE_PATH = resolve(REPO_ROOT, "evidence", "testnet", "phloem-instance-deployment.json");
+const PROGRESS_PATH = resolve(REPO_ROOT, "deployments", "local", "phloem-instance-testnet-progress.json");
 const USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 const SPP_POOL = "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4";
 const AGENT_ACCOUNT_WASM_HASH = "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d";
 const BN254_BASE_FIELD_MODULUS =
   21888242871839275222246405745257275088696311157297823662689037894645226208583n;
+// Refreshed after four confirmed creates: 1% over the final 1,445,403-stroop projection.
+const TOTAL_FEE_CEILING_STROOPS = 1_459_858n;
 
 const STEPS = [
   {
     id: "create-ed25519-verifier",
     artifact: "ed25519Verifier",
+    expectedContractId: "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
     wasmPath: "target/wasm32v1-none/release/phloem_ed25519_verifier.wasm",
     wasmSha256: "aa15e1a91fd5d41a755b5321f97bb4290e0db4595dd4408e2e89f16d4d066600",
   },
   {
     id: "create-budget-transition-verifier-v1",
     artifact: "budgetTransitionVerifierV1",
+    expectedContractId: "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
     wasmPath: "target/wasm32v1-none/release/phloem_budget_transition_verifier.wasm",
     wasmSha256: "0e068ff97a66fb5056c7249444e2b31762dc1ae9031a725d7f5ae8f1676ddb0d",
     verificationKeyPath: ".phloem/budget-transition-setup/verification_key.json",
@@ -44,6 +53,7 @@ const STEPS = [
   {
     id: "create-private-root-backing-verifier-v1",
     artifact: "privateRootBackingVerifierV1",
+    expectedContractId: "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
     wasmPath: "target/wasm32v1-none/release/phloem_private_root_backing_verifier.wasm",
     wasmSha256: "779d500e9afcf7d07eac315ae41ecc4e23df581dfceec2fd5a7668d45a270005",
     verificationKeyPath: ".phloem/private-root-backing-setup/verification_key.json",
@@ -53,6 +63,7 @@ const STEPS = [
   {
     id: "create-private-settlement-binding-verifier-v1",
     artifact: "privateSettlementBindingVerifierV1",
+    expectedContractId: "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
     wasmPath: "target/wasm32v1-none/release/phloem_private_settlement_binding_verifier.wasm",
     wasmSha256: "058079beb6e94dec7bfc594c3a2f21554af82d4bdd62a8fa70689d8ba0c72029",
     verificationKeyPath: ".phloem/private-binding-setup/verification_key.json",
@@ -62,6 +73,7 @@ const STEPS = [
   {
     id: "create-treasury-controller",
     artifact: "treasuryController",
+    expectedContractId: "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
     wasmPath: "target/wasm32v1-none/release/phloem_treasury_controller.wasm",
     wasmSha256: "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f",
   },
@@ -190,16 +202,105 @@ function resourceSnapshot(simulation, transaction) {
   };
 }
 
+function signWithSecureStore(transactionXdr) {
+  const signedXdr = execFileSync(
+    "stellar",
+    ["tx", "sign", "--quiet", "--sign-with-key", IDENTITY_ALIAS, "--network", "testnet"],
+    {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      input: `${transactionXdr}\n`,
+      maxBuffer: 2 * 1024 * 1024,
+      stdio: ["pipe", "pipe", "inherit"],
+    },
+  ).trim();
+  if (!signedXdr) throw new Error("Stellar CLI returned no signed instance transaction.");
+  return signedXdr;
+}
+
+async function writeJsonAtomic(path, value, mode = 0o600) {
+  await mkdir(resolve(path, ".."), { recursive: true });
+  const temporaryPath = `${path}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode });
+  await rename(temporaryPath, path);
+}
+
+async function readProgress() {
+  try {
+    const progress = JSON.parse(await readFile(PROGRESS_PATH, "utf8"));
+    if (
+      progress.schemaVersion !== 1
+      || progress.sourceRevision !== SOURCE_REVISION
+      || progress.network !== "testnet"
+      || progress.deployer !== DEPLOYER
+      || progress.assetMovement !== false
+      || !Array.isArray(progress.steps)
+      || progress.steps.length > STEPS.length
+    ) {
+      throw new Error("Local instance progress does not match the pinned deployment.");
+    }
+    progress.steps.forEach((result, index) => {
+      const expected = STEPS[index];
+      if (
+        !expected
+        || result.stepId !== expected.id
+        || result.artifact !== expected.artifact
+        || result.contractId !== expected.expectedContractId
+        || result.wasmSha256 !== expected.wasmSha256
+        || result.transaction?.status !== "SUCCESS"
+      ) {
+        throw new Error("Local instance progress contains an unexpected completed step.");
+      }
+    });
+    return progress.steps;
+  } catch (reason) {
+    if (reason?.code === "ENOENT") return [];
+    throw reason;
+  }
+}
+
 const server = new rpc.Server(RPC_URL);
-const account = await server.getAccount(DEPLOYER);
+const execute = process.argv.includes("--execute");
+if (execute) {
+  const cliAddress = execFileSync("stellar", ["keys", "public-key", IDENTITY_ALIAS], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  }).trim();
+  if (cliAddress !== DEPLOYER) throw new Error("Secure-store identity does not match the approved instance deployer.");
+}
 const results = [];
 const contractIds = {};
+let projectedTotalFee = 0n;
+let chargedTotalFee = 0n;
+const completedSteps = execute ? await readProgress() : [];
 
 for (const step of STEPS) {
   const wasm = await verifiedFile(step.wasmPath, step.wasmSha256);
   const networkWasm = await server.getContractWasmByHash(Buffer.from(step.wasmSha256, "hex"));
   if (sha256(networkWasm) !== step.wasmSha256 || networkWasm.byteLength !== wasm.byteLength) {
     throw new Error(`Testnet WASM differs for ${step.artifact}.`);
+  }
+  const completed = completedSteps[results.length];
+  if (completed) {
+    const [deployedWasm, transaction] = await Promise.all([
+      server.getContractWasmByContractId(completed.contractId),
+      server.getTransaction(completed.transaction.hash),
+    ]);
+    if (sha256(deployedWasm) !== step.wasmSha256 || deployedWasm.byteLength !== wasm.byteLength) {
+      throw new Error(`Completed ${step.id} instance has an unexpected WASM artifact.`);
+    }
+    if (
+      transaction.status !== rpc.Api.GetTransactionStatus.SUCCESS
+      || transaction.ledger !== completed.transaction.ledger
+      || transaction.resultXdr.feeCharged.toString() !== completed.transaction.feeChargedStroops
+    ) {
+      throw new Error(`Completed ${step.id} transaction evidence failed Testnet verification.`);
+    }
+    contractIds[step.artifact] = completed.contractId;
+    projectedTotalFee += BigInt(completed.resource.totalFeeStroops);
+    chargedTotalFee += BigInt(completed.transaction.feeChargedStroops);
+    results.push(completed);
+    continue;
   }
   const spec = contract.Spec.fromWasm(wasm);
   let constructorArgs = [];
@@ -224,6 +325,7 @@ for (const step of STEPS) {
     salt: deterministicSalt(step.id),
     wasmHash: Buffer.from(step.wasmSha256, "hex"),
   });
+  const account = await server.getAccount(DEPLOYER);
   const raw = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
     .addOperation(operation)
     .setTimeout(300)
@@ -240,8 +342,15 @@ for (const step of STEPS) {
   const prepared = rpc.assembleTransaction(raw, simulation).build();
   assertCreateOnly(prepared, expectedHostFunctionHash, true);
   const contractId = Address.fromScVal(simulation.result.retval).toString();
+  if (contractId !== step.expectedContractId) throw new Error(`${step.id} produced an unexpected deterministic contract ID.`);
+  projectedTotalFee += BigInt(prepared.fee);
+  if (projectedTotalFee > TOTAL_FEE_CEILING_STROOPS) {
+    throw new Error(
+      `Projected instance fees ${projectedTotalFee} exceed the approved ${TOTAL_FEE_CEILING_STROOPS}-stroop total ceiling.`,
+    );
+  }
   contractIds[step.artifact] = contractId;
-  results.push({
+  const result = {
     stepId: step.id,
     artifact: step.artifact,
     contractId,
@@ -254,9 +363,55 @@ for (const step of STEPS) {
       contractInvocation: false,
       hostFunction: "createContractV2",
       operationCount: 1,
-      submitted: false,
+      submitted: execute,
     },
-  });
+  };
+
+  if (execute) {
+    const signedXdr = signWithSecureStore(prepared.toXDR());
+    const signed = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    assertCreateOnly(signed, expectedHostFunctionHash, true);
+    if (signed.signatures.length !== 1) throw new Error(`Expected one envelope signature for ${step.id}.`);
+    const signature = signed.signatures[0];
+    if (!signature || !Keypair.fromPublicKey(DEPLOYER).verify(signed.hash(), signature.signature)) {
+      throw new Error(`Secure-store signature verification failed for ${step.id}.`);
+    }
+    const submitted = await server.sendTransaction(signed);
+    if (submitted.status === "ERROR") throw new Error(`Testnet rejected ${step.id}.`);
+    if (submitted.status === "TRY_AGAIN_LATER") throw new Error(`Testnet asked ${step.id} to retry later.`);
+    const final = await server.pollTransaction(submitted.hash, { attempts: 60 });
+    if (final.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
+      throw new Error(`${step.id} ended with ${final.status}.`);
+    }
+    const deployedWasm = await server.getContractWasmByContractId(contractId);
+    if (sha256(deployedWasm) !== step.wasmSha256 || deployedWasm.byteLength !== wasm.byteLength) {
+      throw new Error(`${step.id} deployed an unexpected WASM artifact.`);
+    }
+    const feeChargedStroops = final.resultXdr.feeCharged.toString();
+    chargedTotalFee += BigInt(feeChargedStroops);
+    result.transaction = {
+      hash: submitted.hash,
+      ledger: final.ledger,
+      feeChargedStroops,
+      maximumFeeStroops: prepared.fee,
+      approvedTotalFeeCeilingStroops: TOTAL_FEE_CEILING_STROOPS.toString(),
+      status: "SUCCESS",
+    };
+  }
+
+  results.push(result);
+  if (execute) {
+    await writeJsonAtomic(PROGRESS_PATH, {
+      schemaVersion: 1,
+      status: results.length === STEPS.length ? "complete" : "in_progress",
+      recordedAt: new Date().toISOString(),
+      sourceRevision: SOURCE_REVISION,
+      network: "testnet",
+      deployer: DEPLOYER,
+      assetMovement: false,
+      steps: results,
+    });
+  }
 }
 
 const totalFeeStroops = results.reduce((sum, result) => sum + BigInt(result.resource.totalFeeStroops), 0n);
@@ -277,8 +432,8 @@ const evidence = {
     agentAccountWasmHash: AGENT_ACCOUNT_WASM_HASH,
   },
   scope: {
-    signed: false,
-    submitted: false,
+    signed: execute,
+    submitted: execute,
     assetMovement: false,
     agentAccountInstances: "deferred until session-specific keys and expiry are fixed",
     auditAccumulatorVerifier: "excluded from canonical P0 settlement dependencies",
@@ -290,8 +445,13 @@ const evidence = {
     totalFeeXlm: (Number(totalFeeStroops) / 10_000_000).toFixed(7),
     totalInstructions: results.reduce((sum, result) => sum + result.resource.instructions, 0),
     totalWriteBytes: results.reduce((sum, result) => sum + result.resource.writeBytes, 0),
+    approvedFeeCeilingStroops: TOTAL_FEE_CEILING_STROOPS.toString(),
+    ...(execute ? {
+      feeChargedStroops: chargedTotalFee.toString(),
+      feeChargedXlm: (Number(chargedTotalFee) / 10_000_000).toFixed(7),
+    } : {}),
   },
 };
 
-await writeFile(EVIDENCE_PATH, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-console.log(JSON.stringify(evidence, null, 2));
+await writeJsonAtomic(execute ? DEPLOYMENT_EVIDENCE_PATH : EVIDENCE_PATH, evidence, execute ? 0o600 : 0o644);
+console.log(JSON.stringify({ status: execute ? "success" : "simulation_only", ...evidence }, null, 2));

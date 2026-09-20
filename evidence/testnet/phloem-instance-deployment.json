@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-09-19T23:52:58.217Z",
+  "checkedAt": "2026-09-19T23:55:43.071Z",
   "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
@@ -15,8 +15,8 @@
     "agentAccountWasmHash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d"
   },
   "scope": {
-    "signed": false,
-    "submitted": false,
+    "signed": true,
+    "submitted": true,
     "assetMovement": false,
     "agentAccountInstances": "deferred until session-specific keys and expiry are fixed",
     "auditAccumulatorVerifier": "excluded from canonical P0 settlement dependencies"
@@ -43,7 +43,15 @@
         "contractInvocation": false,
         "hostFunction": "createContractV2",
         "operationCount": 1,
-        "submitted": false
+        "submitted": true
+      },
+      "transaction": {
+        "hash": "41072f124c47c84f1b420e0a9ba7e349d41cf8df1b69c641413c47ac6a4e5bcc",
+        "ledger": 4767680,
+        "feeChargedStroops": "31488",
+        "maximumFeeStroops": "44822",
+        "approvedFeeCeilingStroops": "45024",
+        "status": "SUCCESS"
       }
     },
     {
@@ -59,8 +67,8 @@
         "footprintReadOnlyEntries": 1,
         "footprintReadWriteEntries": 1,
         "instructions": 1025608,
-        "minResourceFeeStroops": "365389",
-        "totalFeeStroops": "365489",
+        "minResourceFeeStroops": "366154",
+        "totalFeeStroops": "366254",
         "writeBytes": 1368
       },
       "safety": {
@@ -68,7 +76,15 @@
         "contractInvocation": false,
         "hostFunction": "createContractV2",
         "operationCount": 1,
-        "submitted": false
+        "submitted": true
+      },
+      "transaction": {
+        "hash": "3e48cb0020cf50bf25253c84a750e79cf2872204dd975f2729239e4176b7beb1",
+        "ledger": 4767696,
+        "feeChargedStroops": "312564",
+        "maximumFeeStroops": "366254",
+        "approvedTotalFeeCeilingStroops": "1444273",
+        "status": "SUCCESS"
       }
     },
     {
@@ -84,8 +100,8 @@
         "footprintReadOnlyEntries": 1,
         "footprintReadWriteEntries": 1,
         "instructions": 1017383,
-        "minResourceFeeStroops": "347114",
-        "totalFeeStroops": "347214",
+        "minResourceFeeStroops": "347838",
+        "totalFeeStroops": "347938",
         "writeBytes": 1296
       },
       "safety": {
@@ -93,7 +109,15 @@
         "contractInvocation": false,
         "hostFunction": "createContractV2",
         "operationCount": 1,
-        "submitted": false
+        "submitted": true
+      },
+      "transaction": {
+        "hash": "467c4ffaae92af587d32513838d15690f69a192f729cfa4937f1ff30d7a6f46b",
+        "ledger": 4767697,
+        "feeChargedStroops": "296547",
+        "maximumFeeStroops": "347938",
+        "approvedTotalFeeCeilingStroops": "1444273",
+        "status": "SUCCESS"
       }
     },
     {
@@ -109,8 +133,8 @@
         "footprintReadOnlyEntries": 1,
         "footprintReadWriteEntries": 1,
         "instructions": 1091410,
-        "minResourceFeeStroops": "511969",
-        "totalFeeStroops": "512069",
+        "minResourceFeeStroops": "513055",
+        "totalFeeStroops": "513155",
         "writeBytes": 1944
       },
       "safety": {
@@ -118,7 +142,15 @@
         "contractInvocation": false,
         "hostFunction": "createContractV2",
         "operationCount": 1,
-        "submitted": false
+        "submitted": true
+      },
+      "transaction": {
+        "hash": "0cbd09e7be181d2b60f59402764297bb57187b5aa09ff500cdea4f9dd773d2a3",
+        "ledger": 4767698,
+        "feeChargedStroops": "440709",
+        "maximumFeeStroops": "513155",
+        "approvedTotalFeeCeilingStroops": "1444273",
+        "status": "SUCCESS"
       }
     },
     {
@@ -133,8 +165,8 @@
         "footprintReadOnlyEntries": 1,
         "footprintReadWriteEntries": 1,
         "instructions": 1381240,
-        "minResourceFeeStroops": "172790",
-        "totalFeeStroops": "172890",
+        "minResourceFeeStroops": "173134",
+        "totalFeeStroops": "173234",
         "writeBytes": 616
       },
       "safety": {
@@ -142,16 +174,26 @@
         "contractInvocation": false,
         "hostFunction": "createContractV2",
         "operationCount": 1,
-        "submitted": false
+        "submitted": true
+      },
+      "transaction": {
+        "hash": "3fef41e3d9598369bb8744dbcccbb34a1686c7d79b6f7e045d98d71a67371996",
+        "ledger": 4767711,
+        "feeChargedStroops": "143549",
+        "maximumFeeStroops": "173234",
+        "approvedTotalFeeCeilingStroops": "1459858",
+        "status": "SUCCESS"
       }
     }
   ],
   "resources": {
     "transactionCount": 5,
-    "totalFeeStroops": "1442484",
-    "totalFeeXlm": "0.1442484",
+    "totalFeeStroops": "1445403",
+    "totalFeeXlm": "0.1445403",
     "totalInstructions": 5158929,
     "totalWriteBytes": 5328,
-    "approvedFeeCeilingStroops": "1444273"
+    "approvedFeeCeilingStroops": "1459858",
+    "feeChargedStroops": "1224857",
+    "feeChargedXlm": "0.1224857"
   }
 }

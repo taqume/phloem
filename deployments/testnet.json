@@ -138,9 +138,15 @@
     }
   },
   "phloem": {
-    "status": "wasm-uploaded",
+    "status": "base-instances-deployed",
     "sourceRevision": "27ea0e36ea42a975b824eec568522fe70d316806",
-    "contracts": {},
+    "contracts": {
+      "ed25519Verifier": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
+      "budgetTransitionVerifierV1": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "privateRootBackingVerifierV1": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "privateSettlementBindingVerifierV1": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "treasuryController": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH"
+    },
     "uploaders": {
       "primary": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
       "treasuryControllerFallback": {
@@ -243,13 +249,61 @@
       "totalInstructions": 176915174,
       "totalWriteBytes": 201940
     },
+    "instanceTransactions": [
+      {
+        "step": "create-ed25519-verifier",
+        "hash": "41072f124c47c84f1b420e0a9ba7e349d41cf8df1b69c641413c47ac6a4e5bcc",
+        "ledger": 4767680,
+        "contractId": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
+        "feeChargedStroops": "31488"
+      },
+      {
+        "step": "create-budget-transition-verifier-v1",
+        "hash": "3e48cb0020cf50bf25253c84a750e79cf2872204dd975f2729239e4176b7beb1",
+        "ledger": 4767696,
+        "contractId": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+        "feeChargedStroops": "312564"
+      },
+      {
+        "step": "create-private-root-backing-verifier-v1",
+        "hash": "467c4ffaae92af587d32513838d15690f69a192f729cfa4937f1ff30d7a6f46b",
+        "ledger": 4767697,
+        "contractId": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+        "feeChargedStroops": "296547"
+      },
+      {
+        "step": "create-private-settlement-binding-verifier-v1",
+        "hash": "0cbd09e7be181d2b60f59402764297bb57187b5aa09ff500cdea4f9dd773d2a3",
+        "ledger": 4767698,
+        "contractId": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+        "feeChargedStroops": "440709"
+      },
+      {
+        "step": "create-treasury-controller",
+        "hash": "3fef41e3d9598369bb8744dbcccbb34a1686c7d79b6f7e045d98d71a67371996",
+        "ledger": 4767711,
+        "contractId": "CDSG6DMWDPFDIBEXFSNTONEDDJ4CCNP2UJZJUFTRGX63ZDZMRGMZFHAH",
+        "feeChargedStroops": "143549"
+      }
+    ],
+    "instanceResources": {
+      "transactionCount": 5,
+      "maximumFeeStroops": "1445403",
+      "maximumFeeXlm": "0.1445403",
+      "feeChargedStroops": "1224857",
+      "feeChargedXlm": "0.1224857",
+      "totalInstructions": 5158929,
+      "totalWriteBytes": 5328
+    },
     "verification": {
-      "verifiedAt": "2026-09-19T23:28:18.861Z",
+      "verifiedAt": "2026-09-20T00:00:10.145Z",
       "rpcStatus": "healthy",
       "transactionStatus": "SUCCESS",
       "assetMovement": false,
-      "contractInstancesCreated": false,
+      "contractInstancesCreated": true,
       "contractWasmHashes": "verified; prior TreasuryController hash retained as superseded evidence",
+      "constructorConfig": "verified",
+      "verifierProofChecks": "passed",
       "pendingWasmUploads": 0
     }
   },
@@ -257,5 +311,5 @@
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "The fee-only SPP USDC dependency deployment is live and all six current Phloem WASM artifacts are uploaded. Phloem contract instances and all USDC-moving flows remain undeployed and unexecuted."
+  "note": "The SPP USDC dependency deployment, all six current Phloem WASM artifacts, and the five base Phloem contract instances are live. AgentAccount session instances and all USDC-moving flows remain undeployed and unexecuted."
 }
