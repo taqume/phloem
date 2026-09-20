@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 
 export default function DemoPage() {
   return (
-    <main className={styles.marketingPage}>
+    <div className={styles.marketingPage}>
       <MarketingHeader active="demo" />
+      <main id="main-content" tabIndex={-1}>
       <section className={styles.demoHero}>
         <div className={styles.shell}>
           <div className={styles.demoHeroGrid}>
@@ -50,22 +51,23 @@ export default function DemoPage() {
             <a href="https://stellar.expert/explorer/testnet/tx/28222513a8a73246fbf54cb35d752c827bcb5939ad6680b985ae90cff3d6687d" target="_blank" rel="noreferrer">
               <span>01 · ROOT BACKING</span>
               <strong>PRIVATE activation</strong>
-              <code>28222513...d6687d ↗</code>
+              <code>28222513…d6687d ↗</code>
             </a>
             <a href="https://stellar.expert/explorer/testnet/tx/4cbf34ba492b98d682a272c65209c3ab1e2993ecd450e089f2a02be916a7699c" target="_blank" rel="noreferrer">
               <span>02 · SETTLEMENT</span>
               <strong>Atomic SPP payment</strong>
-              <code>4cbf34ba...a7699c ↗</code>
+              <code>4cbf34ba…a7699c ↗</code>
             </a>
             <a href="https://stellar.expert/explorer/testnet/tx/65fe702bcc972818a0dae6d99f28fe8735ff90439cb8d26bc842da314ae94dd3" target="_blank" rel="noreferrer">
               <span>03 · PROVIDER EXIT</span>
               <strong>Public USDC recovered</strong>
-              <code>65fe702b...ae94dd3 ↗</code>
+              <code>65fe702b…ae94dd3 ↗</code>
             </a>
           </div>
         </div>
       </section>
+      </main>
       <MarketingFooter />
-    </main>
+    </div>
   );
 }

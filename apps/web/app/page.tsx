@@ -48,8 +48,10 @@ const proofPoints = [
 
 export default function Home() {
   return (
-    <main className={styles.marketingPage}>
+    <div className={styles.marketingPage}>
       <MarketingHeader active="home" />
+
+      <main id="main-content" tabIndex={-1}>
 
       <section className={styles.hero}>
         <div className={styles.heroGlow} aria-hidden="true" />
@@ -66,10 +68,10 @@ export default function Home() {
               </p>
               <div className={styles.heroActions}>
                 <Link className={styles.primaryCta} href="/demo">
-                  Run the guided demo
+                  Run Guided Demo
                   <span aria-hidden="true">↗</span>
                 </Link>
-                <a className={styles.secondaryCta} href="#protocol">Explore the protocol</a>
+                <a className={styles.secondaryCta} href="#protocol">Explore the Protocol</a>
               </div>
               <div className={styles.heroProof} aria-label="MVP status">
                 <span><i aria-hidden="true" />Stellar Testnet</span>
@@ -229,15 +231,15 @@ export default function Home() {
           <div className={styles.evidenceStrip}>
             <div>
               <span>Private settlement</span>
-              <code>4cbf34ba...a7699c</code>
+              <code>4cbf34ba…a7699c</code>
             </div>
             <div>
               <span>Provider SPP exit</span>
-              <code>65fe702b...ae94dd3</code>
+              <code>65fe702b…ae94dd3</code>
             </div>
             <div>
               <span>Session closure</span>
-              <code>dcdaadce...c25aa0f</code>
+              <code>dcdaadce…c25aa0f</code>
             </div>
           </div>
         </div>
@@ -260,7 +262,7 @@ export default function Home() {
             </div>
             <div className={styles.codeWindow} aria-label="Target Phloem V1 SDK example">
               <div className={styles.codeTitle}>
-                <span><i /><i /><i /></span>
+                <span aria-hidden="true"><i /><i /><i /></span>
                 <b>target-v1.ts</b>
                 <em>SDK preview</em>
               </div>
@@ -292,13 +294,14 @@ const receipt = await researchAgent.pay({
           <p className={styles.kicker}>See the control loop</p>
           <h2>Delegate authority.<br />Test its boundary.</h2>
           <Link className={styles.primaryCta} href="/demo">
-            Open the demo
+            Open the Demo
             <span aria-hidden="true">↗</span>
           </Link>
         </div>
       </section>
 
+      </main>
       <MarketingFooter />
-    </main>
+    </div>
   );
 }

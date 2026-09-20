@@ -120,7 +120,7 @@ export function GuidedDemo() {
 
           <div className={styles.demoConsole}>
             <div className={styles.consoleHeader}>
-              <span><i /><i /><i /></span>
+              <span aria-hidden="true"><i /><i /><i /></span>
               <b>phloem://policy-lab</b>
               <em>{isComplete ? "SETTLED" : "READY"}</em>
             </div>
@@ -149,7 +149,7 @@ export function GuidedDemo() {
               <div className={styles.eventLog} aria-live="polite">
                 <span>PROTOCOL EVENTS</span>
                 <ol>
-                  {completed === 0 ? <li className={styles.logMuted}>Waiting for company authorization...</li> : null}
+                  {completed === 0 ? <li className={styles.logMuted}>Waiting for company authorization…</li> : null}
                   {demoSteps.slice(0, completed).map((step) => (
                     <li key={step.label}><i aria-hidden="true" />{step.event}</li>
                   ))}

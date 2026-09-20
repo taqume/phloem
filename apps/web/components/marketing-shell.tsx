@@ -6,6 +6,7 @@ import styles from "../app/marketing.module.css";
 export function MarketingHeader({ active }: Readonly<{ active: "home" | "demo" }>) {
   return (
     <header className={styles.siteHeader}>
+      <a className={styles.skipLink} href="#main-content">Skip to Content</a>
       <div className={styles.headerInner}>
         <Link className={styles.wordmark} href="/" aria-label="Phloem home">
           <span className={styles.wordmarkIcon} aria-hidden="true"><i /><i /><i /></span>
@@ -21,7 +22,7 @@ export function MarketingHeader({ active }: Readonly<{ active: "home" | "demo" }
             <i aria-hidden="true" />Testnet
           </span>
           <Link className={styles.headerCta} href="/demo" aria-current={active === "demo" ? "page" : undefined}>
-            Try demo
+            Try Demo
           </Link>
         </div>
       </div>
