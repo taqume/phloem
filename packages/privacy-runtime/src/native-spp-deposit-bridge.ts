@@ -20,6 +20,38 @@ export const PINNED_SPP_RPC_URL = "https://soroban-testnet.stellar.org";
 const MAX_BRIDGE_STDOUT_BYTES = 256 * 1024;
 const MAX_BRIDGE_STDERR_BYTES = 64 * 1024;
 
+export function classifyNativeSppFailure(diagnostic: string): string {
+  const stages = [
+    ["PHLOEM_STAGE_REQUEST_DECODE", "request decoding"],
+    ["PHLOEM_STAGE_REQUEST_VALIDATION", "request validation"],
+    ["PHLOEM_STAGE_SHARED_INPUTS", "shared input validation"],
+    ["PHLOEM_STAGE_KEY_BINDING", "provider key binding"],
+    ["PHLOEM_STAGE_PROVIDER_REQUEST_HASH", "provider settlement hash validation"],
+    ["PHLOEM_STAGE_PROVIDER_REQUEST_LEDGER", "provider settlement ledger validation"],
+    ["PHLOEM_STAGE_PROVIDER_REQUEST_COMMITMENT", "provider output commitment validation"],
+    ["PHLOEM_STAGE_PROVIDER_REQUEST_RECIPIENT", "provider recipient validation"],
+    ["PHLOEM_STAGE_PROVIDER_REQUEST", "provider withdrawal request validation"],
+    ["PHLOEM_STAGE_PROVIDER_RPC_INIT", "provider RPC initialization"],
+    ["PHLOEM_STAGE_PROVIDER_EVENT_QUERY", "provider event query"],
+    ["PHLOEM_STAGE_PROVIDER_EVENT_MATCH", "provider event matching"],
+    ["PHLOEM_STAGE_PROVIDER_NOTE_DECRYPT", "provider note decryption"],
+    ["PHLOEM_STAGE_PROVIDER_NOTE_RECOVERY", "provider note recovery"],
+    ["PHLOEM_STAGE_DEPLOYMENT_BINDING", "deployment binding"],
+    ["PHLOEM_STAGE_CIRCUIT_ARTIFACTS", "circuit artifact preparation"],
+    ["PHLOEM_STAGE_PROVER_INIT", "prover initialization"],
+    ["PHLOEM_STAGE_CLIENT_INIT", "SPP client initialization"],
+    ["PHLOEM_STAGE_CLIENT_SYNC", "SPP client synchronization"],
+    ["PHLOEM_STAGE_ACCOUNT_BINDING", "SPP account binding"],
+    ["PHLOEM_STAGE_WITHDRAW_PLAN", "provider withdrawal planning"],
+    ["PHLOEM_STAGE_PROOF_GENERATION", "proof generation"],
+    ["PHLOEM_STAGE_TRANSACTION_SIMULATION", "transaction simulation"],
+  ] as const;
+  const match = stages.find(([tag]) => diagnostic.includes(tag));
+  return match
+    ? `native SPP bridge failed during ${match[1]}`
+    : "native SPP bridge rejected the request";
+}
+
 export interface SppDepositBridgeProcess {
   /** The implementation must consume the request before resolving. */
   run(request: Buffer): Promise<Buffer>;
@@ -61,6 +93,7 @@ export class NativeSppDepositProcess implements SppDepositBridgeProcess {
         stdio: ["pipe", "pipe", "pipe"],
       });
       const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
       let stdoutBytes = 0;
       let stderrBytes = 0;
       let rejected = false;
@@ -68,11 +101,16 @@ export class NativeSppDepositProcess implements SppDepositBridgeProcess {
         for (const chunk of stdout) chunk.fill(0);
         stdout.length = 0;
       };
+      const wipeStderr = (): void => {
+        for (const chunk of stderr) chunk.fill(0);
+        stderr.length = 0;
+      };
       const rejectSanitized = (message: string): void => {
         if (rejected) return;
         rejected = true;
         child.kill();
         wipeStdout();
+        wipeStderr();
         reject(new Error(message));
       };
       child.stdout.on("data", (chunk: Buffer) => {
@@ -87,17 +125,23 @@ export class NativeSppDepositProcess implements SppDepositBridgeProcess {
         stderrBytes += chunk.length;
         if (stderrBytes > MAX_BRIDGE_STDERR_BYTES) {
           rejectSanitized("native SPP deposit bridge exceeded its diagnostic limit");
+          return;
         }
+        stderr.push(Buffer.from(chunk));
       });
       child.once("error", () => rejectSanitized("native SPP deposit bridge could not start"));
       child.once("close", (code) => {
         if (rejected) return;
         if (code !== 0) {
-          rejectSanitized("native SPP deposit bridge rejected the request");
+          const diagnostic = Buffer.concat(stderr).toString("utf8");
+          const message = classifyNativeSppFailure(diagnostic);
+          wipeStderr();
+          rejectSanitized(message);
           return;
         }
         const output = Buffer.concat(stdout);
         wipeStdout();
+        wipeStderr();
         resolve(output);
       });
       child.stdin.once("error", () => rejectSanitized("native SPP deposit bridge input failed"));

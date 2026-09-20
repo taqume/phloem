@@ -27,15 +27,15 @@ function response(overrides: Record<string, unknown> = {}): Buffer {
     unsignedTransactionXdr: "AA==",
     proof: {
       inputNullifiers: ["13", "0"],
-      outputCommitment0: "0",
-      outputCommitment1: "0",
+      outputCommitment0: "17",
+      outputCommitment1: "19",
       publicAmount: (BN254_SCALAR_MODULUS - AMOUNT).toString(),
     },
     extData: {
       recipient: RECIPIENT,
       extAmount: (-AMOUNT).toString(),
-      encryptedOutput0Hex: "",
-      encryptedOutput1Hex: "",
+      encryptedOutput0Hex: "00",
+      encryptedOutput1Hex: "00",
     },
     resource: {
       authEntries: 0,
@@ -49,7 +49,7 @@ function response(overrides: Record<string, unknown> = {}): Buffer {
       totalFeeStroops: "800",
       writeBytes: 900,
     },
-    safety: { storage: "ephemeral-memory-no-sqlite" },
+    safety: { storage: "ephemeral-memory-no-sqlite", fullPublicExit: true },
     ...overrides,
   }));
 }
@@ -96,29 +96,27 @@ test("provider withdrawal recovers one encrypted note and returns only an unsign
   const request = f.request();
   assert.equal(request.body?.command, "prepare_provider_withdraw");
   assert.equal(request.body?.withdrawalRecipient, RECIPIENT);
-  assert.equal(request.body?.expectedProviderOutputCommitment, "307");
+  assert.equal(
+    request.body?.expectedProviderOutputCommitment,
+    "0x0000000000000000000000000000000000000000000000000000000000000133",
+  );
   assert.ok(request.reference?.equals(Buffer.alloc(request.reference.length)));
 });
 
-test("provider withdrawal rejects hidden change, wrong recipient, or a bridge-side submission", async () => {
+test("provider withdrawal rejects a non-full exit, wrong recipient, or a bridge-side submission", async () => {
   await assert.rejects(
     fixture(response({
-      proof: {
-        inputNullifiers: ["13", "0"],
-        outputCommitment0: "17",
-        outputCommitment1: "0",
-        publicAmount: (BN254_SCALAR_MODULUS - AMOUNT).toString(),
-      },
+      safety: { storage: "ephemeral-memory-no-sqlite", fullPublicExit: false },
     })).bridge.prepare(input()),
-    /private remainder/u,
+    /full public exit/u,
   );
   await assert.rejects(
     fixture(response({
       extData: {
         recipient: SOURCE,
         extAmount: (-AMOUNT).toString(),
-        encryptedOutput0Hex: "",
-        encryptedOutput1Hex: "",
+        encryptedOutput0Hex: "00",
+        encryptedOutput1Hex: "00",
       },
     })).bridge.prepare(input()),
     /recipient/u,

@@ -230,7 +230,8 @@ async fn recover_provider_note(
     let contracts = vec![PINNED_POOL.to_string()];
     let (_, events, _) = rpc
         .get_contract_events(&contracts, settlement_ledger, 1_000, None)
-        .await?;
+        .await
+        .context("PHLOEM_STAGE_PROVIDER_EVENT_QUERY")?;
     let mut recovered = None;
     for event in events {
         if event.ledger != settlement_ledger
@@ -253,9 +254,12 @@ async fn recover_provider_note(
             &parsed.commitment,
             parsed.index,
             &parsed.encrypted_output,
-        )?
+        )
+        .context("PHLOEM_STAGE_PROVIDER_NOTE_DECRYPT")?
         .ok_or_else(|| {
-            anyhow::anyhow!("provider output cannot be decrypted by the configured key")
+            anyhow::anyhow!(
+                "PHLOEM_STAGE_PROVIDER_NOTE_DECRYPT: provider output cannot be decrypted by the configured key"
+            )
         })?;
         let note_id = Sha256::digest(
             [
@@ -273,7 +277,11 @@ async fn recover_provider_note(
             leaf_index: parsed.index,
         });
     }
-    recovered.ok_or_else(|| anyhow::anyhow!("settlement provider output event was not found"))
+    recovered.ok_or_else(|| {
+        anyhow::anyhow!(
+            "PHLOEM_STAGE_PROVIDER_EVENT_MATCH: settlement provider output event was not found"
+        )
+    })
 }
 
 #[derive(Clone)]
@@ -426,6 +434,11 @@ impl Storage for EphemeralTransferStorage {
                 {
                     return Err(Error::other(
                         "full provider withdrawal must not create a private change output",
+                    ));
+                }
+                if request.output_amounts.iter().any(|value| !value.is_zero()) {
+                    return Err(Error::other(
+                        "full provider withdrawal must leave zero private output amounts",
                     ));
                 }
             }
@@ -625,39 +638,51 @@ fn exact_notes(notes: Vec<SpendNote>, target: NoteAmount) -> Result<Vec<SpendNot
     bail!("transfer bridge cannot exactly back the reservation with one or two notes")
 }
 
+fn field_decimal(value: Field) -> String {
+    value.0.to_string()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut serialized = String::new();
     io::stdin().read_to_string(&mut serialized)?;
     let request: TransferRequest =
-        serde_json::from_str(&serialized).context("decode transfer bridge request")?;
+        serde_json::from_str(&serialized).context("PHLOEM_STAGE_REQUEST_DECODE")?;
     serialized.zeroize();
     if request.schema_version != 1
         || (request.command != "prepare_transfer" && request.command != "prepare_provider_withdraw")
     {
-        bail!("unsupported transfer bridge request");
+        bail!("PHLOEM_STAGE_REQUEST_VALIDATION: unsupported transfer bridge request");
     }
     if request.pool_contract_id != PINNED_POOL {
-        bail!("transfer bridge request is not bound to the pinned SPP pool");
+        bail!("PHLOEM_STAGE_REQUEST_VALIDATION: request is not bound to the pinned pool");
     }
-    let reservation_id = hex32(&request.reservation_id_hex, "reservation id")?;
-    let session_id = hex32(&request.session_id_hex, "session id")?;
-    let note_private = hex32(&request.note_private_key_le_hex, "note private key")?;
-    let note_public = hex32(&request.note_public_key_le_hex, "note public key")?;
+    let reservation_id = hex32(&request.reservation_id_hex, "reservation id")
+        .context("PHLOEM_STAGE_SHARED_INPUTS")?;
+    let session_id =
+        hex32(&request.session_id_hex, "session id").context("PHLOEM_STAGE_SHARED_INPUTS")?;
+    let note_private = hex32(&request.note_private_key_le_hex, "note private key")
+        .context("PHLOEM_STAGE_SHARED_INPUTS")?;
+    let note_public = hex32(&request.note_public_key_le_hex, "note public key")
+        .context("PHLOEM_STAGE_SHARED_INPUTS")?;
     let encryption_private = hex32(
         &request.encryption_private_key_hex,
         "encryption private key",
-    )?;
-    let encryption_public = hex32(&request.encryption_public_key_hex, "encryption public key")?;
-    let membership_blinding = Field::try_from_le_bytes(hex32(
-        &request.membership_blinding_le_hex,
-        "membership blinding",
-    )?)?;
-    let derived_note_public: [u8; 32] = derive_public_key(&note_private)?
+    )
+    .context("PHLOEM_STAGE_SHARED_INPUTS")?;
+    let encryption_public = hex32(&request.encryption_public_key_hex, "encryption public key")
+        .context("PHLOEM_STAGE_SHARED_INPUTS")?;
+    let membership_blinding = Field::try_from_le_bytes(
+        hex32(&request.membership_blinding_le_hex, "membership blinding")
+            .context("PHLOEM_STAGE_SHARED_INPUTS")?,
+    )
+    .context("PHLOEM_STAGE_KEY_BINDING")?;
+    let derived_note_public: [u8; 32] = derive_public_key(&note_private)
+        .context("PHLOEM_STAGE_KEY_BINDING")?
         .try_into()
-        .map_err(|_| anyhow::anyhow!("derived note public key is not 32 bytes"))?;
+        .map_err(|_| anyhow::anyhow!("PHLOEM_STAGE_KEY_BINDING"))?;
     if derived_note_public != note_public {
-        bail!("note private/public key mismatch");
+        bail!("PHLOEM_STAGE_KEY_BINDING: note private/public key mismatch");
     }
     let note_keypair = NoteKeyPair {
         private: NotePrivateKey(note_private),
@@ -758,24 +783,29 @@ async fn main() -> Result<()> {
             .as_deref()
             .ok_or_else(|| {
                 anyhow::anyhow!("provider withdrawal is missing settlement transaction hash")
-            })?;
-        hex32(settlement_transaction_hash, "settlement transaction hash")?;
+            })
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_HASH")?;
+        hex32(settlement_transaction_hash, "settlement transaction hash")
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_HASH")?;
         let settlement_ledger = request
             .settlement_ledger
             .filter(|value| *value > 0)
-            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing settlement ledger"))?;
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing settlement ledger"))
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_LEDGER")?;
         let expected_commitment = request
             .expected_provider_output_commitment
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing output commitment"))?
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing output commitment"))
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_COMMITMENT")?
             .parse::<Field>()
-            .context("parse expected provider output commitment")?;
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_COMMITMENT")?;
         let recipient = request
             .withdrawal_recipient
             .clone()
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing public recipient"))?;
-        let rpc = RpcClient::new(RPC_URL)?;
+            .ok_or_else(|| anyhow::anyhow!("provider withdrawal is missing public recipient"))
+            .context("PHLOEM_STAGE_PROVIDER_REQUEST_RECIPIENT")?;
+        let rpc = RpcClient::new(RPC_URL).context("PHLOEM_STAGE_PROVIDER_RPC_INIT")?;
         let note = recover_provider_note(
             &rpc,
             settlement_ledger,
@@ -784,7 +814,8 @@ async fn main() -> Result<()> {
             &note_keypair,
             &encryption_keypair.private,
         )
-        .await?;
+        .await
+        .context("PHLOEM_STAGE_PROVIDER_NOTE_RECOVERY")?;
         let amount = note.amount;
         (
             vec![note],
@@ -794,25 +825,32 @@ async fn main() -> Result<()> {
 
     let deployment: ContractConfig = serde_json::from_str(include_str!(
         "../../../../deployments/spp-usdc-testnet.sdk.json"
-    ))?;
-    let pool_config = deployment.pool(PINNED_POOL)?;
+    ))
+    .context("PHLOEM_STAGE_DEPLOYMENT_BINDING")?;
+    let pool_config = deployment
+        .pool(PINNED_POOL)
+        .context("PHLOEM_STAGE_DEPLOYMENT_BINDING")?;
     if pool_config.policy_flags != PolicyFlags::BLOCKLIST || pool_config.gvk_mode != GvkMode::Off {
-        bail!("deployment is not the pinned blocklist/no-GVK pool");
+        bail!("PHLOEM_STAGE_DEPLOYMENT_BINDING: deployment policy differs");
     }
-    let circuits_dir = std::env::current_dir()?.join(".phloem/spp-circuits");
+    let circuits_dir = std::env::current_dir()
+        .context("PHLOEM_STAGE_CIRCUIT_ARTIFACTS")?
+        .join(".phloem/spp-circuits");
     let circuit_store = CircuitStore::open(circuits_dir);
     circuit_store
         .ensure()
         .await
-        .context("prepare pinned SPP circuit artifacts")?;
+        .context("PHLOEM_STAGE_CIRCUIT_ARTIFACTS")?;
     let stem = CircuitStem::transact(PolicyFlags::BLOCKLIST, GvkMode::Off);
-    let artifacts = circuit_store.artifacts(CIRCUIT_STEM)?;
-    let prover = Handle::from_box(
-        Box::new(LocalProver::from_artifacts(&[(stem, artifacts)])?) as Box<dyn Prover>
-    );
+    let artifacts = circuit_store
+        .artifacts(CIRCUIT_STEM)
+        .context("PHLOEM_STAGE_CIRCUIT_ARTIFACTS")?;
+    let prover = Handle::from_box(Box::new(
+        LocalProver::from_artifacts(&[(stem, artifacts)]).context("PHLOEM_STAGE_PROVER_INIT")?,
+    ) as Box<dyn Prover>);
     let output_blindings = Arc::new(Mutex::new(Vec::new()));
     let selected_note_ids = Arc::new(Mutex::new(Vec::new()));
-    let rpc = RpcClient::new(RPC_URL)?;
+    let rpc = RpcClient::new(RPC_URL).context("PHLOEM_STAGE_CLIENT_INIT")?;
     let storage = EphemeralTransferStorage {
         owner: request.funding_source.clone(),
         keys: StoredUserKeys {
@@ -826,14 +864,21 @@ async fn main() -> Result<()> {
         selected_note_ids: selected_note_ids.clone(),
         movement_mode: movement_mode.clone(),
     };
-    let mut client = Client::init(RPC_URL, storage, prover, deployment, None)?;
-    let _background_mode = client.background_sync()?;
-    let account = client.account(
-        NoteOwnerAddress::new(&request.funding_source),
-        SignerAddress::new(&request.funding_source),
-        Handle::from_box(Box::new(RefuseSigner) as Box<dyn Signer>),
-    )?;
-    let pool = account.pool(PINNED_POOL)?;
+    let mut client = Client::init(RPC_URL, storage, prover, deployment, None)
+        .context("PHLOEM_STAGE_CLIENT_INIT")?;
+    let _background_mode = client
+        .background_sync()
+        .context("PHLOEM_STAGE_CLIENT_SYNC")?;
+    let account = client
+        .account(
+            NoteOwnerAddress::new(&request.funding_source),
+            SignerAddress::new(&request.funding_source),
+            Handle::from_box(Box::new(RefuseSigner) as Box<dyn Signer>),
+        )
+        .context("PHLOEM_STAGE_ACCOUNT_BINDING")?;
+    let pool = account
+        .pool(PINNED_POOL)
+        .context("PHLOEM_STAGE_ACCOUNT_BINDING")?;
     let wallet = notes
         .iter()
         .map(|note| SpendableNote {
@@ -850,18 +895,25 @@ async fn main() -> Result<()> {
                 false,
             )
         }
-        MovementMode::PublicWithdraw { recipient, amount } => {
-            (pool.prepare_withdraw(&wallet, *amount, recipient)?, true)
-        }
+        MovementMode::PublicWithdraw { recipient, amount } => (
+            pool.prepare_withdraw(&wallet, *amount, recipient)
+                .context("PHLOEM_STAGE_WITHDRAW_PLAN")?,
+            true,
+        ),
     };
     if plan.tx_count() != 1 {
         bail!("transfer bridge refuses a multi-transaction SPP plan");
     }
-    let mut prepared = pool.prove_next(&mut plan).await?;
+    let mut prepared = pool
+        .prove_next(&mut plan)
+        .await
+        .context("PHLOEM_STAGE_PROOF_GENERATION")?;
     if !plan.is_complete() {
         bail!("transfer bridge did not complete the one-step SPP plan");
     }
-    pool.simulate(&mut prepared).await?;
+    pool.simulate(&mut prepared)
+        .await
+        .context("PHLOEM_STAGE_TRANSACTION_SIMULATION")?;
 
     let blindings = output_blindings
         .lock()
@@ -894,6 +946,7 @@ async fn main() -> Result<()> {
         .concat(),
     ));
     let proof = &prepared.proof_uncompressed;
+    let full_public_exit = matches!(&movement_mode, MovementMode::PublicWithdraw { .. });
     println!(
         "{}",
         serde_json::json!({
@@ -910,14 +963,14 @@ async fn main() -> Result<()> {
                 "aHex": hex::encode(&proof[0..64]),
                 "bHex": hex::encode(&proof[64..192]),
                 "cHex": hex::encode(&proof[192..256]),
-                "root": prepared.prepared.pool_root.to_string(),
-                "inputNullifiers": prepared.prepared.input_nullifiers.iter().map(ToString::to_string).collect::<Vec<_>>(),
-                "outputCommitment0": prepared.prepared.output_commitments[0].to_string(),
-                "outputCommitment1": prepared.prepared.output_commitments[1].to_string(),
-                "publicAmount": prepared.prepared.public_amount.to_string(),
+                "root": field_decimal(prepared.prepared.pool_root),
+                "inputNullifiers": prepared.prepared.input_nullifiers.iter().map(|value| field_decimal(*value)).collect::<Vec<_>>(),
+                "outputCommitment0": field_decimal(prepared.prepared.output_commitments[0]),
+                "outputCommitment1": field_decimal(prepared.prepared.output_commitments[1]),
+                "publicAmount": field_decimal(prepared.prepared.public_amount),
                 "extDataHashHex": hex::encode(prepared.prepared.ext_data_hash_be),
-                "aspMembershipRoot": prepared.prepared.asp_membership_root.to_string(),
-                "aspNonMembershipRoot": prepared.prepared.asp_non_membership_root.to_string()
+                "aspMembershipRoot": field_decimal(prepared.prepared.asp_membership_root),
+                "aspNonMembershipRoot": field_decimal(prepared.prepared.asp_non_membership_root)
             },
             "extData": {
                 "recipient": prepared.ext_data.recipient,
@@ -925,8 +978,8 @@ async fn main() -> Result<()> {
                 "encryptedOutput0Hex": hex::encode(&prepared.ext_data.encrypted_output0),
                 "encryptedOutput1Hex": hex::encode(&prepared.ext_data.encrypted_output1)
             },
-            "providerOutputBlinding": provider_output_blinding.to_string(),
-            "refundOutputBlinding": refund_output_blinding.to_string(),
+            "providerOutputBlinding": field_decimal(provider_output_blinding),
+            "refundOutputBlinding": field_decimal(refund_output_blinding),
             "resource": {
                 "authEntries": prepared.soroban_tx.auth_entries.len(),
                 "diskReadBytes": resources.disk_read_bytes,
@@ -939,7 +992,10 @@ async fn main() -> Result<()> {
                 "totalFeeStroops": total_fee.to_string(),
                 "writeBytes": resources.write_bytes
             },
-            "safety": { "storage": "ephemeral-memory-no-sqlite" }
+            "safety": {
+                "storage": "ephemeral-memory-no-sqlite",
+                "fullPublicExit": full_public_exit
+            }
         })
     );
     Ok(())

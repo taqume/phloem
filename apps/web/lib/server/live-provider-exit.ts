@@ -46,8 +46,9 @@ function canonicalBytes32(value: unknown, label: string): Buffer {
 
 function secretBytes32(name: string): Buffer {
   const value = process.env[name];
-  if (!value || !/^[0-9a-f]{64}$/u.test(value)) {
-    throw new Error(`${name} must be configured as 32-byte lowercase hexadecimal`);
+  if (!value) throw new Error(`${name} is not configured in the web server environment`);
+  if (!/^[0-9a-f]{64}$/u.test(value)) {
+    throw new Error(`${name} is configured but is not exactly 64 lowercase hexadecimal characters`);
   }
   return Buffer.from(value, "hex");
 }

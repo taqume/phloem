@@ -104,8 +104,12 @@ function parseResponse(
   if (root.assetMovement !== true || root.signed !== false || root.submitted !== false) {
     throw new Error("native SPP provider withdrawal bridge returned an unsafe execution state");
   }
-  if (record(root.safety, "bridge safety").storage !== "ephemeral-memory-no-sqlite") {
+  const safety = record(root.safety, "bridge safety");
+  if (safety.storage !== "ephemeral-memory-no-sqlite") {
     throw new Error("native SPP provider withdrawal bridge used unauthorized persistence");
+  }
+  if (safety.fullPublicExit !== true) {
+    throw new Error("native SPP provider withdrawal bridge did not prove a full public exit");
   }
   const inputNoteIds = root.inputNoteIdsHex;
   if (!Array.isArray(inputNoteIds) || inputNoteIds.length !== 1) {
@@ -116,16 +120,20 @@ function parseResponse(
   if (!Array.isArray(nullifiers) || nullifiers.length !== 2) {
     throw new Error("provider withdrawal proof must carry two canonical nullifier slots");
   }
-  const output0 = field(proof.outputCommitment0, "provider withdrawal output zero");
-  const output1 = field(proof.outputCommitment1, "provider withdrawal output one");
-  if (output0 !== 0n || output1 !== 0n) {
-    throw new Error("full provider withdrawal unexpectedly creates a private remainder");
-  }
+  field(proof.outputCommitment0, "provider withdrawal fixed output zero");
+  field(proof.outputCommitment1, "provider withdrawal fixed output one");
   const extData = record(root.extData, "provider withdrawal external data");
-  if (extData.recipient !== expectedRecipient
-    || extData.encryptedOutput0Hex !== ""
-    || extData.encryptedOutput1Hex !== "") {
-    throw new Error("provider withdrawal external recipient or zero-output encoding differs");
+  if (extData.recipient !== expectedRecipient) {
+    throw new Error("provider withdrawal external recipient differs");
+  }
+  for (const [label, value] of [
+    ["encrypted output zero", extData.encryptedOutput0Hex],
+    ["encrypted output one", extData.encryptedOutput1Hex],
+  ] as const) {
+    const encoded = stringValue(value, label);
+    if (!/^(?:[0-9a-f]{2})*$/u.test(encoded)) {
+      throw new Error(`provider withdrawal ${label} is not canonical hexadecimal`);
+    }
   }
   const externalAmount = BigInt(stringValue(extData.extAmount, "provider withdrawal external amount"));
   if (externalAmount >= 0n || externalAmount <= -(1n << 64n)) {
@@ -211,7 +219,7 @@ export class NativeSppProviderWithdrawBridge {
       membershipBlindingLeHex: toHex(input.membershipBlindingLe),
       settlementTransactionHashHex: toHex(input.settlementTransactionHash),
       settlementLedger: input.settlementLedger,
-      expectedProviderOutputCommitment: input.expectedProviderOutputCommitment.toString(),
+      expectedProviderOutputCommitment: `0x${input.expectedProviderOutputCommitment.toString(16).padStart(64, "0")}`,
       withdrawalRecipient: input.withdrawalRecipient,
     }), "utf8");
     let output: Buffer;
