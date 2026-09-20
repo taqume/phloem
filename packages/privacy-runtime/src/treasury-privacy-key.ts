@@ -7,7 +7,7 @@ import {
   poseidon2Hash2,
   poseidon2Hash3,
   toHex,
-} from "@phloem/protocol-types";
+} from "@phloem/protocol-types/encoding";
 
 import type { EncryptedPrivacyStateStore } from "./privacy-state-store.js";
 import type { SppTreasuryNoteOpening } from "./state.js";

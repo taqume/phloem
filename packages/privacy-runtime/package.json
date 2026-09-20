@@ -5,7 +5,9 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./keys": "./src/treasury-privacy-key.ts",
+    "./session-policy": "./src/private-session-policy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

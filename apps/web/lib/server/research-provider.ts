@@ -14,8 +14,8 @@ import { Asset, Keypair, StrKey, rpc } from "@stellar/stellar-sdk";
 
 import { PHLOEM_NETWORK } from "../network";
 
-const SERVICE_ID = "research-data-service";
-const CATEGORY_DATA = 2;
+export const RESEARCH_SERVICE_ID = "research-data-service";
+export const RESEARCH_CATEGORY_ID = 2;
 const OFFER_LIFETIME_LEDGERS = 120;
 const EVIDENCE_LIFETIME_LEDGERS = 120;
 const MAX_LEDGER_DRIFT = 20;
@@ -131,7 +131,7 @@ export function loadProviderConfig(): ProviderConfig {
     fixedPriceAtomic: configuredPrice(),
     assetContract,
     networkId: networkId(PHLOEM_NETWORK.networkPassphrase),
-    serviceIdHash: deriveId("PHLOEM_SERVICE_ID_V1", utf8(SERVICE_ID)),
+    serviceIdHash: deriveId("PHLOEM_SERVICE_ID_V1", utf8(RESEARCH_SERVICE_ID)),
   };
 }
 
@@ -153,7 +153,7 @@ export function signedOffer(config: ProviderConfig, currentLedger: number) {
     treasuryController: addressFromStrKey(config.treasuryController),
     providerIdentity: addressFromStrKey(config.signingKey.publicKey()),
     serviceIdHash: config.serviceIdHash,
-    categoryId: CATEGORY_DATA,
+    categoryId: RESEARCH_CATEGORY_ID,
     asset: addressFromStrKey(config.assetContract),
     pricingModel: 1,
     fixedPriceAtomic: config.fixedPriceAtomic,
@@ -169,7 +169,7 @@ export function signedOffer(config: ProviderConfig, currentLedger: number) {
     treasuryController: config.treasuryController,
     providerIdentity: config.signingKey.publicKey(),
     serviceIdHash: toHex(config.serviceIdHash),
-    categoryId: CATEGORY_DATA,
+    categoryId: RESEARCH_CATEGORY_ID,
     asset: config.assetContract,
     pricingModel: "FIXED_REQUEST" as const,
     fixedPriceAtomic: config.fixedPriceAtomic.toString(),
@@ -210,7 +210,7 @@ export function executeResearch(config: ProviderConfig, value: unknown, currentL
     throw new ProviderRequestError("issuedAtLedger is outside the accepted live-ledger window.", 409);
   }
   const result = {
-    serviceId: SERVICE_ID,
+    serviceId: RESEARCH_SERVICE_ID,
     requestId: input.requestId,
     items: researchItems(input.query, input.maxItems),
     datasetVersion: 1,
@@ -230,7 +230,7 @@ export function executeResearch(config: ProviderConfig, value: unknown, currentL
     reservationId: Uint8Array.from(Buffer.from(input.reservationId, "hex")),
     providerIdentity: addressFromStrKey(config.signingKey.publicKey()),
     serviceIdHash: config.serviceIdHash,
-    categoryId: CATEGORY_DATA,
+    categoryId: RESEARCH_CATEGORY_ID,
     requestId: Uint8Array.from(Buffer.from(input.requestId, "hex")),
     requestHash,
     responseHash,
@@ -251,7 +251,7 @@ export function executeResearch(config: ProviderConfig, value: unknown, currentL
     reservationId: input.reservationId,
     providerIdentity: config.signingKey.publicKey(),
     serviceIdHash: toHex(config.serviceIdHash),
-    categoryId: CATEGORY_DATA,
+    categoryId: RESEARCH_CATEGORY_ID,
     requestId: input.requestId,
     requestHash: toHex(requestHash),
     responseHash: toHex(responseHash),
