@@ -4,7 +4,7 @@ description: Stellar dApp / frontend development. Covers the JavaScript stellar-
 user-invocable: true
 argument-hint: "[dapp task]"
 ---
-
+.
 # Stellar dApp / Frontend
 
 Client-side development with `@stellar/stellar-sdk`, wallet connection, signing, and submitting transactions. Covers both classic Stellar operations and smart contract invocation from the browser or Node.js.
