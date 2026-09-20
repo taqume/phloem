@@ -14,6 +14,9 @@ import {
 const FIXTURE_PROOF = resolve(
   fileURLToPath(new URL("../../../contracts/budget-transition-verifier/test-fixtures/proof.json", import.meta.url)),
 );
+const FIXTURE_PUBLIC = resolve(
+  fileURLToPath(new URL("../../../contracts/budget-transition-verifier/test-fixtures/public.json", import.meta.url)),
+);
 
 test("snarkjs affine points serialize to exact Soroban BN254 byte layout", async () => {
   const json = JSON.parse(await readFile(FIXTURE_PROOF, "utf8")) as {
@@ -79,4 +82,45 @@ test("worker redacts subprocess diagnostics and removes raw witness files on fai
   );
   const remaining = await import("node:fs/promises").then(({ readdir }) => readdir(directory));
   assert.equal(remaining.some((name) => name.startsWith("phloem-local-proof-")), false);
+});
+
+test("worker rejects a verifier that exits zero without reporting OK", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "phloem-proof-worker-verifier-test-"));
+  context.after(async () => rm(directory, { recursive: true, force: true }));
+  const fakeCli = join(directory, "fake-cli.cjs");
+  const fakeWasm = join(directory, "circuit.wasm");
+  const fakeZkey = join(directory, "circuit.zkey");
+  const fakeVerificationKey = join(directory, "verification-key.json");
+  const [proof, publicSignals] = await Promise.all([
+    readFile(FIXTURE_PROOF, "utf8"),
+    readFile(FIXTURE_PUBLIC, "utf8"),
+  ]);
+  await Promise.all([
+    writeFile(fakeCli, [
+      "const { writeFileSync } = require('node:fs');",
+      `const proof = ${JSON.stringify(proof)};`,
+      `const publicSignals = ${JSON.stringify(publicSignals)};`,
+      "if (process.argv[3] === 'fullprove') {",
+      "  writeFileSync(process.argv[7], proof);",
+      "  writeFileSync(process.argv[8], publicSignals);",
+      "} else { process.stdout.write('Invalid proof'); }",
+    ].join("\n"), { mode: 0o600 }),
+    writeFile(fakeWasm, "fixture", { mode: 0o600 }),
+    writeFile(fakeZkey, "fixture", { mode: 0o600 }),
+    writeFile(fakeVerificationKey, "fixture", { mode: 0o600 }),
+  ]);
+
+  const worker = new LocalGroth16ProofWorker({ snarkJsCli: fakeCli, temporaryRoot: directory });
+  await assert.rejects(
+    worker.prove(
+      { privateAmount: "1" },
+      {
+        wasmPath: fakeWasm,
+        zkeyPath: fakeZkey,
+        verificationKeyPath: fakeVerificationKey,
+        publicInputCount: 8,
+      },
+    ),
+    LocalProofGenerationError,
+  );
 });

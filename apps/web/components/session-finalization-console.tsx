@@ -224,11 +224,14 @@ export function SessionFinalizationConsole() {
           <div className="deploy-complete" role="status">
             <strong>Hidden total satisfies TOTAL_SPEND_LEQ 1.0000000 USDC.</strong>
             <span>Audit version {audit.auditVersion} · {audit.execution}</span>
+            {!audit.testnetVerifierAccepted ? (
+              <span>Deployed Testnet verifier rejected the proof; the local Groth16 verification remains bound to the canonical live Testnet statement.</span>
+            ) : null}
             <code>{audit.proofSha256}</code>
           </div>
         ) : null}
         {error ? <p className="inline-error" role="alert">{error}</p> : null}
-        <p className="helper-text">Groth16 witness and encrypted audit opening remain local. Only the proof and canonical public statement reach the Testnet verifier simulation.</p>
+        <p className="helper-text">Groth16 witness and encrypted audit opening remain local. Any Testnet verifier rejection is reported explicitly and never relabeled as an on-chain verification.</p>
       </section>
     </div>
   );

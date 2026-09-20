@@ -41,7 +41,8 @@ export interface AuditQlVerification {
   readonly proofSha256: string;
   readonly verifierContractId: string;
   readonly verified: true;
-  readonly execution: "testnet-rpc-simulation";
+  readonly execution: "testnet-rpc-simulation" | "local-snarkjs-live-testnet-statement";
+  readonly testnetVerifierAccepted: boolean;
   readonly resource: {
     readonly instructions: number;
     readonly diskReadBytes: number;

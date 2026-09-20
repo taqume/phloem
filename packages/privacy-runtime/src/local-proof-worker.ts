@@ -148,11 +148,14 @@ export class LocalGroth16ProofWorker {
           ],
           { windowsHide: true, maxBuffer: 1024 * 1024 },
         );
-        await execFileAsync(
+        const verification = await execFileAsync(
           process.execPath,
           [this.#snarkJsCli, "groth16", "verify", artifacts.verificationKeyPath, publicPath, proofPath],
           { windowsHide: true, maxBuffer: 1024 * 1024 },
         );
+        if (!verification.stdout.includes("OK!")) {
+          throw new LocalProofGenerationError("local Groth16 proof verification rejected the generated proof");
+        }
       } catch {
         throw new LocalProofGenerationError("local Groth16 proof generation failed");
       }

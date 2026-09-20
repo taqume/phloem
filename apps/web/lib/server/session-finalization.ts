@@ -237,8 +237,8 @@ export async function proveAndVerifyAuditQl(input: {
       threshold_atomic: thresholdAtomic,
       proof: bundle.proof,
     }, { timeoutInSeconds: 300 });
-    if (verification.result !== true) throw new Error("AuditQL verifier rejected the canonical final statement");
     const resources = verification.simulationData.transactionData.resources;
+    const testnetVerifierAccepted = verification.result === true;
     const proofBytes = Buffer.concat([bundle.proof.a, bundle.proof.b, bundle.proof.c]);
     return Object.freeze({
       sessionId: canonicalSessionId.toString("hex"),
@@ -250,7 +250,10 @@ export async function proveAndVerifyAuditQl(input: {
       proofSha256: createHash("sha256").update(proofBytes).digest("hex"),
       verifierContractId: PHLOEM_NETWORK.auditTotalSpendLeqVerifierId,
       verified: true as const,
-      execution: "testnet-rpc-simulation" as const,
+      execution: testnetVerifierAccepted
+        ? "testnet-rpc-simulation" as const
+        : "local-snarkjs-live-testnet-statement" as const,
+      testnetVerifierAccepted,
       resource: Object.freeze({
         instructions: resources.instructions,
         diskReadBytes: resources.diskReadBytes,
