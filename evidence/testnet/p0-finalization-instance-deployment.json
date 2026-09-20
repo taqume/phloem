@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-20T06:35:33.683Z",
+  "sourceRevision": "2d7fc18ff7c48be3608ccdb8a33d2eaaeb21fc22",
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "deployer": {
+    "address": "GA5GAXIGEEQTRI4Y67DTX5D44MO5C6F4NMEBPMK5ER4WQXOO2XYICFCI",
+    "authority": "none after creation; constructors pin dependencies and expose no deployer/admin authority"
+  },
+  "approval": {
+    "scope": "two preflight-pinned createContractV2 constructors; no asset movement",
+    "approvedTotalPreflightStroops": "583899",
+    "approvedTotalGuardrailStroops": "589738"
+  },
+  "dependencies": {
+    "standardAsset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "agentAccountWasmHash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+    "budgetTransitionVerifier": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+    "privateRootBackingVerifier": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+    "privateBindingVerifier": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+    "sppPool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+  },
+  "verificationKey": {
+    "path": ".phloem/audit-total-spend-leq-setup/verification_key.json",
+    "sha256": "2cceaad298a9c90e9f569ed677808f827471f8872c0727988bab9c7720efab19"
+  },
+  "scope": {
+    "allowance": false,
+    "assetMovement": false,
+    "constructorInvocation": true,
+    "signed": true,
+    "submitted": true
+  },
+  "steps": [
+    {
+      "stepId": "create-treasury-controller-v2",
+      "artifact": "treasuryControllerV2",
+      "contractId": "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+      "wasmSha256": "a77bf56561530bf8fbc9894dcd80869b9e257d2fb296b61e10b7225b1bf32a70",
+      "hostFunctionHash": "0b89c4c56390c9604aec793f5f00a6b003e44bf41adb65a359f6f8edae0ee57f",
+      "saltSha256": "e53b4408ce5ea5cf8b55155ba716f79ab1f7aecd191ab8f746fca4b5d6a4fd12",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 944,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1414466,
+        "minResourceFeeStroops": "185969",
+        "totalFeeStroops": "186069",
+        "writeBytes": 616
+      },
+      "safety": {
+        "allowance": false,
+        "assetMovement": false,
+        "constructorInvocation": true,
+        "hostFunction": "createContractV2",
+        "operationCount": 1
+      },
+      "transaction": {
+        "hash": "8938f969001f9b570a38908b5a97bb6c883fc0f56dbffedf71baad15ff319acf",
+        "ledger": 4772506,
+        "feeChargedStroops": "154713",
+        "maximumFeeStroops": "186069",
+        "status": "SUCCESS"
+      }
+    },
+    {
+      "stepId": "create-audit-total-spend-leq-verifier-v1",
+      "artifact": "auditTotalSpendLeqVerifierV1",
+      "contractId": "CAM5OBYNHYPTZKLUE2NGI7ORPBLBU456KFFXYWZZ5V6EUJWMVXZP57DE",
+      "wasmSha256": "415805bd7213128dc84cd21225888786781444655492462fb1544c2366d460e4",
+      "hostFunctionHash": "e41de3d05a60980167abd28c03edcbe4d29103337afa2ca074634d71e094e12b",
+      "saltSha256": "54d75ee1a0c5ab28959e2d30555f9f72c4ebcdde8fa2d836fc0f5a0ad848eb2a",
+      "resource": {
+        "diskReadBytes": 0,
+        "envelopeBytes": 2848,
+        "footprintReadOnlyEntries": 1,
+        "footprintReadWriteEntries": 1,
+        "instructions": 1077228,
+        "minResourceFeeStroops": "398625",
+        "totalFeeStroops": "398725",
+        "writeBytes": 1384
+      },
+      "safety": {
+        "allowance": false,
+        "assetMovement": false,
+        "constructorInvocation": true,
+        "hostFunction": "createContractV2",
+        "operationCount": 1
+      },
+      "transaction": {
+        "hash": "dbf968d7b0a51cde2b44a07faa697c964d0376699c6dd1f9bc4d1f3a68c97058",
+        "ledger": 4772507,
+        "feeChargedStroops": "340768",
+        "maximumFeeStroops": "398725",
+        "status": "SUCCESS"
+      }
+    }
+  ],
+  "resources": {
+    "transactionCount": 2,
+    "projectedFeeStroops": "584794",
+    "feeChargedStroops": "495481",
+    "feeChargedXlm": "0.0495481"
+  },
+  "verification": {
+    "controller": {
+      "protocolVersion": 1,
+      "storageSchemaVersion": 2,
+      "standardAsset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "agentAccountWasmHash": "0a9d54d3bf278131cf2239e1db52eee54f057d4e3241a6aafc2b28bca22d156d",
+      "budgetTransitionVerifier": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
+      "privateRootBackingVerifier": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
+      "privateBindingVerifier": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
+      "sppPool": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4"
+    },
+    "auditVerifierController": "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+    "contractWasmHashes": "verified",
+    "transactionStatus": "SUCCESS"
+  }
+}

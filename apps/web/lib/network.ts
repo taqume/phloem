@@ -12,6 +12,7 @@ export const PHLOEM_NETWORK = {
   networkName: "Stellar Testnet",
   networkPassphrase: "Test SDF Network ; September 2015",
   rpcUrl: "https://soroban-testnet.stellar.org",
-  treasuryControllerId: "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67",
+  treasuryControllerId: "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+  auditTotalSpendLeqVerifierId: "CAM5OBYNHYPTZKLUE2NGI7ORPBLBU456KFFXYWZZ5V6EUJWMVXZP57DE",
   sppPoolId: "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4",
 } as const;

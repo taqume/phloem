@@ -138,14 +138,16 @@
     }
   },
   "phloem": {
-    "status": "base-instances-deployed",
-    "sourceRevision": "164d0ed224b2cacedcc9afb9252dff0705fa4ec2",
+    "status": "finalization-instances-deployed",
+    "sourceRevision": "2d7fc18ff7c48be3608ccdb8a33d2eaaeb21fc22",
     "contracts": {
       "ed25519Verifier": "CC3HSAEYBR5EHKVFQ2QUYZ3HWFIDDPNEQ2JT5EB2ZXWS3M34ITJ25NRR",
       "budgetTransitionVerifierV1": "CD3GQVHD4R3E4WMFEFB6H5IJJUZXYE3IFFNY65P2J3L2V6R6A6FTJQ4O",
       "privateRootBackingVerifierV1": "CBR7ZUMSLGWHUJBL7YKL2HRTYAWB34CPM5MG5OFYANENMOTCBHH3A5PA",
       "privateSettlementBindingVerifierV1": "CA5MLD4MNE2S3TQ3C47PARFSWL3XPXTQS5HQHS7ZDGTKXB7TMVNXVRRW",
-      "treasuryController": "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67"
+      "treasuryControllerSuperseded": "CBQJEY3J4DDJ4OUGSGHUVLRI2NYOS2XVRZ5V7ACWYPFDGB2IJLSMAS67",
+      "treasuryController": "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+      "auditTotalSpendLeqVerifierV1": "CAM5OBYNHYPTZKLUE2NGI7ORPBLBU456KFFXYWZZ5V6EUJWMVXZP57DE"
     },
     "uploaders": {
       "primary": "GBRFJEDXTYPKMZCQNXQV5LS63YBKRVNTQLE37GKKMQEO3TQ2N6HI4QUC",
@@ -181,11 +183,23 @@
         "bytes": 39444,
         "provisioning": "uploaded-by-primary-deployer"
       },
-      "treasuryController": {
+      "treasuryControllerSuperseded": {
         "sha256": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44",
         "bytes": 74096,
         "provisioning": "uploaded-by-dedicated-testnet-uploader",
         "supersedes": "e7a219c685300db12b1725a14113c7b05a54103e021f9af2f20412955c085e1f"
+      },
+      "treasuryController": {
+        "sha256": "a77bf56561530bf8fbc9894dcd80869b9e257d2fb296b61e10b7225b1bf32a70",
+        "bytes": 79627,
+        "provisioning": "uploaded-by-dedicated-testnet-uploader",
+        "supersedes": "c4607977b54c68d3344fdfeee669ee9a15a6fda81ee0e98357020b2ad7dd0f44"
+      },
+      "auditTotalSpendLeqVerifierV1": {
+        "sha256": "415805bd7213128dc84cd21225888786781444655492462fb1544c2366d460e4",
+        "bytes": 6238,
+        "verificationKeySha256": "2cceaad298a9c90e9f569ed677808f827471f8872c0727988bab9c7720efab19",
+        "provisioning": "uploaded-by-dedicated-testnet-uploader"
       }
     },
     "transactions": [
@@ -309,14 +323,56 @@
       "totalInstructions": 6540215,
       "totalWriteBytes": 5944
     },
+    "finalizationDeployment": {
+      "recordedAt": "2026-09-20T06:35:33.683Z",
+      "sourceRevision": "2d7fc18ff7c48be3608ccdb8a33d2eaaeb21fc22",
+      "assetMovement": false,
+      "wasmUploads": [
+        {
+          "artifact": "auditTotalSpendLeqVerifierV1",
+          "hash": "b40a6d4b5676b8834592592addc969e159d979c3659bc9c5bd0aab5210c1e4f9",
+          "ledger": 4772427,
+          "feeChargedStroops": "13623104"
+        },
+        {
+          "artifact": "treasuryControllerV2",
+          "hash": "50b27de7bb239aed056f5000b9198c2a8c9c823de2708d9bd57b59122521a7bc",
+          "ledger": 4772428,
+          "feeChargedStroops": "113833543"
+        }
+      ],
+      "instances": [
+        {
+          "artifact": "treasuryControllerV2",
+          "contractId": "CDGSEV2HZZM4YLVQXXS3EWVZILOFGWHNNVEEZM3S4P7FESA6JIRVJ2T2",
+          "hash": "8938f969001f9b570a38908b5a97bb6c883fc0f56dbffedf71baad15ff319acf",
+          "ledger": 4772506,
+          "feeChargedStroops": "154713"
+        },
+        {
+          "artifact": "auditTotalSpendLeqVerifierV1",
+          "contractId": "CAM5OBYNHYPTZKLUE2NGI7ORPBLBU456KFFXYWZZ5V6EUJWMVXZP57DE",
+          "hash": "dbf968d7b0a51cde2b44a07faa697c964d0376699c6dd1f9bc4d1f3a68c97058",
+          "ledger": 4772507,
+          "feeChargedStroops": "340768"
+        }
+      ],
+      "resources": {
+        "wasmUploadFeeChargedStroops": "127456647",
+        "instanceFeeChargedStroops": "495481",
+        "totalFeeChargedStroops": "127952128",
+        "totalFeeChargedXlm": "12.7952128"
+      }
+    },
     "verification": {
-      "verifiedAt": "2026-09-20T00:44:58.910Z",
+      "verifiedAt": "2026-09-20T06:35:33.683Z",
       "rpcStatus": "healthy",
       "transactionStatus": "SUCCESS",
       "assetMovement": false,
       "contractInstancesCreated": true,
       "contractWasmHashes": "verified; prior TreasuryController hashes and instance retained as superseded evidence",
-      "constructorConfig": "verified",
+      "constructorConfig": "verified; finalization controller readback passed",
+      "auditTotalSpendLeqControllerBinding": "verified",
       "verifierProofChecks": "passed",
       "pendingWasmUploads": 0
     }
@@ -367,5 +423,5 @@
     "sourceRevision": "33f4044330ced023d45d200b004e7f42f0ea9eed",
     "wasmSha256": null
   },
-  "note": "The SPP USDC dependency deployment, all six current Phloem WASM artifacts, and the five base Phloem contract instances are live. The controlled PRIVATE agent payment and provider SPP public exit are confirmed on Testnet; Anchor withdrawal remains pending."
+  "note": "The SPP USDC dependency deployment and current Phloem contract instances are live, including the finalization-capable TreasuryController and controller-bound AuditTotalSpendLeq verifier. The earlier controlled PRIVATE payment and provider SPP public exit remain prior-controller evidence; a fresh finalization-controller E2E and Anchor withdrawal remain pending."
 }

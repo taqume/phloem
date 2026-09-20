@@ -31,6 +31,7 @@
     "phloem:deployment:upload-treasury": "node scripts/deploy/upload-phloem-treasury-controller-testnet.mjs",
     "phloem:finalization:preflight": "node scripts/deploy/preflight-p0-finalization-testnet.mjs",
     "phloem:finalization:instances:preflight": "node scripts/deploy/preflight-p0-finalization-instances-testnet.mjs",
+    "phloem:finalization:instances:deploy": "node scripts/deploy/deploy-p0-finalization-instances-testnet.mjs",
     "phloem:finalization:upload": "node scripts/deploy/upload-p0-finalization-testnet.mjs",
     "spp:runtime:simulate": "scripts/spp/simulate-private-runtime.sh",
     "zk:setup:budget": "node scripts/zk/setup-budget-transition.mjs",
