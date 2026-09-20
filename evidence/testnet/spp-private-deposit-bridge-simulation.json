@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-09-20T00:21:21Z",
+  "fixture": "PHLOEM_NON_PRODUCTION_NATIVE_DEPOSIT_BRIDGE_V1",
+  "sourceRevision": "5f3a5d41f452069caf8d0e1654675bca55cb94d3",
+  "network": "testnet",
+  "poolContractId": "CC57FDSWPIHALXW2XWVSKEA7FA72Z37Y7AP5ASRY6V3CXAZCWQAOSLB4",
+  "simulatedAmountAtomic": "100000",
+  "runtimeBoundary": {
+    "operationIdBytes": 32,
+    "groth16Bytes": 256,
+    "encryptedOutputBytes": [
+      120,
+      120
+    ],
+    "typescriptAdapterParsed": true
+  },
+  "resource": {
+    "authEntries": 1,
+    "diskReadBytes": 272,
+    "envelopeBytes": 7944,
+    "footprintReadOnlyEntries": 35,
+    "footprintReadWriteEntries": 26,
+    "instructions": 68833753,
+    "latestLedger": 4768023,
+    "resourceFeeStroops": "516646",
+    "totalFeeStroops": "516746",
+    "writeBytes": 3504
+  },
+  "safety": {
+    "assetMovement": false,
+    "authoritativePrivateStateWrittenToUpstreamStorage": false,
+    "rawProofOrBlindingPersisted": false,
+    "signed": false,
+    "storage": "ephemeral-memory-no-sqlite",
+    "submitted": false
+  }
+}

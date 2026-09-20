@@ -64,6 +64,7 @@ function sppPlanner(tamperOutput = false): {
 } {
   const aborted: Buffer[] = [];
   const confirmed: Buffer[] = [];
+  let preparedFundingCommitment: bigint | undefined;
   return {
     aborted,
     confirmed,
@@ -76,12 +77,13 @@ function sppPlanner(tamperOutput = false): {
           blinding,
           POSEIDON_DOMAINS.sppNote,
         );
+        preparedFundingCommitment = tamperOutput ? output + 1n : output;
         const proof: SppProof = {
           asp_membership_root: 0n,
           asp_non_membership_root: 0n,
           ext_data_hash: Buffer.alloc(32),
           input_nullifiers: [0n, 0n],
-          output_commitment0: tamperOutput ? output + 1n : output,
+          output_commitment0: preparedFundingCommitment,
           output_commitment1: 0n,
           proof: PROOF,
           public_amount: input.amountAtomic,
@@ -102,7 +104,8 @@ function sppPlanner(tamperOutput = false): {
       abort: async (operationId) => {
         aborted.push(Buffer.from(operationId));
       },
-      confirm: async (operationId) => {
+      confirm: async (operationId, _transactionHash, _ledgerSequence, expectedFundingCommitment) => {
+        assert.equal(expectedFundingCommitment, preparedFundingCommitment);
         confirmed.push(Buffer.from(operationId));
         return { fundingLeafIndex: 11 };
       },

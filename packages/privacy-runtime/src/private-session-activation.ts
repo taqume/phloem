@@ -45,6 +45,7 @@ export interface SppPrivateDepositPlanner {
     operationId: Buffer,
     transactionHash: Buffer,
     ledgerSequence: number,
+    expectedFundingCommitment: bigint,
   ): Promise<{ readonly fundingLeafIndex: number }>;
 }
 
@@ -331,7 +332,19 @@ export class PrivateSessionActivationPlanner {
     if (!Number.isSafeInteger(input.ledgerSequence) || input.ledgerSequence <= 0) {
       throw new RangeError("confirmation ledger must be a positive integer");
     }
-    const result = await this.#spp.confirm(operationId, transactionHash, input.ledgerSequence);
+    const snapshot = await this.#store.readSnapshot();
+    const activation = snapshot.privateSessionActivations.find((item) => item.operationId === toHex(operationId));
+    if (!activation) throw new PrivateSessionActivationStateError("prepared private activation was not found");
+    const expectedFundingCommitment = checkedField(
+      BigInt(activation.sppTreasuryNote.commitment),
+      "staged SPP funding commitment",
+    );
+    const result = await this.#spp.confirm(
+      operationId,
+      transactionHash,
+      input.ledgerSequence,
+      expectedFundingCommitment,
+    );
     if (!Number.isSafeInteger(result.fundingLeafIndex) || result.fundingLeafIndex < 0) {
       throw new PrivateSessionActivationStateError("SPP confirmation returned an invalid funding leaf index");
     }
