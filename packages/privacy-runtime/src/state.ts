@@ -1,7 +1,7 @@
 import { bytes32HexSchema, fieldDecimalSchema, u64DecimalSchema } from "@phloem/protocol-types";
 import { z } from "zod";
 
-export const PRIVACY_STATE_SCHEMA_VERSION = 5 as const;
+export const PRIVACY_STATE_SCHEMA_VERSION = 6 as const;
 
 const unixMillisecondsSchema = z.number().int().nonnegative();
 const contractAddressSchema = z.string().regex(/^C[A-Z2-7]{55}$/u);
@@ -50,6 +50,31 @@ export const chainConfirmationSchema = z.object({
   transactionHash: bytes32HexSchema,
   ledgerSequence: z.number().int().positive(),
 }).strict();
+
+export const preparedPrivateBudgetDelegationSchema = z.object({
+  operationId: bytes32HexSchema,
+  sessionId: bytes32HexSchema,
+  sourceBudgetNoteId: bytes32HexSchema,
+  childBudgetNote: budgetNoteOpeningSchema,
+  remainderBudgetNote: budgetNoteOpeningSchema.optional(),
+  status: z.enum(["PREPARED", "CONFIRMED"]),
+  confirmation: chainConfirmationSchema.optional(),
+  createdAtUnixMs: unixMillisecondsSchema,
+}).strict().superRefine((value, context) => {
+  if ((value.status === "CONFIRMED") !== (value.confirmation !== undefined)) {
+    context.addIssue({ code: "custom", message: "only a confirmed delegation may carry chain confirmation" });
+  }
+  if (value.childBudgetNote.sessionId !== value.sessionId
+    || (value.remainderBudgetNote !== undefined && value.remainderBudgetNote.sessionId !== value.sessionId)) {
+    context.addIssue({ code: "custom", message: "delegation outputs must belong to the prepared session" });
+  }
+  if (value.childBudgetNote.status !== "ACTIVE") {
+    context.addIssue({ code: "custom", message: "prepared delegation outputs must be active openings" });
+  }
+  if (value.remainderBudgetNote && value.remainderBudgetNote.status !== "ACTIVE") {
+    context.addIssue({ code: "custom", message: "prepared delegation remainder must be active" });
+  }
+});
 
 export const preparedAuditUpdateSchema = z.object({
   auditContextHash: fieldDecimalSchema,
@@ -221,6 +246,7 @@ export const privacyStateSchema = z.object({
   sppSpendOperations: z.array(sppSpendOperationSchema),
   privateSessionActivations: z.array(privateSessionActivationSchema),
   agentIdentities: z.array(agentIdentitySchema),
+  privateBudgetDelegations: z.array(preparedPrivateBudgetDelegationSchema),
 }).strict().superRefine((value, context) => {
   for (const [label, values] of [
     ["budget note", value.budgetNotes.map((item) => item.noteId)],
@@ -236,9 +262,21 @@ export const privacyStateSchema = z.object({
     ["agent identity", value.agentIdentities.map((item) => `${item.sessionId}:${item.role}`)],
     ["agent public key", value.agentIdentities.map((item) => item.publicKeyHex)],
     ["agent contract", value.agentIdentities.flatMap((item) => item.contractId ? [item.contractId] : [])],
+    ["private budget delegation", value.privateBudgetDelegations.map((item) => item.operationId)],
   ] as const) {
     if (new Set(values).size !== values.length) {
       context.addIssue({ code: "custom", message: `duplicate ${label} in privacy state` });
+    }
+  }
+
+  for (const delegation of value.privateBudgetDelegations) {
+    const source = value.budgetNotes.find((item) => item.noteId === delegation.sourceBudgetNoteId);
+    if (delegation.status === "PREPARED"
+      && (!source || source.status !== "SPEND_PENDING" || source.pendingOperationId !== delegation.operationId)) {
+      context.addIssue({
+        code: "custom",
+        message: "prepared private delegation must hold its source budget opening",
+      });
     }
   }
 });
@@ -255,6 +293,7 @@ export type SppTreasuryNoteOpening = z.infer<typeof sppTreasuryNoteOpeningSchema
 export type SppSpendOperation = z.infer<typeof sppSpendOperationSchema>;
 export type PrivateSessionActivation = z.infer<typeof privateSessionActivationSchema>;
 export type AgentIdentityState = z.infer<typeof agentIdentitySchema>;
+export type PreparedPrivateBudgetDelegation = z.infer<typeof preparedPrivateBudgetDelegationSchema>;
 export type PrivacyState = z.infer<typeof privacyStateSchema>;
 
 export function emptyPrivacyState(): PrivacyState {
@@ -269,5 +308,6 @@ export function emptyPrivacyState(): PrivacyState {
     sppSpendOperations: [],
     privateSessionActivations: [],
     agentIdentities: [],
+    privateBudgetDelegations: [],
   };
 }

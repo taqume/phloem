@@ -183,6 +183,15 @@ export class PrivateVoucherIssuer {
 
     try {
       return await this.#store.transaction((state) => {
+        const source = state.budgetNotes.find((item) => item.noteId === opening.sourceBudgetNoteId);
+        if (!source || source.status !== "ACTIVE") {
+          throw new PrivateReservationStateError("reservation source budget note is not active in private state");
+        }
+        if (source.sessionId !== opening.sessionId
+          || source.contextHash !== input.sourceBudgetContextHash.toString()
+          || BigInt(source.amountAtomic) < amountAtomic) {
+          throw new PrivateReservationStateError("reservation source opening does not match the requested authority");
+        }
         if (state.reservations.some((item) => item.reservationId === opening.reservationId)) {
           throw new PrivateReservationStateError("reservation id is already present in private state");
         }
@@ -195,6 +204,8 @@ export class PrivateVoucherIssuer {
         if (state.reservations.some((item) => item.sourceBudgetNoteId === opening.sourceBudgetNoteId && item.status === "PREPARED")) {
           throw new PrivateReservationStateError("source budget note already has a prepared reservation");
         }
+        source.status = "SPEND_PENDING";
+        source.pendingOperationId = opening.reservationId;
         state.reservations.push(opening);
         return publicArtifacts(opening);
       });
@@ -219,10 +230,11 @@ export class PrivateVoucherIssuer {
         throw new PrivateReservationStateError("only a prepared reservation can become open");
       }
       const source = state.budgetNotes.find((item) => item.noteId === opening.sourceBudgetNoteId);
-      if (!source || source.status !== "ACTIVE") {
-        throw new PrivateReservationStateError("prepared reservation source is not active in private state");
+      if (!source || source.status !== "SPEND_PENDING" || source.pendingOperationId !== opening.reservationId) {
+        throw new PrivateReservationStateError("prepared reservation no longer holds its source opening");
       }
       source.status = "SPENT";
+      delete source.pendingOperationId;
       if (opening.preparedRemainder) {
         const remainder = opening.preparedRemainder;
         if (state.budgetNotes.some((item) => item.noteId === remainder.noteId)) {
@@ -254,6 +266,12 @@ export class PrivateVoucherIssuer {
       if (index < 0 || state.reservations[index]!.status !== "PREPARED") {
         throw new PrivateReservationStateError("only a prepared reservation can be discarded");
       }
+      const source = state.budgetNotes.find((item) => item.noteId === state.reservations[index]!.sourceBudgetNoteId);
+      if (!source || source.status !== "SPEND_PENDING" || source.pendingOperationId !== id) {
+        throw new PrivateReservationStateError("prepared reservation no longer holds its source opening");
+      }
+      source.status = "ACTIVE";
+      delete source.pendingOperationId;
       state.reservations.splice(index, 1);
     });
   }

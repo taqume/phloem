@@ -157,7 +157,8 @@ test("planner proves hidden conservation and stages a reservation-specific key p
   assert.equal(witnesses[0]?.output2Amount, "400000");
 
   const staged = await store.readSnapshot();
-  assert.equal(staged.budgetNotes[0]?.status, "ACTIVE");
+  assert.equal(staged.budgetNotes[0]?.status, "SPEND_PENDING");
+  assert.equal(staged.budgetNotes[0]?.pendingOperationId, prepared.input.reservation_id.toString("hex"));
   assert.equal(staged.reservations[0]?.status, "PREPARED");
   assert.equal(staged.reservations[0]?.preparedRemainder?.amountAtomic, "400000");
 

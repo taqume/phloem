@@ -80,6 +80,7 @@ function privateReservation(): PrivateReservationInput {
 function planner(overrides: Partial<PrivateOperationPlanner> = {}): PrivateOperationPlanner {
   return {
     prepareDelegation: async () => ({
+      operationId: Buffer.alloc(32, 11),
       sessionId: Buffer.from(sessionId, "hex"),
       sourceNoteId: Buffer.alloc(32, 10),
       delegation: privateDelegation(),
@@ -89,6 +90,7 @@ function planner(overrides: Partial<PrivateOperationPlanner> = {}): PrivateOpera
       amountAtomic: delegationAction.amountAtomic,
     }),
     prepareReservation: async () => ({
+      operationId: Buffer.alloc(32, 12),
       input: privateReservation(),
       proof,
       sourceAgent: actor.identity,
@@ -96,6 +98,8 @@ function planner(overrides: Partial<PrivateOperationPlanner> = {}): PrivateOpera
       offerReferenceHash: paymentAction.offerReferenceHash,
       amountAtomic: paymentAction.amountAtomic,
     }),
+    confirm: async () => undefined,
+    abort: async () => undefined,
     ...overrides,
   };
 }
@@ -124,7 +128,8 @@ test("delegation action binds every public policy field before generated call co
     delegationAction,
     actor,
   );
-  assert.equal(result, tx);
+  assert.equal(result.transaction, tx);
+  assert.equal(result.privateOperation.kind, "DELEGATION");
   assert.deepEqual(calls, ["delegate_private_budget"]);
 });
 
@@ -135,7 +140,8 @@ test("payment action becomes a private reservation rather than a plaintext settl
     paymentAction,
     { role: "RESEARCH", identity: actor.identity },
   );
-  assert.equal(result, tx);
+  assert.equal(result.transaction, tx);
+  assert.equal(result.privateOperation.kind, "RESERVATION");
   assert.deepEqual(calls, ["open_private_reservation"]);
 });
 
@@ -143,6 +149,7 @@ test("planner metadata substitution is rejected before a generated contract call
   const calls: string[] = [];
   const badPlanner = planner({
     prepareReservation: async () => ({
+      operationId: Buffer.alloc(32, 12),
       input: privateReservation(),
       proof,
       sourceAgent: actor.identity,

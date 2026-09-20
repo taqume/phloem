@@ -46,7 +46,12 @@ function transaction(overrides: Partial<contract.AssembledTransaction<unknown>> 
 
 function adapter(tx: contract.AssembledTransaction<unknown>) {
   const invocations: ControllerInvocationBuilder = {
-    build: async () => tx,
+    build: async () => ({
+      transaction: tx,
+      privateOperation: { kind: "RESERVATION", operationId: Buffer.alloc(32, 9) },
+    }),
+    confirm: async () => undefined,
+    abort: async () => undefined,
   };
   return new GeneratedTreasuryControllerAdapter({} as Client, invocations);
 }

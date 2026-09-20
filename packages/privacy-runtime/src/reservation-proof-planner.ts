@@ -243,4 +243,20 @@ export class PrivateReservationProofPlanner {
       throw error;
     }
   }
+
+  async confirm(input: {
+    readonly operationId: Uint8Array;
+    readonly transactionHash: Uint8Array;
+    readonly ledgerSequence: number;
+  }): Promise<void> {
+    await this.#issuer.confirmReservationOpen({
+      reservationId: input.operationId,
+      transactionHash: input.transactionHash,
+      ledgerSequence: input.ledgerSequence,
+    });
+  }
+
+  async abort(operationId: Uint8Array): Promise<void> {
+    await this.#issuer.discardPreparedReservation(operationId);
+  }
 }

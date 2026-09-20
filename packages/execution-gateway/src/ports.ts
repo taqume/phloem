@@ -43,6 +43,10 @@ export interface PreparedContractInvocation {
     readonly kind: "AGENT_SMART_ACCOUNT";
     readonly identity: string;
   };
+  readonly privateStateTransition: {
+    readonly kind: "DELEGATION" | "RESERVATION";
+    readonly operationId: string;
+  };
 }
 
 export type ContractSimulation = ContractRejection | PreparedContractInvocation;
@@ -52,6 +56,8 @@ export interface TreasuryController {
     action: Extract<AgentAction, { type: "delegate_authority" | "request_payment" }>,
     actor: AgentActor,
   ): Promise<ContractSimulation>;
+  confirm(invocation: PreparedContractInvocation, receipt: SubmissionReceipt): Promise<void>;
+  abort(invocation: PreparedContractInvocation): Promise<void>;
 }
 
 export interface AgentAuthorizer {

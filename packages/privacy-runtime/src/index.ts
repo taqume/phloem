@@ -3,6 +3,7 @@ export * from "./agent-identity-vault.js";
 export * from "./native-spp-deposit-bridge.js";
 export * from "./native-spp-transfer-bridge.js";
 export * from "./private-settlement-planner.js";
+export * from "./private-delegation-proof-planner.js";
 export * from "./private-session-activation.js";
 export * from "./private-session-policy.js";
 export * from "./privacy-state-store.js";

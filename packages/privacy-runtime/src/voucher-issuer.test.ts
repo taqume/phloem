@@ -46,7 +46,7 @@ function preparation(overrides: Partial<PrepareReservationOpeningInput> = {}): P
     reservationId: Buffer.alloc(32, 1),
     sessionId: Buffer.alloc(32, 2),
     sourceBudgetNoteId: Buffer.alloc(32, 3),
-    sourceBudgetContextHash: 101n,
+    sourceBudgetContextHash: 103n,
     approvedProviderRoot: 103n,
     categoryId: 7,
     networkId: Buffer.alloc(32, 4),
@@ -102,6 +102,8 @@ test("reservation preparation persists one encrypted ephemeral payment key and r
   const state = await store.readSnapshot();
   const opening = state.reservations[0]!;
   assert.equal(opening.status, "PREPARED");
+  assert.equal(state.budgetNotes[0]?.status, "SPEND_PENDING");
+  assert.equal(state.budgetNotes[0]?.pendingOperationId, opening.reservationId);
   assert.equal(opening.voucherSignerPublicKeyHex, toHex(artifacts.voucherSignerPublicKey));
   assert.notEqual(opening.voucherSignerSeedHex, opening.voucherSignerPublicKeyHex);
   const rawEnvelope = await readFile(path, "utf8");
@@ -195,6 +197,7 @@ test("only unsubmitted prepared reservations can be discarded", async (context) 
   const prepared = await issuer.prepareReservation(preparation());
   await issuer.discardPreparedReservation(prepared.reservationId);
   assert.deepEqual((await store.readSnapshot()).reservations, []);
+  assert.equal((await store.readSnapshot()).budgetNotes[0]?.status, "ACTIVE");
 
   const next = await issuer.prepareReservation(preparation({ reservationId: Buffer.alloc(32, 8) }));
   await issuer.confirmReservationOpen({ reservationId: next.reservationId, transactionHash: Buffer.alloc(32, 14), ledgerSequence: 102 });

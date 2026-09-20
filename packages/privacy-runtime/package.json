@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./agent-identities": "./src/agent-identity-vault.ts",
+    "./delegation": "./src/private-delegation-proof-planner.ts",
     "./keys": "./src/treasury-privacy-key.ts",
     "./reservation": "./src/reservation-proof-planner.ts",
     "./state-store": "./src/privacy-state-store.ts",

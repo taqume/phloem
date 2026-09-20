@@ -88,14 +88,25 @@ export class ExecutionGateway {
   ): Promise<GatewayResult> {
     const simulation = await this.#ports.treasuryController.simulate(action, actor);
     if (!simulation.accepted) return { kind: "CONTRACT_REJECTED", requestId, rejection: simulation };
-    if (!submit) return { kind: "PREPARED", requestId, invocation: simulation };
+    if (!submit) {
+      await this.#ports.treasuryController.abort(simulation);
+      return { kind: "PREPARED", requestId, invocation: simulation };
+    }
 
-    const authorizedTransactionXdr = await this.#ports.agentAuthorizer.authorize(
-      simulation.assembledTransactionJson,
-      simulation.requiredAuthorizer,
-    );
-    const signed = await this.#ports.transactionSourceSigner.sign(authorizedTransactionXdr);
-    const receipt = await this.#ports.submitter.submit(signed);
-    return { kind: "SUBMITTED", requestId, receipt, simulationHash: simulation.simulationHash };
+    let submitted = false;
+    try {
+      const authorizedTransactionXdr = await this.#ports.agentAuthorizer.authorize(
+        simulation.assembledTransactionJson,
+        simulation.requiredAuthorizer,
+      );
+      const signed = await this.#ports.transactionSourceSigner.sign(authorizedTransactionXdr);
+      const receipt = await this.#ports.submitter.submit(signed);
+      submitted = true;
+      await this.#ports.treasuryController.confirm(simulation, receipt);
+      return { kind: "SUBMITTED", requestId, receipt, simulationHash: simulation.simulationHash };
+    } catch (error: unknown) {
+      if (!submitted) await this.#ports.treasuryController.abort(simulation).catch(() => undefined);
+      throw error;
+    }
   }
 }
