@@ -23,6 +23,20 @@ export interface SppRuntimeBridgePrepareInput extends TreasurySppNoteOwnership {
 export interface PreparedSppRuntimeTransfer extends PreparedSppPrivateTransfer {
   /** Exact encrypted-store note ids selected by the upstream planner. */
   readonly inputNoteIds: readonly Buffer[];
+  /** Unsigned upstream pool transaction; never contains a wallet or treasury-key signature. */
+  readonly unsignedTransactionXdr: string;
+  readonly resource: Readonly<{
+    readonly authEntries: number;
+    readonly diskReadBytes: number;
+    readonly envelopeBytes: number;
+    readonly footprintReadOnlyEntries: number;
+    readonly footprintReadWriteEntries: number;
+    readonly instructions: number;
+    readonly latestLedger: number;
+    readonly resourceFeeStroops: string;
+    readonly totalFeeStroops: string;
+    readonly writeBytes: number;
+  }>;
 }
 
 /**
@@ -40,7 +54,7 @@ export interface SppRuntimeBridge {
     expectedProviderOutputCommitment: bigint,
     expectedSecondOutputCommitment: bigint,
     hasTreasuryRefund: boolean,
-  ): Promise<{ readonly refundLeafIndex?: number }>;
+  ): Promise<{ readonly providerLeafIndex: number; readonly refundLeafIndex?: number }>;
 }
 
 export class EncryptedSppPrivateTransferPlanner implements SppPrivateTransferPlanner {

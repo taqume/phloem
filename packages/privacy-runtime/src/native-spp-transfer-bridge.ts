@@ -56,6 +56,13 @@ function field(value: unknown, label: string): bigint {
   return parsed;
 }
 
+function nonNegativeInteger(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new RangeError(`${label} must be a non-negative safe integer`);
+  }
+  return value as number;
+}
+
 function fieldLeHex(value: bigint, label: string): string {
   if (value < 0n || value >= BN254_SCALAR_MODULUS) {
     throw new RangeError(`${label} must be a canonical BN254 field`);
@@ -93,6 +100,11 @@ function parseBridgeResponse(output: Buffer): PreparedSppRuntimeTransfer {
     throw new Error("SPP transfer must select one or two input notes");
   }
   const extData = record(root.extData, "SPP ext data");
+  const resource = record(root.resource, "SPP transfer resource");
+  const unsignedTransactionXdr = stringValue(root.unsignedTransactionXdr, "unsigned SPP transaction XDR");
+  if (Buffer.from(unsignedTransactionXdr, "base64").length === 0) {
+    throw new Error("unsigned SPP transaction XDR is empty");
+  }
   return {
     operationId: hexBytes(root.operationIdHex, 32, "operation id"),
     inputNoteIds: inputNoteIds.map((item, index) => hexBytes(item, 32, `input note id ${index}`)),
@@ -119,6 +131,25 @@ function parseBridgeResponse(output: Buffer): PreparedSppRuntimeTransfer {
     },
     providerOutputBlinding: field(root.providerOutputBlinding, "provider output blinding"),
     refundOutputBlinding: field(root.refundOutputBlinding, "refund output blinding"),
+    unsignedTransactionXdr,
+    resource: {
+      authEntries: nonNegativeInteger(resource.authEntries, "SPP auth entries"),
+      diskReadBytes: nonNegativeInteger(resource.diskReadBytes, "SPP disk read bytes"),
+      envelopeBytes: nonNegativeInteger(resource.envelopeBytes, "SPP envelope bytes"),
+      footprintReadOnlyEntries: nonNegativeInteger(
+        resource.footprintReadOnlyEntries,
+        "SPP read-only footprint entries",
+      ),
+      footprintReadWriteEntries: nonNegativeInteger(
+        resource.footprintReadWriteEntries,
+        "SPP read-write footprint entries",
+      ),
+      instructions: nonNegativeInteger(resource.instructions, "SPP instructions"),
+      latestLedger: nonNegativeInteger(resource.latestLedger, "SPP latest ledger"),
+      resourceFeeStroops: stringValue(resource.resourceFeeStroops, "SPP resource fee"),
+      totalFeeStroops: stringValue(resource.totalFeeStroops, "SPP total fee"),
+      writeBytes: nonNegativeInteger(resource.writeBytes, "SPP write bytes"),
+    },
   };
 }
 
@@ -211,7 +242,7 @@ export class NativeSppTransferRuntimeBridge implements SppRuntimeBridge {
     expectedProviderOutputCommitment: bigint,
     expectedSecondOutputCommitment: bigint,
     hasTreasuryRefund: boolean,
-  ): Promise<{ readonly refundLeafIndex?: number }> {
+  ): Promise<{ readonly providerLeafIndex: number; readonly refundLeafIndex?: number }> {
     if (operationId.length !== 32 || transactionHash.length !== 32) {
       throw new RangeError("SPP operation and transaction hashes must be exactly 32 bytes");
     }
@@ -237,6 +268,8 @@ export class NativeSppTransferRuntimeBridge implements SppRuntimeBridge {
     if (providerLeafIndex === secondLeafIndex) {
       throw new Error("SPP transfer outputs resolved to the same leaf index");
     }
-    return hasTreasuryRefund ? { refundLeafIndex: secondLeafIndex } : {};
+    return hasTreasuryRefund
+      ? { providerLeafIndex, refundLeafIndex: secondLeafIndex }
+      : { providerLeafIndex };
   }
 }

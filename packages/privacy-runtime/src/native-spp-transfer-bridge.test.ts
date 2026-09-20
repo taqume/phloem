@@ -23,6 +23,7 @@ function response(overrides: Record<string, unknown> = {}): Buffer {
     assetMovement: false,
     signed: false,
     submitted: false,
+    unsignedTransactionXdr: "AA==",
     proof: {
       aHex: "1a".repeat(64),
       bHex: "1b".repeat(128),
@@ -44,6 +45,18 @@ function response(overrides: Record<string, unknown> = {}): Buffer {
     },
     providerOutputBlinding: "313",
     refundOutputBlinding: "317",
+    resource: {
+      authEntries: 0,
+      diskReadBytes: 100,
+      envelopeBytes: 200,
+      footprintReadOnlyEntries: 3,
+      footprintReadWriteEntries: 4,
+      instructions: 500,
+      latestLedger: 600,
+      resourceFeeStroops: "700",
+      totalFeeStroops: "800",
+      writeBytes: 900,
+    },
     safety: { storage: "ephemeral-memory-no-sqlite" },
     ...overrides,
   }));
@@ -123,6 +136,8 @@ test("native transfer bridge parses a zero-public-amount proof and wipes its req
   assert.equal(prepared.proof.public_amount, 0n);
   assert.equal(prepared.providerOutputBlinding, 313n);
   assert.equal(prepared.refundOutputBlinding, 317n);
+  assert.equal(prepared.unsignedTransactionXdr, "AA==");
+  assert.equal(prepared.resource.instructions, 500);
   const request = f.request();
   assert.equal(request.body?.providerNotePublicKeyLeHex, "01" + "00".repeat(31));
   assert.ok(request.reference?.equals(Buffer.alloc(request.reference.length)));
@@ -137,7 +152,7 @@ test("native transfer confirmation resolves both exact output events and only ac
     PROVIDER_COMMITMENT,
     REFUND_COMMITMENT,
     true,
-  ), { refundLeafIndex: 21 });
+  ), { providerLeafIndex: 20, refundLeafIndex: 21 });
   assert.deepEqual(await f.bridge.confirm(
     Buffer.alloc(32, 0x17),
     Buffer.alloc(32, 0x21),
@@ -145,7 +160,7 @@ test("native transfer confirmation resolves both exact output events and only ac
     PROVIDER_COMMITMENT,
     REFUND_COMMITMENT,
     false,
-  ), {});
+  ), { providerLeafIndex: 20 });
 });
 
 test("native transfer bridge rejects unauthorized persistence or note selection", async () => {

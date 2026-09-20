@@ -98,12 +98,18 @@ test("adapter borrows encrypted ownership, stages exact inputs/refund, and confi
         },
         providerOutputBlinding: providerBlinding,
         refundOutputBlinding: refundBlinding,
+        unsignedTransactionXdr: "AA==",
+        resource: {
+          authEntries: 0, diskReadBytes: 0, envelopeBytes: 1,
+          footprintReadOnlyEntries: 0, footprintReadWriteEntries: 0,
+          instructions: 0, latestLedger: 1, resourceFeeStroops: "0", totalFeeStroops: "0", writeBytes: 0,
+        },
       };
     },
     abort: async () => undefined,
     confirm: async () => {
       confirmed = true;
-      return { refundLeafIndex: 5 };
+      return { providerLeafIndex: 4, refundLeafIndex: 5 };
     },
   };
   const adapter = new EncryptedSppPrivateTransferPlanner({
@@ -175,9 +181,15 @@ test("adapter abort restores inputs and removes an unconfirmed refund note", asy
       extData: { encrypted_output0: Buffer.alloc(96), encrypted_output1: Buffer.alloc(96), ext_amount: 0n, recipient: POOL },
       providerOutputBlinding: 593n,
       refundOutputBlinding: 599n,
+      unsignedTransactionXdr: "AA==",
+      resource: {
+        authEntries: 0, diskReadBytes: 0, envelopeBytes: 1,
+        footprintReadOnlyEntries: 0, footprintReadWriteEntries: 0,
+        instructions: 0, latestLedger: 1, resourceFeeStroops: "0", totalFeeStroops: "0", writeBytes: 0,
+      },
     }),
     abort: async () => { aborted = true; },
-    confirm: async () => ({}),
+    confirm: async () => ({ providerLeafIndex: 4 }),
   };
   const adapter = new EncryptedSppPrivateTransferPlanner({ treasuryKeys: f.manager, bridge });
   await adapter.prepare({

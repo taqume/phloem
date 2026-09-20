@@ -309,10 +309,32 @@ export class TreasuryPrivacyKeyManager {
     if (!Number.isSafeInteger(input.ledgerSequence) || input.ledgerSequence <= 0) throw new RangeError("ledger must be positive");
     await this.#store.transaction((state) => {
       const note = state.sppTreasuryNotes.find((item) => item.noteId === noteId);
+      if (note?.status === "ACTIVE") {
+        if (note.leafIndex !== input.leafIndex
+          || note.confirmation?.transactionHash !== transactionHash
+          || note.confirmation.ledgerSequence !== input.ledgerSequence) {
+          throw new TreasuryPrivacyKeyStateError("SPP note confirmation conflicts with persisted state");
+        }
+        return;
+      }
       if (!note || note.status !== "PREPARED") throw new TreasuryPrivacyKeyStateError("only a prepared SPP note can be confirmed");
       note.status = "ACTIVE";
       note.leafIndex = input.leafIndex;
       note.confirmation = { transactionHash, ledgerSequence: input.ledgerSequence };
+    });
+  }
+
+  async discardPreparedOwnedNote(noteIdInput: Uint8Array): Promise<void> {
+    const noteId = toHex(bytes32(noteIdInput, "SPP note id"));
+    await this.#store.transaction((state) => {
+      const index = state.sppTreasuryNotes.findIndex((item) => item.noteId === noteId);
+      if (index < 0 || state.sppTreasuryNotes[index]!.status !== "PREPARED") {
+        throw new TreasuryPrivacyKeyStateError("only a prepared SPP note can be discarded");
+      }
+      if (state.sppSpendOperations.some((operation) => operation.refundNoteId === noteId)) {
+        throw new TreasuryPrivacyKeyStateError("SPP note belongs to a staged spend operation");
+      }
+      state.sppTreasuryNotes.splice(index, 1);
     });
   }
 

@@ -686,6 +686,7 @@ async fn main() -> Result<()> {
             "assetMovement": false,
             "signed": false,
             "submitted": false,
+            "unsignedTransactionXdr": prepared.soroban_tx.tx_xdr,
             "proof": {
                 "aHex": hex::encode(&proof[0..64]),
                 "bHex": hex::encode(&proof[64..192]),

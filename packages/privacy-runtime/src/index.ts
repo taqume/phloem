@@ -9,6 +9,7 @@ export * from "./private-session-policy.js";
 export * from "./privacy-state-store.js";
 export * from "./reservation-proof-planner.js";
 export * from "./spp-runtime-binding.js";
+export * from "./spp-treasury-rebalance.js";
 export * from "./spp-private-deposit-adapter.js";
 export * from "./spp-private-transfer-adapter.js";
 export * from "./state.js";
