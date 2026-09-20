@@ -20,8 +20,10 @@ import type {
   PreparedPrivateAgentDeployment,
   PrivateAgentDeploymentConfirmation,
   PrivateAgentDeploymentConfirmationInput,
+  PrivateAgentPreparationResult,
 } from "../private-agent-types";
 import { PHLOEM_NETWORK } from "../network";
+import { assertCanonicalAgentAccountRule } from "./agent-account-rule";
 import { openEncryptedAgentIdentityVault } from "./live-agent-runtime";
 
 const AGENT_DEPLOYMENT_FEE_CEILING_STROOPS = 2_000_000n;
@@ -132,7 +134,7 @@ export async function preparePrivateAgentDeployment(input: {
   readonly company: string;
   readonly sessionId: string;
   readonly role: PrivateAgentRole;
-}): Promise<PreparedPrivateAgentDeployment> {
+}): Promise<PrivateAgentPreparationResult> {
   if (input.company !== PHLOEM_NETWORK.companyFundingPublicKey) {
     throw new Error("connected wallet is not the controlled Testnet company account");
   }
@@ -151,7 +153,19 @@ export async function preparePrivateAgentDeployment(input: {
       role: agentRole,
       validUntilLedger: session.expires_at_ledger,
     });
-    if (identity.status === "DEPLOYED") throw new Error(`${agentRole} AgentAccount is already deployed`);
+    if (identity.status === "DEPLOYED") {
+      if (!identity.contractId || !identity.deploymentConfirmation) {
+        throw new Error(`${agentRole} AgentAccount deployment state is incomplete`);
+      }
+      return Object.freeze({
+        alreadyDeployed: true as const,
+        transactionHash: identity.deploymentConfirmation.transactionHash,
+        sessionId,
+        role: agentRole,
+        contractId: identity.contractId,
+        ledger: identity.deploymentConfirmation.ledgerSequence,
+      });
+    }
     const operation = createOperation({
       company: input.company,
       sessionId,
@@ -252,26 +266,12 @@ export async function verifyPrivateAgentDeployment(
       server.queryContract<Record<string, unknown>>(input.contractId, "get_context_rule", { context_rule_id: 0 }),
     ]);
     if (countRead.result !== 1) throw new Error("AgentAccount does not expose exactly one context rule");
-    const rule = ruleRead.result as {
-      context_type?: { tag?: string; values?: readonly unknown[] };
-      signers?: readonly { tag?: string; values?: readonly unknown[] }[];
-      valid_until?: number;
-    };
-    const signer = rule.signers?.[0];
-    const signerValues = signer?.values;
-    const signerKey = signerValues?.[1];
-    if (
-      rule.context_type?.tag !== "CallContract"
-      || rule.context_type.values?.[0] !== PHLOEM_NETWORK.treasuryControllerId
-      || rule.signers?.length !== 1
-      || signer?.tag !== "External"
-      || signerValues?.[0] !== PHLOEM_NETWORK.ed25519VerifierId
-      || !Buffer.isBuffer(signerKey)
-      || signerKey.toString("hex") !== identity.publicKeyHex
-      || rule.valid_until !== identity.validUntilLedger
-    ) {
-      throw new Error("confirmed AgentAccount rule differs from the session-bound identity");
-    }
+    assertCanonicalAgentAccountRule(ruleRead.result, {
+      controllerId: PHLOEM_NETWORK.treasuryControllerId,
+      verifierId: PHLOEM_NETWORK.ed25519VerifierId,
+      publicKeyHex: identity.publicKeyHex,
+      validUntilLedger: identity.validUntilLedger,
+    });
     await vault.confirmDeployment({
       sessionId,
       role: agentRole,

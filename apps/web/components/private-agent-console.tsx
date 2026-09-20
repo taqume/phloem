@@ -6,8 +6,11 @@ import type { PrivateAgentRole } from "@phloem/privacy-runtime/agent-identities"
 
 import { PHLOEM_NETWORK } from "../lib/network";
 import type {
+  ExistingPrivateAgentDeployment,
   PreparedPrivateAgentDeployment,
   PrivateAgentDeploymentConfirmation,
+  PrivateAgentDeploymentRecord,
+  PrivateAgentPreparationResult,
 } from "../lib/private-agent-types";
 import { requestWalletConnection, walletErrorMessage, walletStageError } from "../lib/wallet-connection";
 
@@ -35,7 +38,7 @@ export function PrivateAgentConsole() {
   const [sessionId, setSessionId] = useState("");
   const [roleIndex, setRoleIndex] = useState(0);
   const [prepared, setPrepared] = useState<PreparedPrivateAgentDeployment | null>(null);
-  const [confirmations, setConfirmations] = useState<PrivateAgentDeploymentConfirmation[]>([]);
+  const [confirmations, setConfirmations] = useState<PrivateAgentDeploymentRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const currentRole: PrivateAgentRole | undefined = ROLES[roleIndex];
 
@@ -83,8 +86,19 @@ export function PrivateAgentConsole() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ company: address, sessionId, role: currentRole }),
       });
-      const payload = await response.json() as PreparedPrivateAgentDeployment & { error?: string };
+      const payload = await response.json() as PrivateAgentPreparationResult & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? `Preparation returned HTTP ${response.status}.`);
+      if ("alreadyDeployed" in payload) {
+        const existing = payload as ExistingPrivateAgentDeployment;
+        const next = roleIndex + 1;
+        setConfirmations((current) => current.some((item) => item.role === existing.role)
+          ? current
+          : [...current, existing]);
+        setPrepared(null);
+        setRoleIndex(next);
+        setState(next === ROLES.length ? "complete" : "idle");
+        return;
+      }
       setPrepared(payload);
       setState("ready");
     } catch (reason) {

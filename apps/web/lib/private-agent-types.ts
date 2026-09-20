@@ -24,6 +24,20 @@ export interface PreparedPrivateAgentDeployment {
   };
 }
 
+export interface PrivateAgentDeploymentRecord {
+  readonly transactionHash: string;
+  readonly sessionId: string;
+  readonly role: PrivateAgentRole;
+  readonly contractId: string;
+  readonly ledger: number;
+}
+
+export interface ExistingPrivateAgentDeployment extends PrivateAgentDeploymentRecord {
+  readonly alreadyDeployed: true;
+}
+
+export type PrivateAgentPreparationResult = PreparedPrivateAgentDeployment | ExistingPrivateAgentDeployment;
+
 export interface PrivateAgentDeploymentConfirmationInput {
   readonly transactionHash: string;
   readonly sessionId: string;
@@ -31,11 +45,6 @@ export interface PrivateAgentDeploymentConfirmationInput {
   readonly contractId: string;
 }
 
-export interface PrivateAgentDeploymentConfirmation {
-  readonly transactionHash: string;
-  readonly sessionId: string;
-  readonly role: PrivateAgentRole;
-  readonly contractId: string;
-  readonly ledger: number;
+export interface PrivateAgentDeploymentConfirmation extends PrivateAgentDeploymentRecord {
   readonly feeChargedStroops: string;
 }
